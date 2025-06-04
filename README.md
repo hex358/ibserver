@@ -1,6 +1,6 @@
 <h1>🗄️InfBlockServer</h1>
 🌐 A python FastAPI server for my Godot Minecraft clone (InfBlock).<br>
-<br>Hosted on <a hred="https://infblock.alwaysdata.net">alwaysdata</a>.
+<br>Hosted on https://infblock.alwaysdata.net.
 <br><br>
 Even though client save files are stored on hosts device during multiplayer, I didn't want to store player IDs locally - that would have made them easily modifiable.
 <br><br>
