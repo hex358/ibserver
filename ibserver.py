@@ -320,8 +320,8 @@ async def register(player: Player, request: Request):
 
 def try_login(username: str, password: str) -> bool:
     element = _get_element(username, None, password)
-    if not data: return False
-    return verify_password(password, data["password_hash"])
+    if not element: return False
+    return verify_password(password, element["password_hash"])
 
 @app.post("/login")
 async def login(player: Player, request: Request):
