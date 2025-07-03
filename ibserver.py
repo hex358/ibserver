@@ -1,18 +1,54 @@
 import sys
 import json
+import os
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from random import randint
-import hashlib
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 import base64
-import hashlib
 from itertools import cycle
+import hashlib
+import secrets
 
 DEPLOY_VERSION: int = 3
 
 config = json.load(open("config.json", "r"))
+
+_PBKDF2_ITERS = 100_000
+
+def hash_password(password: str) -> str:
+    try:
+        salt = os.urandom(16)
+        dk = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt,
+            _PBKDF2_ITERS
+        )
+        return (
+            base64.urlsafe_b64encode(salt).decode("ascii")
+            + "$"
+            + base64.urlsafe_b64encode(dk).decode("ascii")
+        )
+    except:
+        raise BaseException("Invalid Input Data")
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        salt_b64, hash_b64 = stored.split("$", 1)
+        salt = base64.urlsafe_b64decode(salt_b64.encode("ascii"))
+        expected_dk = base64.urlsafe_b64decode(hash_b64.encode("ascii"))
+    except Exception:
+        return False
+
+    new_dk = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        _PBKDF2_ITERS
+    )
+    return secrets.compare_digest(new_dk, expected_dk)
 
 def _key_stream(key: str, length: int) -> bytes:
     digest = hashlib.sha256(key.encode()).digest()
@@ -139,13 +175,10 @@ def get_unique_id() -> int:
     return 1000000 + randint(0, 99999)
 
 def hashed(string: str) -> str:
+    # deprecated!
     return hashlib.sha256(string.encode()).hexdigest()
 
 def is_agent_acceptable(request: Request, data) -> bool:
-    # if hasattr(data, "username") and len(data.username) > 9:
-    #     return False
-    # if hasattr(data, "password") and len(data.password) > 9:
-    #     return False
     user_agent = request.headers.get("user-agent", "").lower()
     return "godot" in user_agent
 
@@ -240,10 +273,6 @@ async def set_skin(data: SetSkinData, request: Request):
         raise HTTPException(400, "INVALID_DATA")
 
 
-    #set_element(data.username, {"skin": uid})
-    #bson_decoded = bytes(bson.BSON.decode(bson_encoded)["data"])
-   # print(base64.b64encode(compressed))
-
     return {"detail": "OK"}
 
 
@@ -276,7 +305,12 @@ async def register(player: Player, request: Request):
 
     player_unique_id = str(get_unique_id())
     reg_data = default_data.copy()
-    reg_data.update({"password_hash": hashed(player.password),
+    hashed = None
+    try:
+        hashed = hash_password(player.password)
+    except:
+        return {"INVALID_DATA"}
+    reg_data.update({"password_hash": hashed,
                   "player_unique_id": player_unique_id,
                   "DEPLOY_VERSION":DEPLOY_VERSION})
 
@@ -286,7 +320,8 @@ async def register(player: Player, request: Request):
 
 def try_login(username: str, password: str) -> bool:
     element = _get_element(username, None, password)
-    return element and element["password_hash"] == hashed(password)
+    if not data: return False
+    return verify_password(password, data["password_hash"])
 
 @app.post("/login")
 async def login(player: Player, request: Request):
@@ -298,7 +333,7 @@ async def login(player: Player, request: Request):
     if not element:
         raise HTTPException(status_code=401, detail="USERNAME_WRONG")
 
-    if element["password_hash"] != hashed(player.password):
+    if not verify_password(player.password, element["password_hash"]):
         raise HTTPException(status_code=401, detail="PASS_WRONG")
 
     return {"detail": "OK", "player_unique_id": str(element["player_unique_id"])}
