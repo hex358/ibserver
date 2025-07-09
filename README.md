@@ -6,8 +6,9 @@ List of features:
 <ul>
 <li>🛢️ player UIDs storage, secured by sha256-encrypted password </li> 
 <li>🖼️ skin compression and containment</li>
-FastAPI and MongoDB were used.
+
 </ul>
+FastAPI and MongoDB were used.
 <br>
 Even though client save files are stored on hosts device during multiplayer, I didn't want to store player IDs locally - that would have made them easily modifiable.
 <br><br>
