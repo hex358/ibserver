@@ -10,12 +10,17 @@ import base64
 from itertools import cycle
 import hashlib
 import secrets
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
 
 DEPLOY_VERSION: int = 3
 
 config = json.load(open("config.json", "r"))
 
 _PBKDF2_ITERS = 100_000
+
+limiter = Limiter(key_func=get_remote_address)
 
 def hash_password(password: str) -> str:
     try:
@@ -72,6 +77,8 @@ def lifespan(app: FastAPI):
     exit()
 
 app = FastAPI(lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 coll = None
 skins_coll = None
@@ -188,6 +195,7 @@ class GetSkinData(BaseModel):
 
 default_skins = set(["default", "zombieskin"])
 @app.post("/getskin")
+@limiter.limit("10/minute")
 async def get_skin(data: GetSkinData, request: Request):
     #print(data.username)
     if not is_agent_acceptable(request, data):
@@ -237,6 +245,7 @@ import bson
 import traceback
 
 @app.post("/setskin")
+@limiter.limit("10/minute")
 async def set_skin(data: SetSkinData, request: Request):
     if not is_agent_acceptable(request, {"username": data.username}):
         raise HTTPException(400, "CLIENT_INVALID")
@@ -278,6 +287,7 @@ async def set_skin(data: SetSkinData, request: Request):
 
 
 @app.post("/update")
+@limiter.limit("10/minute")
 async def update(data: SentData, request: Request):
     if not is_agent_acceptable(request, data):
         raise HTTPException(status_code=400, detail="CLIENT_INVALID")
@@ -296,6 +306,7 @@ async def update(data: SentData, request: Request):
     return {"detail": "OK"}
 
 @app.post("/register")
+@limiter.limit("10/minute")
 async def register(player: Player, request: Request):
     if not is_agent_acceptable(request, player):
         raise HTTPException(status_code=400, detail="CLIENT_INVALID")
@@ -324,6 +335,7 @@ def try_login(username: str, password: str) -> bool:
     return verify_password(password, element["password_hash"])
 
 @app.post("/login")
+@limiter.limit("10/minute")
 async def login(player: Player, request: Request):
     if not is_agent_acceptable(request, player):
         raise HTTPException(status_code=400, detail="CLIENT_INVALID")
