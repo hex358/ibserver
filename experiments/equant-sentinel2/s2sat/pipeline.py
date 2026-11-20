@@ -97,7 +97,7 @@ def _roots_at(RF, n):
 
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
               ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None,
-              dM_max=0.0, dM_step=0.5, workers=8):
+              dM_max=0.0, dM_step=0.5, workers=8, inject=None):
     """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
@@ -197,6 +197,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         Z = {}
         for b in bands:
             ev = a_blue if b == "blue" else I.read_window(it.assets[b].href, epsg, bb)
+            if inject:
+                ev = _inject(ev, b, bb, inject, RF, k0)
             rv = I.read_window(rf.assets[b].href, epsg, bb) if (rf is not None and b in rf.assets) else None
             z, _m = detect.zmap(ev, rv)
             Z[b] = z if z is not None else np.full(ev.shape, np.nan, np.float32)
@@ -249,6 +251,24 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                seconds=time.time() - t0)
     out["_maps"] = dict(mos=mos, tiles=tiles)
     return out
+
+
+def _inject(ev, b, bb, inj, RF, k0):
+    """Синтетика: прямоугольник inj['len_px']×inj['wid_px'] (20 м) с добавкой inj['amp'] DN
+    в корне полосы b (фаза dM=0) плюс сдвиг inj['shift'] (м)."""
+    ev = ev.copy()
+    sx, sy = inj.get("shift", (0.0, 0.0))
+    for (bb_, det), v in RF.items():
+        if bb_ != b or not np.isfinite(v[k0, 1]):
+            continue
+        x, y = v[k0, 1] + sx, v[k0, 2] + sy
+        col = int((x - bb[0]) // 20); row = int((bb[3] - y) // 20)
+        L, W = inj.get("len_px", 3), inj.get("wid_px", 2)
+        r0, c0 = row - W // 2, col - L // 2
+        if 0 <= r0 and r0 + W <= ev.shape[0] and 0 <= c0 and c0 + L <= ev.shape[1]:
+            m = ev[r0:r0 + W, c0:c0 + L] > 0
+            ev[r0:r0 + W, c0:c0 + L][m] += inj["amp"]
+    return ev
 
 
 def _safe(f, c):
