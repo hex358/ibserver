@@ -267,7 +267,9 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     tiles, fails = {}, []
     with ThreadPoolExecutor(workers) as ex:
         fn = process_glrt if method == "glrt" else process
-        for c, T, why in ex.map(lambda c: _safe(fn, c), cells):
+        for n_done, (c, T, why) in enumerate(ex.map(lambda c: _safe(fn, c), cells), 1):
+            if n_done % 10 == 0 or n_done == len(cells):
+                print(f"  cells {n_done}/{len(cells)} ({time.time() - t0:.0f}s)", flush=True)
             if T is None:
                 fails.append((c, why))
             else:

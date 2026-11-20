@@ -28,7 +28,7 @@ def _gauss_kernel(sigma_px=0.8, r=2):
 KERNEL = _gauss_kernel()
 
 
-def predict_band(target, regs, valid, block=50, win=100, iters=2):
+def predict_band(target, regs, valid, block=50, win=100, iters=1):
     """Робастная блочная регрессия target ~ [1, regs...]. Возвращает остаток (NaN вне valid)."""
     H, W = target.shape
     X = np.stack([np.ones_like(target)] + regs, -1)  # (H, W, p)
@@ -46,7 +46,8 @@ def predict_band(target, regs, valid, block=50, win=100, iters=2):
             w = np.ones_like(y, bool)
             beta = None
             for _ in range(iters + 1):
-                beta, *_ = np.linalg.lstsq(A[w], y[w], rcond=None)
+                Aw = A[w]
+                beta = np.linalg.solve(Aw.T @ Aw + 1e-9 * np.eye(A.shape[1]) * len(Aw), Aw.T @ y[w])
                 res = y - A @ beta
                 s = 1.4826 * np.median(np.abs(res[w] - np.median(res[w]))) + 1e-6
                 w = np.abs(res) < 4 * s
