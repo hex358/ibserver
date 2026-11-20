@@ -200,3 +200,94 @@ item None cloud None bands None reasons ['no granules']
 item None cloud None bands None reasons ['no granules']
 
 == STARLINK-11134_20261119T100042 SENTINEL-2A v_al -3.80 rng 439 age 0.66 d  lat 36.865 lon 12.138
+item S2A_T33STA_20261119T095848_L2A cloud 2.513584 bands ['blue', 'green', 'red', 'rededge1', 'rededge2', 'nir', 'swir16'] reasons ['cell (48, 817): nodata']
+RESULT STARLINK-11134_20261119T100042: score 1.20  null max 2.04 med 1.44  shift (-280, 2620)  >4σ 0/7  per-band blue=0.0 green=0.0 red=0.0 rededge1=0.0 rededge2=2.3 nir=0.0 swir16=0.8
+
+== STARLINK-3702_20261119T151315 SENTINEL-2B v_al -3.83 rng 330 age 0.30 d  lat -36.669 lon -76.243
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-35447_20261119T201104 SENTINEL-2A v_al -3.84 rng 313 age 0.49 d  lat 14.453 lon -141.827
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-31399_20261119T182010 SENTINEL-2B v_al -3.85 rng 313 age 0.49 d  lat 14.647 lon -113.925
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-31507_20261119T164924 SENTINEL-2A v_al -3.87 rng 309 age 0.36 d  lat 15.705 lon -92.875
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-36076_20261119T145831 SENTINEL-2B v_al -3.88 rng 309 age 0.29 d  lat 15.819 lon -64.706
+item S2B_T20PLC_20261119T145649_L2A cloud 54.264504 bands None reasons ['cloud 54% > 20.0']
+
+== STARLINK-30074_20261119T173833 SENTINEL-2C v_al -3.89 rng 313 age 0.49 d  lat -16.549 lon -108.605
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-36048_20261119T132748 SENTINEL-2A v_al -3.89 rng 314 age 0.22 d  lat 16.645 lon -43.174
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-35977_20261119T113653 SENTINEL-2B v_al -3.90 rng 313 age 0.16 d  lat 16.888 lon -15.364
+item S2B_T28QDD_20261119T112954_L2A cloud 25.875658 bands None reasons ['cloud 26% > 20.0']
+
+== STARLINK-4105_20261119T231559 SENTINEL-2B v_al -3.92 rng 433 age 0.14 d  lat 37.018 lon 175.872
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-5884_20261119T124858 SENTINEL-2C v_al -3.94 rng 255 age -0.30 d  lat -59.814 lon -51.319
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-31308_20261119T200005 SENTINEL-2B v_al -3.97 rng 311 age 0.49 d  lat 17.481 lon -138.755
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-3701_20261120T002726 SENTINEL-2C v_al -3.99 rng 329 age 0.63 d  lat -37.907 lon 144.517
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-34034_20261119T175111 SENTINEL-2C v_al -4.00 rng 318 age 0.37 d  lat -60.524 lon -125.408
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-32573_20261119T102139 SENTINEL-2A v_al -4.02 rng 332 age 0.11 d  lat -37.518 lon -5.812
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-34386_20261120T012804 SENTINEL-2A v_al -4.02 rng 332 age 0.69 d  lat -38.414 lon 130.017
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-2495_20261119T152351 SENTINEL-2A v_al -4.04 rng 335 age 0.24 d  lat -38.043 lon -80.482
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-5803_20261119T095522 SENTINEL-2B v_al -4.05 rng 312 age 0.16 d  lat 19.769 lon 10.537
+item S2B_T32QPG_20261119T094730_L2A cloud 69.594735 bands None reasons ['cloud 70% > 20.0']
+
+== STARLINK-2504_20261119T202604 SENTINEL-2A v_al -4.10 rng 330 age 0.43 d  lat -38.371 lon -156.705
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-32090_20261119T164756 SENTINEL-2A v_al -4.14 rng 309 age 0.35 d  lat 20.798 lon -90.830
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-2525_20261119T200410 SENTINEL-2A v_al -4.15 rng 419 age 1.11 d  lat 39.008 lon -136.055
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-4104_20261119T222459 SENTINEL-2C v_al -4.19 rng 328 age 0.28 d  lat 39.271 lon -171.580
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-32440_20261119T183530 SENTINEL-2B v_al -4.19 rng 330 age 0.37 d  lat -39.661 lon -127.551
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-3333_20261119T195359 SENTINEL-2B v_al -4.20 rng 307 age 1.33 d  lat 39.278 lon -133.870
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-2515_20261119T210632 SENTINEL-2C v_al -4.21 rng 356 age 0.05 d  lat -39.670 lon -165.688
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-31587_20261120T002303 SENTINEL-2C v_al -4.22 rng 311 age 0.82 d  lat -22.470 lon 148.842
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-2661_20261119T213430 SENTINEL-2B v_al -4.28 rng 345 age 0.07 d  lat 39.768 lon -158.180
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-2524_20261119T151416 SENTINEL-2B v_al -4.30 rng 411 age -0.20 d  lat -39.811 lon -79.403
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-31018_20261119T150630 SENTINEL-2A v_al -4.32 rng 309 age 0.35 d  lat 23.350 lon -64.794
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-11709_20261119T064619 SENTINEL-2B v_al -4.33 rng 448 age 0.10 d  lat -24.654 lon 53.403
+item S2B_T39JYN_20261119T064119_L2A cloud 90.039402 bands None reasons ['cloud 90% > 20.0']
+
+== STARLINK-30539_20261119T114503 SENTINEL-2A v_al -4.33 rng 310 age 0.16 d  lat 23.479 lon -14.194
