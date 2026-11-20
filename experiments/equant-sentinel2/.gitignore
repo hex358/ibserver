@@ -10,3 +10,6 @@ results/*.log
 results/events*/
 results/sl3_dm20/
 data/omm_*.json
+results/occl/
+results/events_glrt/
+results/*.sh

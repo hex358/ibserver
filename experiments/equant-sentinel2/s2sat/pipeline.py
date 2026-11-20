@@ -54,7 +54,7 @@ class CellRaster:
 
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
               ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None,
-              dM_max=0.0, dM_step=0.5, workers=8, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=50.0):
+              dM_max=0.0, dM_step=0.5, workers=8, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=50.0, model="occlusion"):
     """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
@@ -252,6 +252,9 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             Y[b], S[b] = bgsub.matched(R)
 
         Uc = bgsub.remove_common_mode({b: Y[b] / S[b] for b in bands})
+        # яркость фона в каждой полосе (для модели заслонения: отклик = a − f·G_b)
+        from scipy.ndimage import median_filter as _mf
+        Gb = {b: _mf(IM[b][::3, ::3], size=7).repeat(3, 0).repeat(3, 1)[:IM[b].shape[0], :IM[b].shape[1]] for b in bands}
 
         def inner(A):
             k = int(round(A.shape[0] * PAD / (CELL + 2 * PAD)))
@@ -260,6 +263,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         return c, dict(Y={b: inner(Y[b]).astype(np.float16) for b in bands},
                        S={b: inner(S[b]).astype(np.float16) for b in bands},
                        Z={b: inner(Y[b] / S[b]).astype(np.float16) for b in bands},
+                       G={b: inner(Gb[b]).astype(np.float32) for b in bands},
                        U={b: inner(bgsub.standardize(bgsub.local_extreme(Uc[b], tol_px))).astype(np.float16) for b in bands},
                        E={b: inner(np.abs(Y[b] / S[b])).astype(np.float16) for b in bands},
                        RGB=rgb, item=it.id, ref=",".join(r.id for r in rfs) or None, cov=cov), "ok"
@@ -284,6 +288,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     if method == "glrt":
         mosY, mosS = CellRaster(tiles, bands, "Y"), CellRaster(tiles, bands, "S")
         mosU = CellRaster(tiles, bands, "U")
+        mosG = CellRaster(tiles, bands, "G")
 
     def scan(disp=None):
         best = None
@@ -293,7 +298,10 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             if len([b for b in bands if b in roots]) < need:
                 continue
             if method == "glrt":
-                r = detect.coherent_search_u(roots, mosU, bands, Rm, step=step or 20.0, disp=disp, minb=need)
+                if model == "occlusion":
+                    r = detect.occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=step or 20.0, disp=disp, minb=need)
+                else:
+                    r = detect.coherent_search_u(roots, mosU, bands, Rm, step=step or 20.0, disp=disp, minb=need)
             else:
                 r = detect.shift_search(roots, mos, bands, Rm, disp=disp, minb=need)
             if best is None or r["score"] > best["score"]:

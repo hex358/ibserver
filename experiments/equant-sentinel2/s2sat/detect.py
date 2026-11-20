@@ -160,3 +160,48 @@ def coherent_search_u(roots, mosU, bands, Rm, step=20.0, disp=None, minb=3, c=6.
     i, j = np.unravel_index(np.argmax(T), T.shape)
     return dict(score=float(T[i, j]), sx=float(SX[i, j]), sy=float(SY[i, j]), hit=int(hit[i, j]), cnt=int(cnt[i, j]),
                 sign=int(np.sign(num[i, j])))
+
+
+def occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=20.0, disp=None, minb=3):
+    """GLRT модели заслонения: объект закрывает часть пикселя f, отклик полосы b
+        y_b = f·(ρ_b − G_b)  ≈  a − f·G_b,
+    где G_b — яркость фона в полосе (известна из снимка), a = f·ρ (серый объект), f ≥ 0.
+    В единицах нормированного отклика u_b = y_b/s_b: u_b = a·x1_b + f·x2_b + шум(1),
+    x1_b = 1/s_b, x2_b = −G_b/s_b. T² = uᵀX(XᵀX)⁻¹Xᵀu (2 степени свободы);
+    если f̂ < 0 (не физично), берём модель с одним параметром a.
+    Возвращаем T = √T²."""
+    S = np.arange(-Rm, Rm + 1e-6, step); SX, SY = np.meshgrid(S, S)
+    sh = SX.shape
+    A11 = np.zeros(sh); A12 = np.zeros(sh); A22 = np.zeros(sh); B1 = np.zeros(sh); B2 = np.zeros(sh)
+    cnt = np.zeros(sh); hit = np.zeros(sh)
+    for b in bands:
+        if b not in roots:
+            continue
+        dx, dy = disp[b] if disp else (0.0, 0.0)
+        bu = bs = bg = None
+        for (_det, _a, x, y) in roots[b]:
+            X_, Y_ = x + dx + SX, y + dy + SY
+            u = mosU.get(b, X_, Y_).astype(np.float64)
+            sv = mosS.get(b, X_, Y_).astype(np.float64); gv = mosG.get(b, X_, Y_).astype(np.float64)
+            if bu is None:
+                bu, bs, bg = u, sv, gv
+            else:
+                take = np.abs(np.nan_to_num(u)) > np.abs(np.nan_to_num(bu))
+                bu, bs, bg = np.where(take, u, bu), np.where(take, sv, bs), np.where(take, gv, bg)
+        ok = np.isfinite(bu) & np.isfinite(bs) & (bs > 0) & np.isfinite(bg)
+        x1 = np.where(ok, 1.0 / np.where(ok, bs, 1), 0); x2 = np.where(ok, -(np.where(ok, bg, 0) - 1000.0) / np.where(ok, bs, 1), 0)
+        uu = np.where(ok, bu, 0)
+        A11 += x1 * x1; A12 += x1 * x2; A22 += x2 * x2; B1 += x1 * uu; B2 += x2 * uu
+        cnt += ok; hit += ok & (np.abs(uu) > 3)
+    det = A11 * A22 - A12 * A12
+    ridge = 1e-9 * (A11 * A22 + 1e-30)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        a_hat = (A22 * B1 - A12 * B2) / (det + ridge)
+        f_hat = (A11 * B2 - A12 * B1) / (det + ridge)
+        T2_two = a_hat * B1 + f_hat * B2
+        T2_one = B1 * B1 / A11
+        T2 = np.where(f_hat >= 0, T2_two, T2_one)
+        T = np.where(cnt >= minb, np.sqrt(np.maximum(T2, 0)), -1e9)
+    i, j = np.unravel_index(np.argmax(T), sh)
+    return dict(score=float(T[i, j]), sx=float(SX[i, j]), sy=float(SY[i, j]), hit=int(hit[i, j]), cnt=int(cnt[i, j]),
+                a_hat=float(a_hat[i, j]), f_hat=float(f_hat[i, j]))
