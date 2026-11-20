@@ -1,2 +1,14 @@
 snapshot 20261120T0320
 sentinels ['SENTINEL-2A', 'SENTINEL-2B', 'SENTINEL-2C'] objects 10600
+crossings 3300, daytime 1557
+
+== STARLINK-35263_20261119T121532 SENTINEL-2A v_al 0.02 rng 324 age -0.21 d  lat -80.688 lon -84.833
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-35248_20261119T202827 SENTINEL-2B v_al 0.02 rng 323 age 0.11 d  lat -79.179 lon 157.009
+item S2B_T56CNT_20261119T202736_L2A cloud 16.066074 bands ['green'] reasons ["too few bands with roots: ['green']"]
+
+== STARLINK-36281_20261119T085326 SENTINEL-2A v_al 0.04 rng 323 age -0.34 d  lat -78.454 lon -25.882
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-36384_20261119T170630 SENTINEL-2B v_al 0.04 rng 325 age -0.02 d  lat -77.466 lon -146.746
