@@ -6,3 +6,6 @@ data/cache/
 data/tle/
 *.tif
 *.npy
+results/*.log
+results/events*/
+results/sl3_dm20/
