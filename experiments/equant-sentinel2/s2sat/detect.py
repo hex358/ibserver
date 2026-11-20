@@ -1,0 +1,89 @@
+"""Детектор: карты изменений, карта «эксклюзивности», совместный поиск сдвига, нуль-тест (HANDOFF 6)."""
+from __future__ import annotations
+
+import math
+
+import numpy as np
+from scipy.ndimage import maximum_filter, median_filter
+
+RES = 20.0
+CLIPE = 8.0
+
+
+def zmap(ev, rf, k=7, min_valid=300):
+    """z-карта изменений: R = ev − g·ref, минус медиана k×k, нормировка на MAD.
+
+    ev, rf: float, 0 = нет данных. Возвращает (Z с NaN вне данных, режим 'ref'|'self'|'empty').
+    """
+    v = ev > 0
+    mode, Rr = "self", ev
+    if rf is not None:
+        vr = v & (rf > 0)
+        if vr.mean() > 0.6:
+            g = np.median(ev[vr] / rf[vr]); Rr = ev - g * rf; v = vr; mode = "ref"
+    Rr = Rr - median_filter(Rr, k)
+    if v.sum() < min_valid:
+        return None, "empty"
+    md = np.median(Rr[v]); sg = 1.4826 * np.median(np.abs(Rr[v] - md)) + 1e-6
+    Z = ((Rr - md) / sg).astype(np.float32); Z[~v] = np.nan
+    return Z, mode
+
+
+def exclusive_maps(Z: dict, Arep: dict, thr: float):
+    """E_b = maxfilter3(max(0, |z_b| − maxfilter7(max_{c далеко} |z_c|)))."""
+    bands = list(Z)
+    AZ = {b: np.abs(np.nan_to_num(Z[b])) for b in bands}
+    E = {}
+    for b in bands:
+        far = [c for c in bands if abs(Arep[c] - Arep[b]) > thr]
+        F = maximum_filter(np.max(np.stack([AZ[c] for c in far]), 0), size=7) if far else 0.0
+        ex = maximum_filter(np.maximum(0.0, AZ[b] - F), size=3).astype(np.float32)
+        ex[np.isnan(Z[b])] = np.nan
+        E[b] = ex
+    return E
+
+
+class Raster:
+    """Набор карт на общей сетке (minx, maxy, шаг RES)."""
+
+    def __init__(self, maps: dict, bounds):
+        self.maps = maps; self.minx, self.miny, self.maxx, self.maxy = bounds
+
+    def get(self, b, X, Y):
+        A = self.maps[b]; H, W = A.shape
+        col = np.floor((X - self.minx) / RES).astype(int); row = np.floor((self.maxy - Y) / RES).astype(int)
+        ok = (col >= 0) & (col < W) & (row >= 0) & (row < H)
+        V = np.full(np.shape(X), np.nan, np.float32)
+        V[ok] = A[row[ok], col[ok]]
+        return V
+
+
+def shift_search(roots, mos: Raster, bands, Rm, step=20.0, disp=None, minb=3):
+    """Общий сдвиг (sx, sy) для всех полос; счёт = Σ min(E, 8)/√n."""
+    S = np.arange(-Rm, Rm + 1e-6, step); SX, SY = np.meshgrid(S, S)
+    tot = np.zeros(SX.shape, np.float32); cnt = np.zeros_like(tot); hit = np.zeros_like(tot)
+    for b in bands:
+        if b not in roots:
+            continue
+        dx, dy = disp[b] if disp else (0.0, 0.0)
+        Vb = np.full(SX.shape, np.nan, np.float32)
+        for (_det, _a, x, y) in roots[b]:
+            Vb = np.fmax(Vb, mos.get(b, x + dx + SX, y + dy + SY))
+        ok = ~np.isnan(Vb)
+        tot[ok] += np.minimum(Vb[ok], CLIPE); cnt[ok] += 1; hit[ok] += Vb[ok] > 4
+    need = max(minb, 0.6 * len([b for b in bands if b in roots]))
+    sc = np.where(cnt >= need, tot / np.sqrt(np.maximum(cnt, 1)), -1e9)
+    i, j = np.unravel_index(np.argmax(sc), sc.shape)
+    return dict(score=float(sc[i, j]), sx=float(SX[i, j]), sy=float(SY[i, j]), hit=int(hit[i, j]), cnt=int(cnt[i, j]))
+
+
+def null_test(roots, mos, bands, Rm, n=10, seed=5, rmin=1000.0, rmax=4000.0, minb=3):
+    """Каждой полосе — случайное смещение 1–4 км; возвращает список счётов."""
+    rng = np.random.default_rng(seed); out = []
+    for _ in range(n):
+        disp = {}
+        for b in bands:
+            r = rng.uniform(rmin, rmax); th = rng.uniform(0, 2 * math.pi)
+            disp[b] = (r * math.cos(th), r * math.sin(th))
+        out.append(shift_search(roots, mos, bands, Rm, disp=disp, minb=minb)["score"])
+    return out
