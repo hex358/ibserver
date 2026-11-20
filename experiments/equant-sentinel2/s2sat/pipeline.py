@@ -358,6 +358,8 @@ def _inject(ev, b, bb, inj, RF, k0, res=20):
         col = int((x - bb[0]) // res); row = int((bb[3] - y) // res)
         f = 20 // res
         L, W = inj.get("len_px", 3) * f, inj.get("wid_px", 2) * f
+        if res == 10 and inj.get("len10"):  # размеры прямо в пикселях 10 м
+            L, W = inj["len10"], inj["wid10"]
         r0, c0 = row - W // 2, col - L // 2
         if 0 <= r0 and r0 + W <= ev.shape[0] and 0 <= c0 and c0 + L <= ev.shape[1]:
             m = ev[r0:r0 + W, c0:c0 + L] > 0

@@ -15,6 +15,7 @@ ap.add_argument("--len-px", type=int, default=3); ap.add_argument("--wid-px", ty
 ap.add_argument("--method", default="glrt")
 ap.add_argument("--rho", type=float, default=None, help="DN объекта (модель заслонения); amps тогда = доли f в процентах")
 ap.add_argument("--orbits", default="gp_starlink.tle")
+ap.add_argument("--len10", type=int, default=0); ap.add_argument("--wid10", type=int, default=0)
 ap.add_argument("--inj-dm", type=float, default=0.0, help="фаза (км), в которую ставится вставка")
 ap.add_argument("--dm", type=float, default=10.0); ap.add_argument("--rm", type=float, default=1500.0)
 a = ap.parse_args()
@@ -28,7 +29,7 @@ e = evs[0]
 print("event", e["sent"], O.dt_from_jd(e["jd"]), f"lat {e['lat']:.2f} lon {e['lon']:.2f}", flush=True)
 sen = {s.name: s for s in sents}[e["sent"]]
 for amp in [0] + [float(x) for x in a.amps.split(",")]:
-    inj = (dict(amp=amp, dm=a.inj_dm, shift=(600.0, -400.0), len_px=a.len_px, wid_px=a.wid_px,
+    inj = (dict(amp=amp, dm=a.inj_dm, len10=a.len10, wid10=a.wid10, shift=(600.0, -400.0), len_px=a.len_px, wid_px=a.wid_px,
                 **({"rho_dn": a.rho, "f": amp / 100.0} if a.rho else {})) if amp else None)
     r = P.run_event(sen, objs[0], e, Rm=a.rm, minb=3, dM_max=a.dm, inject=inj, method=a.method)
     if "score" not in r:
