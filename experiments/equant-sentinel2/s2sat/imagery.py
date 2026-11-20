@@ -84,6 +84,18 @@ def ref_same_orbit(it, days=75, max_cloud=40, good_cloud=8):
     return min(feats, key=lambda f: f.properties.get("eo:cloud_cover", 100))
 
 
+def ref_candidates(it, n=3, days=90, max_cloud=20):
+    """До n опорных снимков той же орбиты и тайла, малооблачные, самые свежие (для медианы)."""
+    t = it.datetime
+    feats = search(datetime=f"{_iso(t - dt.timedelta(days=days))}/{_iso(t - dt.timedelta(hours=12))}",
+                   query={"grid:code": {"eq": it.properties["grid:code"]}, "eo:cloud_cover": {"lt": max_cloud}}, limit=100)
+    ro = relative_orbit(it)
+    same = [f for f in feats if f.id[:3] in ("S2A", "S2B", "S2C") and (ro is None or relative_orbit(f) == ro)]
+    pool = same if len(same) >= n else feats
+    pool = sorted(pool, key=lambda f: (f.properties.get("eo:cloud_cover", 100) > 5, -f.datetime.timestamp()))
+    return pool[:n]
+
+
 def get_text(url: str) -> str:
     CACHE.mkdir(parents=True, exist_ok=True)
     p = CACHE / ("txt_" + hashlib.sha1(url.encode()).hexdigest()[:16])

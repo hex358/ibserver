@@ -35,6 +35,7 @@ class CellRaster:
         for n, k in enumerate(ks):
             self.M[k[0] - self.i0, k[1] - self.j0] = n
         self.st = {b: np.stack([cells[k]["E"][b] for k in ks]) for b in bands}
+        self.res = {b: CELL / self.st[b].shape[1] for b in bands}
         self.cells = cells; self.keys = ks
 
     def get(self, b, X, Y):
@@ -42,62 +43,18 @@ class CellRaster:
         i = I_ - self.i0; j = J_ - self.j0
         ok = (i >= 0) & (i < self.M.shape[0]) & (j >= 0) & (j < self.M.shape[1])
         t = np.full(np.shape(X), -1); t[ok] = self.M[i[ok], j[ok]]; ok &= t >= 0
-        col = np.floor((X - I_ * CELL) / detect.RES).astype(int)
-        row = np.floor(((J_ + 1) * CELL - Y) / detect.RES).astype(int)
-        col = np.clip(col, 0, NIN - 1); row = np.clip(row, 0, NIN - 1)
+        res = self.res[b]; n = self.st[b].shape[1]
+        col = np.floor((X - I_ * CELL) / res).astype(int)
+        row = np.floor(((J_ + 1) * CELL - Y) / res).astype(int)
+        col = np.clip(col, 0, n - 1); row = np.clip(row, 0, n - 1)
         V = np.full(np.shape(X), np.nan, np.float32)
         V[ok] = self.st[b][t[ok], row[ok], col[ok]]
         return V
 
 
-def _roots_vs_phase(sen, obj, e, DG, bands, epsg, dms, alpha_span, n_alpha):
-    """Корни по полосам/детекторам для набора фаз dM (км). → {(b, det): (n_dm, 3) [α, x, y]}."""
-    R = {}
-    track0 = None
-    for k, dm in enumerate(dms):
-        tr = G.apparent_track(sen, obj, e["jd"], np.linspace(-alpha_span, alpha_span, n_alpha), dpos_km=float(dm))
-        ok = np.isfinite(tr["ground"][:, 0])
-        if ok.sum() < 10:
-            continue
-        X, Y = G.ecef_to_utm(tr["ground"][ok], epsg); A = tr["alpha"][ok]
-        if abs(dm) < 1e-9 or track0 is None:
-            track0 = (A, X, Y)
-        for b, lst in M.band_roots(A, X, Y, DG, bands).items():
-            for det, al, x, y in lst:
-                key = (b, det)
-                if key not in R:
-                    R[key] = np.full((len(dms), 3), np.nan)
-                if np.isnan(R[key][k, 0]):
-                    R[key][k] = (al, x, y)
-    return R, track0
-
-
-def _interp(R, dms, fine):
-    out = {}
-    for key, arr in R.items():
-        ok = np.isfinite(arr[:, 1])
-        if ok.sum() == 0:
-            continue
-        if ok.sum() == 1:
-            v = np.full((len(fine), 3), np.nan)
-            v[np.isclose(fine, dms[ok][0])] = arr[ok][0]
-            out[key] = v; continue
-        v = np.stack([np.interp(fine, dms[ok], arr[ok, c], left=np.nan, right=np.nan) for c in range(3)], 1)
-        out[key] = v
-    return out
-
-
-def _roots_at(RF, n):
-    roots = {}
-    for (b, det), v in RF.items():
-        if np.isfinite(v[n, 1]):
-            roots.setdefault(b, []).append((det, float(v[n, 0]), float(v[n, 1]), float(v[n, 2])))
-    return roots
-
-
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
               ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None,
-              dM_max=0.0, dM_step=0.5, workers=8, inject=None):
+              dM_max=0.0, dM_step=0.5, workers=8, inject=None, n_refs=3, native=True):
     """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
@@ -127,21 +84,38 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             DG.setdefault(b, []).extend(lst)
     bands = [b for b in (bands or M.BID) if b in DG and b in main.assets]
 
-    # корни как функция фазы
-    n_coarse = max(1, int(round(2 * dM_max / 4.0)) + 1) if dM_max > 0 else 1
-    dms = np.linspace(-dM_max, dM_max, n_coarse) if dM_max > 0 else np.array([0.0])
-    fine = np.arange(-dM_max, dM_max + 1e-9, dM_step) if dM_max > 0 else np.array([0.0])
-    R, track0 = _roots_vs_phase(sen, obj, e, DG, bands, epsg, dms, alpha_span, n_alpha)
-    RF = _interp(R, dms, fine)
+    # корни как функция фазы. Для медленных попутных пролётов сдвиг на снимке на 1 км ошибки
+    # вдоль орбиты в разы больше, чем для встречных, поэтому шаг подбирается по фактическому
+    # «усилению» (м на снимке / км фазы), чтобы сдвиг за шаг был не больше Rm.
+    def roots_at_dm(dm):
+        tr = G.apparent_track(sen, obj, e["jd"], np.linspace(-alpha_span, alpha_span, n_alpha), dpos_km=float(dm))
+        ok = np.isfinite(tr["ground"][:, 0])
+        if ok.sum() < 10:
+            return {}, None
+        X, Y = G.ecef_to_utm(tr["ground"][ok], epsg); A = tr["alpha"][ok]
+        return M.band_roots(A, X, Y, DG, bands), (A, X, Y)
+
+    roots0, track0 = roots_at_dm(0.0)
+    gain = None
+    if dM_max > 0 and track0 is not None:
+        g0 = G.apparent_track(sen, obj, e["jd"], [0.0])["ground"]
+        g1 = G.apparent_track(sen, obj, e["jd"], [0.0], dpos_km=1.0)["ground"]
+        gain = float(np.linalg.norm(g1 - g0)) * 1000.0  # м на снимке на 1 км фазы
+        step = min(dM_step, max(0.05, 0.9 * Rm / max(gain, 1.0)))
+        fine = np.arange(-dM_max, dM_max + 1e-9, step)
+        fine = np.unique(np.r_[fine, 0.0])
+    else:
+        fine = np.array([0.0])
+    ROOTS = [roots0 if abs(dm) < 1e-12 else roots_at_dm(dm)[0] for dm in fine]
     k0 = int(np.argmin(np.abs(fine)))
-    roots0 = _roots_at(RF, k0)
-    bands_r = sorted({b for (b, _d) in RF}, key=list(M.BID).index)
+    RF = ROOTS  # для _inject
+    bands_r = {b for rr in ROOTS for b in rr}
     bands = [b for b in bands if b in bands_r]
-    out.update(roots=roots0, bands=bands, psi_deg=math.degrees(psi), H=H, dM_grid=(float(fine[0]), float(fine[-1]), dM_step))
+    out.update(roots0=roots0, roots=roots0, bands=bands, psi_deg=math.degrees(psi), H=H, gain_m_per_km=gain,
+               dM_grid=(float(fine[0]), float(fine[-1]), len(fine)))
     if len(bands) < minb:
         out["reasons"].append(f"too few bands with roots: {bands}"); return out
-    allr = [v for v in RF.values()]
-    Arep = {b: float(np.nanmedian(np.concatenate([RF[k][:, 0] for k in RF if k[0] == b]))) for b in bands}
+    Arep = {b: float(np.median([q[1] for rr in ROOTS for q in rr.get(b, [])])) for b in bands}
     if track0 is not None:
         A, X, Y = track0
         kmdeg = float(np.median(np.hypot(np.diff(X), np.diff(Y)) / np.diff(A))) / 1000
@@ -153,8 +127,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     # ячейки вдоль полосы возможных положений
     cells = set()
     rad = Rm + 400
-    for v in allr:
-        pts = v[np.isfinite(v[:, 1])]
+    for rr in ROOTS:
+        pts = [(q[1], q[2], q[3]) for lst in rr.values() for q in lst]
         for _a, x, y in pts:
             for xx in np.arange(x - rad, x + rad + 1, 2500):
                 for yy in np.arange(y - rad, y + rad + 1, 2500):
@@ -168,7 +142,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     def ref_for(it):
         if it.id not in refcache:
             rid = (ref_ids or {}).get(it.id)
-            refcache[it.id] = I.search(ids=[rid])[0] if rid else I.ref_same_orbit(it)
+            refcache[it.id] = [I.search(ids=[rid])[0]] if rid else (I.ref_candidates(it, n=n_refs) or [])
         return refcache[it.id]
 
     def process(c):
@@ -193,23 +167,40 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         if best[1] < 0.05:
             return c, None, "nodata"
         it, cov, a_blue = best
-        rf = ref_for(it)
-        Z = {}
+        rfs = ref_for(it)
+        Z, AZ20, RGB = {}, {}, {}
         for b in bands:
-            ev = a_blue if b == "blue" else I.read_window(it.assets[b].href, epsg, bb)
+            res = M.BRES[b] if native else 20
+            if res == 20 and b == "blue":
+                ev = a_blue
+            else:
+                ev = I.read_window(it.assets[b].href, epsg, bb, res=res)
             if inject:
-                ev = _inject(ev, b, bb, inject, RF, k0)
-            rv = I.read_window(rf.assets[b].href, epsg, bb) if (rf is not None and b in rf.assets) else None
-            z, _m = detect.zmap(ev, rv)
+                ev = _inject(ev, b, bb, inject, RF, k0, res)
+            rv = _ref_median(ev, [I.read_window(r.assets[b].href, epsg, bb, res=res) for r in rfs if b in r.assets])
+            z, _m = detect.zmap(ev, rv, k=13 if res == 10 else 7)
             Z[b] = z if z is not None else np.full(ev.shape, np.nan, np.float32)
-            if b == "red": red = ev
-            if b == "green": green = ev
-        E = detect.exclusive_maps(Z, Arep, thr)
-        sl = (slice(NPAD, NPAD + NIN), slice(NPAD, NPAD + NIN))
-        rgb = np.stack([red[sl], green[sl], a_blue[sl]], -1) if "red" in bands and "green" in bands else None
-        return c, dict(E={b: E[b][sl].astype(np.float16) for b in bands},
-                       Z={b: Z[b][sl].astype(np.float16) for b in ("blue", "green", "red", "nir") if b in Z},
-                       RGB=rgb, item=it.id, ref=None if rf is None else rf.id, cov=cov), "ok"
+            a = np.abs(np.nan_to_num(Z[b]))
+            AZ20[b] = a.reshape(a.shape[0] // 2, 2, a.shape[1] // 2, 2).max(axis=(1, 3)) if res == 10 else a
+            if b in ("red", "green", "blue"):
+                RGB[b] = ev
+        E = {}
+        for b in bands:
+            far = [c for c in bands if abs(Arep[c] - Arep[b]) > thr]
+            F = maximum_filter(np.max(np.stack([AZ20[c] for c in far]), 0), size=7) if far else np.zeros_like(AZ20[b])
+            if Z[b].shape[0] != F.shape[0]:
+                F = np.kron(F, np.ones((2, 2), np.float32))
+            ex = maximum_filter(np.maximum(0.0, np.abs(np.nan_to_num(Z[b])) - F), size=5 if Z[b].shape[0] != AZ20[b].shape[0] else 3).astype(np.float32)
+            ex[np.isnan(Z[b])] = np.nan
+            E[b] = ex
+
+        def inner(A):
+            k = int(round(A.shape[0] * PAD / (CELL + 2 * PAD)))
+            return A[k:A.shape[0] - k, k:A.shape[1] - k]
+        rgb = np.stack([inner(RGB[c]) for c in ("red", "green", "blue")], -1) if len(RGB) == 3 else None
+        return c, dict(E={b: inner(E[b]).astype(np.float16) for b in bands},
+                       Z={b: inner(Z[b]).astype(np.float16) for b in ("blue", "green", "red", "nir") if b in Z},
+                       RGB=rgb, item=it.id, ref=",".join(r.id for r in rfs) or None, cov=cov), "ok"
 
     tiles, fails = {}, []
     with ThreadPoolExecutor(workers) as ex:
@@ -221,17 +212,19 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     out["cells_ok"] = len(tiles)
     out["cell_fail"] = fails[:10]
     out["refs"] = sorted({T["ref"] for T in tiles.values()} - {None})
+    out["refs"] = out["refs"][:5]
     if len(tiles) < 1:
         out["reasons"].append("no cells"); return out
     mos = CellRaster(tiles, bands)
 
     def scan(disp=None):
         best = None
+        need = max(minb, int(math.ceil(0.6 * len(bands))))
         for n in range(len(fine)):
-            roots = _roots_at(RF, n)
-            if len([b for b in bands if b in roots]) < minb:
+            roots = ROOTS[n]
+            if len([b for b in bands if b in roots]) < need:
                 continue
-            r = detect.shift_search(roots, mos, bands, Rm, disp=disp, minb=minb)
+            r = detect.shift_search(roots, mos, bands, Rm, disp=disp, minb=need)
             if best is None or r["score"] > best["score"]:
                 best = dict(r, dM=float(fine[n]), n=n)
         return best
@@ -244,7 +237,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             r = rng.uniform(1000, 4000); th = rng.uniform(0, 2 * math.pi); disp[b] = (r * math.cos(th), r * math.sin(th))
         nr = scan(disp)
         nulls.append(nr["score"] if nr else -1e9)
-    rootsb = _roots_at(RF, res["n"])
+    rootsb = ROOTS[res["n"]]
     per = {b: max(float(np.nan_to_num(mos.get(b, np.array([x + res["sx"]]), np.array([y + res["sy"]]))[0], nan=-1))
                   for (_d, _a, x, y) in rootsb[b]) for b in bands if b in rootsb}
     out.update(res, roots=rootsb, nulls=nulls, null_max=max(nulls), null_med=float(np.median(nulls)), per_band=per,
@@ -253,17 +246,30 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     return out
 
 
-def _inject(ev, b, bb, inj, RF, k0):
+def _ref_median(ev, refs):
+    """Медиана опорных снимков, каждый приведён к яркости события своим коэффициентом."""
+    v = ev > 0; out = []
+    for rv in refs:
+        m = v & (rv > 0)
+        if m.mean() < 0.6:
+            continue
+        out.append(np.where(rv > 0, rv * np.median(ev[m] / rv[m]), np.nan))
+    if not out:
+        return None
+    med = np.nanmedian(np.stack(out), 0)
+    return np.nan_to_num(med, nan=0.0).astype(np.float32)
+
+
+def _inject(ev, b, bb, inj, RF, k0, res=20):
     """Синтетика: прямоугольник inj['len_px']×inj['wid_px'] (20 м) с добавкой inj['amp'] DN
     в корне полосы b (фаза dM=0) плюс сдвиг inj['shift'] (м)."""
     ev = ev.copy()
     sx, sy = inj.get("shift", (0.0, 0.0))
-    for (bb_, det), v in RF.items():
-        if bb_ != b or not np.isfinite(v[k0, 1]):
-            continue
-        x, y = v[k0, 1] + sx, v[k0, 2] + sy
-        col = int((x - bb[0]) // 20); row = int((bb[3] - y) // 20)
-        L, W = inj.get("len_px", 3), inj.get("wid_px", 2)
+    for (_det, _a, x0, y0) in RF[k0].get(b, []):
+        x, y = x0 + sx, y0 + sy
+        col = int((x - bb[0]) // res); row = int((bb[3] - y) // res)
+        f = 20 // res
+        L, W = inj.get("len_px", 3) * f, inj.get("wid_px", 2) * f
         r0, c0 = row - W // 2, col - L // 2
         if 0 <= r0 and r0 + W <= ev.shape[0] and 0 <= c0 and c0 + L <= ev.shape[1]:
             m = ev[r0:r0 + W, c0:c0 + L] > 0

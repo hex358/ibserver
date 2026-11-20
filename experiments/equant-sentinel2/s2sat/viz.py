@@ -9,14 +9,13 @@ from .detect import RES
 CELL = 5000.0
 
 
-def _crop(tiles, key, b, x, y, half):
-    """Кроп (2·half)² пикселей 20 м вокруг (x, y), склеенный из ячеек."""
+def _crop(tiles, key, b, x, y, half, res=10.0):
+    """Кроп (2·half)² пикселей res м вокруг (x, y), склеенный из ячеек (любого разрешения)."""
     out = np.full((2 * half, 2 * half) + ((3,) if key == "RGB" else ()), np.nan, np.float32)
-    xs = x + (np.arange(2 * half) - half + 0.5) * RES
-    ys = y - (np.arange(2 * half) - half + 0.5) * RES
+    xs = x + (np.arange(2 * half) - half + 0.5) * res
+    ys = y - (np.arange(2 * half) - half + 0.5) * res
     XX, YY = np.meshgrid(xs, ys)
     I = np.floor(XX / CELL).astype(int); J = np.floor(YY / CELL).astype(int)
-    col = np.floor((XX - I * CELL) / RES).astype(int); row = np.floor(((J + 1) * CELL - YY) / RES).astype(int)
     for (i, j), T in tiles.items():
         m = (I == i) & (J == j)
         if not m.any():
@@ -24,11 +23,14 @@ def _crop(tiles, key, b, x, y, half):
         A = T[key] if key == "RGB" else T[key].get(b)
         if A is None:
             continue
+        rA = CELL / A.shape[0]
+        col = np.clip(np.floor((XX - I * CELL) / rA).astype(int), 0, A.shape[1] - 1)
+        row = np.clip(np.floor(((J + 1) * CELL - YY) / rA).astype(int), 0, A.shape[0] - 1)
         out[m] = A[row[m], col[m]]
     return out
 
 
-def plot_event(r, maps, path, half=30):
+def plot_event(r, maps, path, half=40):
     tiles = maps["tiles"]
     bands = [b for b in ("blue", "nir", "green", "red") if b in r["roots"]] or list(r["roots"])[:4]
     fig, ax = plt.subplots(3, len(bands), figsize=(3 * len(bands), 9), squeeze=False)
@@ -46,5 +48,5 @@ def plot_event(r, maps, path, half=30):
         for a in ax[:, k]:
             a.set_xticks([]); a.set_yticks([]); a.plot([half], [half], "c+", ms=14)
     fig.suptitle(f"{r['obj']}: счёт {r['score']:.1f}, нуль max {r['null_max']:.1f}, dM {r.get('dM', 0):+.1f} км, "
-                 f"сдвиг ({r['sx']:.0f}, {r['sy']:.0f}) м; кропы 1.2 км, 20 м/пкс", fontsize=10)
+                 f"сдвиг ({r['sx']:.0f}, {r['sy']:.0f}) м; кропы 0.8 км, 10 м/пкс", fontsize=10)
     plt.tight_layout(); fig.savefig(path, dpi=90); plt.close(fig)
