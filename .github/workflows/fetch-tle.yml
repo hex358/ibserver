@@ -1,0 +1,33 @@
+name: fetch-tle
+# Снимок орбит CelesTrak для experiments/equant-sentinel2 (из контейнера Claude CelesTrak недоступен).
+on:
+  push:
+    branches: [claude/experiments-repo-hze47d]
+    paths: [experiments/equant-sentinel2/data/tle_request.txt]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download TLE
+        run: |
+          set -e
+          D=experiments/equant-sentinel2/data/tle_snapshots/$(date -u +%Y%m%dT%H%M)
+          mkdir -p "$D"
+          CT=https://celestrak.org/NORAD/elements
+          get() { for i in 1 2 3; do curl -sSf -m 120 -A "s2sat-research" -o "$D/$1" "$2" && return 0; sleep 20; done; echo "FAILED $1" >> "$D/errors.txt"; }
+          get supgp_starlink.tle "$CT/supplemental/sup-gp.php?FILE=starlink&FORMAT=tle"
+          get gp_starlink.tle    "$CT/gp.php?GROUP=starlink&FORMAT=tle"
+          get gp_active.tle      "$CT/gp.php?GROUP=active&FORMAT=tle"
+          get sentinel2.tle      "$CT/gp.php?NAME=SENTINEL-2&FORMAT=tle"
+          get iss.tle            "$CT/gp.php?CATNR=25544&FORMAT=tle"
+          wc -l "$D"/*
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add experiments/equant-sentinel2/data/tle_snapshots
+          git commit -m "TLE snapshot from CelesTrak" && git push || echo "nothing to commit"

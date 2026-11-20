@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .venv/
 cache/
-data/
+data/cache/
+data/tle/
 *.tif
 *.npy
