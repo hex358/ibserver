@@ -21,11 +21,16 @@ snap = sorted((ROOT / "data/tle_snapshots").iterdir())[-1]
 sents = O.parse_tle((snap / "sentinel2.tle").read_text())
 objs = [o for o in O.parse_tle((snap / a.orbits).read_text()) if o.name.split()[0] == a.obj]
 t0 = dt.datetime.fromisoformat(a.start).replace(tzinfo=dt.timezone.utc); t1 = dt.datetime.fromisoformat(a.end).replace(tzinfo=dt.timezone.utc)
-e = C.find_crossings(sents, objs, O.jd_from_dt(t0), O.jd_from_dt(t1))[0]
+evs = C.find_crossings(sents, objs, O.jd_from_dt(t0), O.jd_from_dt(t1))
+evs = [x for x in evs if x["desc"] and x["sun_el"] > 8] or evs
+e = evs[0]
+print("event", e["sent"], O.dt_from_jd(e["jd"]), f"lat {e['lat']:.2f} lon {e['lon']:.2f}", flush=True)
 sen = {s.name: s for s in sents}[e["sent"]]
 for amp in [0] + [float(x) for x in a.amps.split(",")]:
     inj = (dict(amp=amp, shift=(600.0, -400.0), len_px=a.len_px, wid_px=a.wid_px,
                 **({"rho_dn": a.rho, "f": amp / 100.0} if a.rho else {})) if amp else None)
     r = P.run_event(sen, objs[0], e, Rm=a.rm, minb=3, dM_max=a.dm, inject=inj, method=a.method)
+    if "score" not in r:
+        print("INJ no score:", r.get("reasons")); break
     print(f"INJ {a.method} amp {amp:5.0f} DN: score {r['score']:.2f} null max {r['null_max']:.2f}  dM {r['dM']:+.1f} "
           f"shift ({r['sx']:.0f}, {r['sy']:.0f})  >4σ {r['hit']}/{r['cnt']}", flush=True)
