@@ -360,7 +360,11 @@ def _inject(ev, b, bb, inj, RF, k0, res=20):
         r0, c0 = row - W // 2, col - L // 2
         if 0 <= r0 and r0 + W <= ev.shape[0] and 0 <= c0 and c0 + L <= ev.shape[1]:
             m = ev[r0:r0 + W, c0:c0 + L] > 0
-            ev[r0:r0 + W, c0:c0 + L][m] += inj["amp"]
+            if inj.get("rho_dn") is not None:  # модель заслонения: объект закрывает долю f пикселя
+                f = inj.get("f", 1.0)
+                ev[r0:r0 + W, c0:c0 + L][m] = (1 - f) * ev[r0:r0 + W, c0:c0 + L][m] + f * inj["rho_dn"]
+            else:
+                ev[r0:r0 + W, c0:c0 + L][m] += inj["amp"]
     return ev
 
 
