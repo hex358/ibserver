@@ -101,8 +101,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         g0 = G.apparent_track(sen, obj, e["jd"], [0.0])["ground"]
         g1 = G.apparent_track(sen, obj, e["jd"], [0.0], dpos_km=1.0)["ground"]
         gain = float(np.linalg.norm(g1 - g0)) * 1000.0  # м на снимке на 1 км фазы
-        step = min(dM_step, max(0.05, 0.9 * Rm / max(gain, 1.0)))
-        fine = np.arange(-dM_max, dM_max + 1e-9, step)
+        dm_step = min(dM_step, max(0.05, 0.9 * Rm / max(gain, 1.0)))
+        fine = np.arange(-dM_max, dM_max + 1e-9, dm_step)
         fine = np.unique(np.r_[fine, 0.0])
     else:
         fine = np.array([0.0])
