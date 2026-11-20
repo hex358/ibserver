@@ -22,6 +22,7 @@ ap.add_argument("--pilot-tle", action="store_true", help="TLE МКС из pilot_
 ap.add_argument("--ref", default=None, help="id опорной гранулы для T59GNN")
 ap.add_argument("--rm", type=float, default=6000.0)
 ap.add_argument("--minb", type=int, default=4)
+ap.add_argument("--dm", type=float, default=0.0, help="перебор фазы вдоль орбиты, ±км")
 ap.add_argument("--plot", default=str(ROOT / "results/iss_regression.png"))
 a = ap.parse_args()
 
@@ -38,9 +39,9 @@ e = ev[0]
 print("event", O.dt_from_jd(e["jd"]), f"lat {e['lat']:.4f} lon {e['lon']:.4f} rng {e['rng']:.1f} v_al {e['v_al']:.2f}")
 
 refs = {"S2B_T59GNN_20261118T222728_L2A": a.ref} if a.ref else None
-r = P.run_event(s2b, iss, e, Rm=a.rm, minb=a.minb, ref_ids=refs)
+r = P.run_event(s2b, iss, e, Rm=a.rm, minb=a.minb, ref_ids=refs, dM_max=a.dm)
 maps = r.pop("_maps", None)
-show = {k: v for k, v in r.items() if k not in ("roots",)}
+show = {k: v for k, v in r.items() if k not in ("roots", "cell_fail")}
 print(json.dumps(show, default=str, indent=1))
 for b, lst in r.get("roots", {}).items():
     print("root", b, [(d, round(al, 3), round(x), round(y)) for d, al, x, y in lst])

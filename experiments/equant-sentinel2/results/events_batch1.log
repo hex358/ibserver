@@ -291,3 +291,13 @@ item None cloud None bands None reasons ['no granules']
 item S2B_T39JYN_20261119T064119_L2A cloud 90.039402 bands None reasons ['cloud 90% > 20.0']
 
 == STARLINK-30539_20261119T114503 SENTINEL-2A v_al -4.33 rng 310 age 0.16 d  lat 23.479 lon -14.194
+item S2A_T28QEM_20261119T114434_L2A cloud 0.290483 bands ['red', 'rededge1', 'rededge2', 'rededge3', 'nir08', 'swir16', 'swir22'] reasons []
+RESULT STARLINK-30539_20261119T114503: score 3.21  null max 3.54 med 3.34  shift (4580, 3120)  >4σ 1/7  per-band red=0.0 rededge1=0.0 rededge2=0.5 rededge3=0.0 nir08=0.0 swir16=0.0 swir22=9.5
+
+== STARLINK-31054_20261119T131536 SENTINEL-2B v_al -4.34 rng 310 age 0.22 d  lat 23.458 lon -36.746
+item None cloud None bands None reasons ['no granules']
+
+== STARLINK-30545_20261119T095410 SENTINEL-2B v_al -4.35 rng 313 age -0.30 d  lat 23.510 lon 14.060
+item S2B_T33QUG_20261119T094730_L2A cloud 1.82308 bands ['blue', 'nir'] reasons ["too few bands with roots: ['blue', 'nir']"]
+
+== STARLINK-30169_20261119T082658 SENTINEL-2B v_al -4.35 rng 314 age 0.17 d  lat -24.452 lon 28.055

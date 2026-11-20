@@ -23,13 +23,16 @@ ap.add_argument("--orbits", default="supgp_starlink.tle", help="файл орб�
 ap.add_argument("--obj", default=None)
 ap.add_argument("--start", required=True); ap.add_argument("--end", required=True)
 ap.add_argument("--sent", default="SENTINEL-2")
-ap.add_argument("--rm", type=float, default=4000.0)
+ap.add_argument("--rm", type=float, default=1500.0)
 ap.add_argument("--minb", type=int, default=3)
 ap.add_argument("--limit", type=int, default=5)
 ap.add_argument("--max-cloud", type=float, default=30.0)
 ap.add_argument("--min-sun", type=float, default=8.0)
 ap.add_argument("--min-v", type=float, default=1.5)
+ap.add_argument("--dm", type=float, default=20.0, help="перебор фазы вдоль орбиты, ±км")
 ap.add_argument("--max-lat", type=float, default=70.0)
+ap.add_argument("--agree", default=None, help="второй файл орбит для проверки согласия")
+ap.add_argument("--max-disagree", type=float, default=2.0, help="км на земле")
 ap.add_argument("--out", default=str(ROOT / "results/events"))
 a = ap.parse_args()
 
@@ -49,22 +52,38 @@ day = [e for e in ev if e["desc"] and e["sun_el"] > a.min_sun and e["lit"] and a
 print(f"crossings {len(ev)}, daytime {len(day)}")
 day.sort(key=lambda e: abs(e["v_al"]))
 SAT = {s.name: s for s in sents}; OBJ = {o.catnr: o for o in objs}
+if a.agree:
+    import numpy as np
+    from s2sat import geometry as G
+    OBJ2 = {o.catnr: o for o in O.parse_tle((snap / a.agree).read_text())}
+    keep = []
+    for e in day:
+        o2 = OBJ2.get(e["cat"])
+        if o2 is None:
+            continue
+        g1 = G.apparent_track(SAT[e["sent"]], OBJ[e["cat"]], e["jd"], [0.0])["ground"][0]
+        g2 = G.apparent_track(SAT[e["sent"]], o2, e["jd"], [0.0])["ground"][0]
+        d = float(np.linalg.norm(g1 - g2))
+        if np.isfinite(d) and d <= a.max_disagree:
+            e["disagree_km"] = d; keep.append(e)
+    print(f"orbit agreement <= {a.max_disagree} km: {len(keep)} of {len(day)}")
+    day = keep
 Path(a.out).mkdir(parents=True, exist_ok=True)
 done = 0
 for e in day:
     if done >= a.limit:
         break
     tag = f"{e['obj'].split()[0]}_{O.dt_from_jd(e['jd']):%Y%m%dT%H%M%S}"
-    print(f"\n== {tag} {e['sent']} v_al {e['v_al']:.2f} rng {e['rng']:.0f} age {e['age']:.2f} d  lat {e['lat']:.3f} lon {e['lon']:.3f}")
+    print(f"\n== {tag} {e['sent']} v_al {e['v_al']:.2f} rng {e['rng']:.0f} age {e['age']:.2f} d  dis {e.get('disagree_km', float('nan')):.2f} km  lat {e['lat']:.3f} lon {e['lon']:.3f}")
     try:
-        r = P.run_event(SAT[e["sent"]], OBJ[e["cat"]], e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud)
+        r = P.run_event(SAT[e["sent"]], OBJ[e["cat"]], e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=a.dm)
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)
     print("item", r.get("item"), "cloud", r.get("cloud"), "bands", r.get("bands"), "reasons", r.get("reasons")[:5])
     if "score" in r:
         print(f"RESULT {tag}: score {r['score']:.2f}  null max {r['null_max']:.2f} med {r['null_med']:.2f}  "
-              f"shift ({r['sx']:.0f}, {r['sy']:.0f})  >4σ {r['hit']}/{r['cnt']}  per-band "
+              f"dM {r['dM']:+.1f} km shift ({r['sx']:.0f}, {r['sy']:.0f})  >4σ {r['hit']}/{r['cnt']}  per-band "
               + " ".join(f"{b}={v:.1f}" for b, v in r["per_band"].items()))
         if maps is not None:
             from s2sat import viz
