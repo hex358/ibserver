@@ -13,3 +13,4 @@ data/omm_*.json
 results/occl/
 results/events_glrt/
 results/*.sh
+results/events_slow/
