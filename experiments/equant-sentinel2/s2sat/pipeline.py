@@ -54,7 +54,7 @@ class CellRaster:
 
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
               ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None,
-              dM_max=0.0, dM_step=0.5, workers=8, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=True, tol_m=50.0):
+              dM_max=0.0, dM_step=0.5, workers=8, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=50.0):
     """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])

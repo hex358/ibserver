@@ -9,3 +9,4 @@ data/tle/
 results/*.log
 results/events*/
 results/sl3_dm20/
+data/omm_*.json

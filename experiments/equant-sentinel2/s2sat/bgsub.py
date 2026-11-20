@@ -59,6 +59,52 @@ def predict_band(target, regs, valid, block=50, win=100, iters=2):
     return R
 
 
+def _win_sums(F, block, half):
+    """Суммы F по окнам [r0−half, r0+block+half) × [c0−half, c0+block+half) для всех блоков (интегральное изображение)."""
+    H, W = F.shape[:2]
+    S = np.zeros((H + 1, W + 1) + F.shape[2:], np.float64)
+    S[1:, 1:] = F.cumsum(0).cumsum(1)
+    r0 = np.arange(0, H, block); c0 = np.arange(0, W, block)
+    ra = np.clip(r0 - half, 0, H); rb = np.clip(r0 + block + half, 0, H)
+    ca = np.clip(c0 - half, 0, W); cb = np.clip(c0 + block + half, 0, W)
+    return (S[rb][:, cb] - S[ra][:, cb] - S[rb][:, ca] + S[ra][:, ca])  # (nbr, nbc, ...)
+
+
+def predict_band_fast(target, regs, valid, block=50, win=100, iters=1, ridge=1e-6):
+    """То же, что predict_band, но через нормальные уравнения по окнам (интегральные изображения):
+    XᵀWX и XᵀWy для всех блоков сразу, затем малые системы p×p. Робастность: повторная подгонка
+    без пикселей с |остаток| > 4σ (σ по блоку)."""
+    H, W = target.shape
+    X = np.stack([np.ones_like(target)] + regs, -1).astype(np.float64)
+    X /= np.maximum(np.nanmax(np.abs(X), axis=(0, 1)), 1.0)  # масштаб для устойчивости
+    y = target.astype(np.float64)
+    half = (win - block) // 2
+    w = valid.astype(np.float64)
+    nbr, nbc = len(range(0, H, block)), len(range(0, W, block))
+    bi = np.minimum(np.arange(H) // block, nbr - 1); bj = np.minimum(np.arange(W) // block, nbc - 1)
+    p = X.shape[-1]
+    R = None
+    for it in range(iters + 1):
+        Xw = X * w[..., None]
+        XtX = _win_sums(Xw[..., :, None] * X[..., None, :], block, half)  # (nbr, nbc, p, p)
+        Xty = _win_sums(Xw * y[..., None], block, half)                   # (nbr, nbc, p)
+        n = _win_sums(w, block, half)
+        XtX = XtX + ridge * np.eye(p) * np.maximum(n, 1)[..., None, None]
+        beta = np.linalg.solve(XtX, Xty[..., None])[..., 0]               # (nbr, nbc, p)
+        B = beta[bi][:, bj]                                                # (H, W, p)
+        R = y - np.einsum("hwp,hwp->hw", X, B)
+        # σ по блокам (по валидным пикселям, MAD)
+        sig = np.ones((nbr, nbc))
+        for a in range(nbr):
+            for b in range(nbc):
+                v = R[a * block:(a + 1) * block, b * block:(b + 1) * block][valid[a * block:(a + 1) * block, b * block:(b + 1) * block]]
+                if v.size > 50:
+                    sig[a, b] = 1.4826 * np.median(np.abs(v - np.median(v))) + 1e-6
+        w = (valid & (np.abs(R) < 4 * sig[bi][:, bj])).astype(np.float64)
+    R = R.astype(np.float32); R[~valid] = np.nan
+    return R
+
+
 def matched(R, block=50):
     """Согласованный фильтр по остатку и нормировка на шум блока.
 
