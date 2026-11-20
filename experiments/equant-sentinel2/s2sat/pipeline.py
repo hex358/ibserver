@@ -109,6 +109,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     ROOTS = [roots0 if abs(dm) < 1e-12 else roots_at_dm(dm)[0] for dm in fine]
     k0 = int(np.argmin(np.abs(fine)))
     RF = ROOTS  # для _inject
+    k_inj = int(np.argmin(np.abs(fine - (inject or {}).get("dm", 0.0))))
     bands_r = {b for rr in ROOTS for b in rr}
     bands = [b for b in bands if b in bands_r]
     out.update(roots0=roots0, roots=roots0, bands=bands, psi_deg=math.degrees(psi), H=H, gain_m_per_km=gain,
@@ -176,7 +177,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             else:
                 ev = I.read_window(it.assets[b].href, epsg, bb, res=res)
             if inject:
-                ev = _inject(ev, b, bb, inject, RF, k0, res)
+                ev = _inject(ev, b, bb, inject, RF, k_inj, res)
             rv = _ref_median(ev, [I.read_window(r.assets[b].href, epsg, bb, res=res) for r in rfs if b in r.assets])
             z, _m = detect.zmap(ev, rv, k=13 if res == 10 else 7)
             Z[b] = z if z is not None else np.full(ev.shape, np.nan, np.float32)
@@ -232,7 +233,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         for b in bands:
             ev = a_blue if b == "blue" else I.read_window(it.assets[b].href, epsg, bb, res=10)
             if inject:
-                ev = _inject(ev, b, bb, inject, RF, k0, 10)
+                ev = _inject(ev, b, bb, inject, RF, k_inj, 10)
             IM[b] = ev
         valid = np.all(np.stack([IM[b] > 0 for b in bands]), 0)
         if "scl" in it.assets:  # маска облаков/теней/насыщения из L2A, с запасом на параллакс облаков
