@@ -87,3 +87,76 @@ def null_test(roots, mos, bands, Rm, n=10, seed=5, rmin=1000.0, rmax=4000.0, min
             disp[b] = (r * math.cos(th), r * math.sin(th))
         out.append(shift_search(roots, mos, bands, Rm, disp=disp, minb=minb)["score"])
     return out
+
+
+HUBER_C = 3.0
+
+
+def coherent_search(roots, mosY, mosS, bands, Rm, step=10.0, disp=None, minb=3, c=HUBER_C):
+    """Когерентный тест: одна общая яркость объекта a во всех полосах (знак любой).
+
+    y_b = a + n_b, шум с тяжёлыми хвостами (края облаков, блики). Робастная (Хьюбер) score-статистика:
+    u_b = y_b/s_b, w_b = 1/s_b,  T = |Σ w_b ψ_c(u_b)| / sqrt(Σ w_b² E[ψ_c²]),  ψ_c(u) = clip(u, −c, c).
+    Вклад одной полосы ограничен c, поэтому выброс в одной полосе не перевешивает согласованный сигнал.
+    Для полосы с двумя корнями (два детектора) берётся тот, где |y/s| больше.
+    """
+    S = np.arange(-Rm, Rm + 1e-6, step); SX, SY = np.meshgrid(S, S)
+    num = np.zeros(SX.shape, np.float64); den = np.zeros_like(num); cnt = np.zeros_like(num); hit = np.zeros_like(num)
+    amp_num = np.zeros_like(num)
+    for b in bands:
+        if b not in roots:
+            continue
+        dx, dy = disp[b] if disp else (0.0, 0.0)
+        by = None
+        for (_det, _a, x, y) in roots[b]:
+            Yv = mosY.get(b, x + dx + SX, y + dy + SY).astype(np.float64)
+            Sv = mosS.get(b, x + dx + SX, y + dy + SY).astype(np.float64)
+            u = np.abs(Yv / Sv)
+            if by is None:
+                by = (Yv, Sv, u)
+            else:
+                take = np.nan_to_num(u, nan=-1) > np.nan_to_num(by[2], nan=-1)
+                by = (np.where(take, Yv, by[0]), np.where(take, Sv, by[1]), np.where(take, u, by[2]))
+        Yv, Sv, u = by
+        ok = np.isfinite(Yv) & np.isfinite(Sv) & (Sv > 0)
+        uu = np.clip(Yv[ok] / Sv[ok], -c, c)
+        num[ok] += uu / Sv[ok]; den[ok] += 1.0 / Sv[ok] ** 2; cnt[ok] += 1; hit[ok] += u[ok] > 4
+        amp_num[ok] += Yv[ok] / Sv[ok] ** 2
+    with np.errstate(invalid="ignore", divide="ignore"):
+        e_psi2 = _huber_var(c)
+        snr = np.where((cnt >= minb) & (den > 0), np.abs(num) / np.sqrt(den * e_psi2), -1e9)
+    i, j = np.unravel_index(np.argmax(snr), snr.shape)
+    amp = amp_num[i, j] / den[i, j] if den[i, j] > 0 else float("nan")
+    return dict(score=float(snr[i, j]), sx=float(SX[i, j]), sy=float(SY[i, j]), hit=int(hit[i, j]), cnt=int(cnt[i, j]),
+                amp_dn=float(amp))
+
+
+def _huber_var(c):
+    """E[clip(u, −c, c)²] для u ~ N(0, 1)."""
+    from math import erf, exp, pi, sqrt
+    Phi = 0.5 * (1 + erf(c / sqrt(2))); phi = exp(-c * c / 2) / sqrt(2 * pi)
+    return (2 * Phi - 1) - 2 * c * phi + 2 * c * c * (1 - Phi)
+
+
+def coherent_search_u(roots, mosU, bands, Rm, step=20.0, disp=None, minb=3, c=6.0):
+    """Робастный когерентный тест по нормированным откликам u_b (с допуском положения).
+
+    T = |Σ_b ψ_c(u_b)| / sqrt(n · E[ψ_c²]); знак общий для всех полос (объект во всех
+    полосах светлее фона или во всех темнее), вклад полосы ограничен c."""
+    S = np.arange(-Rm, Rm + 1e-6, step); SX, SY = np.meshgrid(S, S)
+    num = np.zeros(SX.shape, np.float64); cnt = np.zeros_like(num); hit = np.zeros_like(num)
+    for b in bands:
+        if b not in roots:
+            continue
+        dx, dy = disp[b] if disp else (0.0, 0.0)
+        best = None
+        for (_det, _a, x, y) in roots[b]:
+            U = mosU.get(b, x + dx + SX, y + dy + SY).astype(np.float64)
+            best = U if best is None else np.where(np.abs(np.nan_to_num(U)) > np.abs(np.nan_to_num(best)), U, best)
+        ok = np.isfinite(best)
+        num[ok] += best[ok]; cnt[ok] += 1; hit[ok] += np.abs(best[ok]) > 3
+    with np.errstate(invalid="ignore", divide="ignore"):
+        T = np.where(cnt >= minb, np.abs(num) / np.sqrt(np.maximum(cnt, 1)), -1e9)
+    i, j = np.unravel_index(np.argmax(T), T.shape)
+    return dict(score=float(T[i, j]), sx=float(SX[i, j]), sy=float(SY[i, j]), hit=int(hit[i, j]), cnt=int(cnt[i, j]),
+                sign=int(np.sign(num[i, j])))

@@ -113,7 +113,7 @@ def get_text(url: str) -> str:
             time.sleep(2 * (k + 1))
 
 
-def read_window(href: str, epsg: int, bounds, res=20.0):
+def read_window(href: str, epsg: int, bounds, res=20.0, resampling="average"):
     """Окно (minx, miny, maxx, maxy) в EPSG на сетке res м. 0 = нет данных. Кэш .npy.
 
     10-метровые полосы усредняются до 20 м (аналог block2 в пилоте), другая зона UTM
@@ -121,7 +121,7 @@ def read_window(href: str, epsg: int, bounds, res=20.0):
     """
     minx, miny, maxx, maxy = bounds
     W = int(round((maxx - minx) / res)); H = int(round((maxy - miny) / res))
-    key = hashlib.sha1(f"{href}|{epsg}|{bounds}|{res}".encode()).hexdigest()[:20]
+    key = hashlib.sha1(f"{href}|{epsg}|{bounds}|{res}".encode() + (b"" if resampling == "average" else resampling.encode())).hexdigest()[:20]
     CACHE.mkdir(parents=True, exist_ok=True)
     p = CACHE / f"win_{key}.npy"
     if p.exists():
@@ -132,7 +132,7 @@ def read_window(href: str, epsg: int, bounds, res=20.0):
         try:
             with rasterio.open(href) as ds:
                 with WarpedVRT(ds, crs=f"EPSG:{epsg}", transform=tr, width=W, height=H,
-                               resampling=Resampling.average, nodata=0, src_nodata=0) as vrt:
+                               resampling=getattr(Resampling, resampling), nodata=0, src_nodata=0) as vrt:
                     a = vrt.read(1).astype(np.float32)
             np.save(p, a)
             return a

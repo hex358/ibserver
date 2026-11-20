@@ -12,6 +12,7 @@ ap.add_argument("--obj", default="STARLINK-32519")
 ap.add_argument("--start", default="2026-11-19T02:30"); ap.add_argument("--end", default="2026-11-19T03:30")
 ap.add_argument("--amps", default="100,200,400,800")
 ap.add_argument("--len-px", type=int, default=3); ap.add_argument("--wid-px", type=int, default=2)
+ap.add_argument("--method", default="glrt")
 ap.add_argument("--dm", type=float, default=10.0); ap.add_argument("--rm", type=float, default=1500.0)
 a = ap.parse_args()
 snap = sorted((ROOT / "data/tle_snapshots").iterdir())[-1]
@@ -22,6 +23,6 @@ e = C.find_crossings(sents, objs, O.jd_from_dt(t0), O.jd_from_dt(t1))[0]
 sen = {s.name: s for s in sents}[e["sent"]]
 for amp in [0] + [float(x) for x in a.amps.split(",")]:
     inj = dict(amp=amp, shift=(600.0, -400.0), len_px=a.len_px, wid_px=a.wid_px) if amp else None
-    r = P.run_event(sen, objs[0], e, Rm=a.rm, minb=3, dM_max=a.dm, inject=inj)
-    print(f"INJ amp {amp:5.0f} DN: score {r['score']:.2f} null max {r['null_max']:.2f}  dM {r['dM']:+.1f} "
+    r = P.run_event(sen, objs[0], e, Rm=a.rm, minb=3, dM_max=a.dm, inject=inj, method=a.method)
+    print(f"INJ {a.method} amp {amp:5.0f} DN: score {r['score']:.2f} null max {r['null_max']:.2f}  dM {r['dM']:+.1f} "
           f"shift ({r['sx']:.0f}, {r['sy']:.0f})  >4σ {r['hit']}/{r['cnt']}", flush=True)

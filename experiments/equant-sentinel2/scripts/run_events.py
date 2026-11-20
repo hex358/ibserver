@@ -29,6 +29,7 @@ ap.add_argument("--limit", type=int, default=5)
 ap.add_argument("--max-cloud", type=float, default=30.0)
 ap.add_argument("--min-sun", type=float, default=8.0)
 ap.add_argument("--min-v", type=float, default=1.5)
+ap.add_argument("--method", default="glrt")
 ap.add_argument("--dm", type=float, default=20.0, help="перебор фазы вдоль орбиты, ±км")
 ap.add_argument("--max-lat", type=float, default=70.0)
 ap.add_argument("--agree", default=None, help="второй файл орбит для проверки согласия")
@@ -76,7 +77,7 @@ for e in day:
     tag = f"{e['obj'].split()[0]}_{O.dt_from_jd(e['jd']):%Y%m%dT%H%M%S}"
     print(f"\n== {tag} {e['sent']} v_al {e['v_al']:.2f} rng {e['rng']:.0f} age {e['age']:.2f} d  dis {e.get('disagree_km', float('nan')):.2f} km  lat {e['lat']:.3f} lon {e['lon']:.3f}")
     try:
-        r = P.run_event(SAT[e["sent"]], OBJ[e["cat"]], e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=a.dm)
+        r = P.run_event(SAT[e["sent"]], OBJ[e["cat"]], e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=a.dm, method=a.method)
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)

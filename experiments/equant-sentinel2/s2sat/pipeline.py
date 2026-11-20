@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from scipy.ndimage import maximum_filter
 
-from . import detect, geometry as G, imagery as I, s2meta as M
+from . import bgsub, detect, geometry as G, imagery as I, s2meta as M
 from .orbits import Orbit, dt_from_jd
 
 log = logging.getLogger("s2sat")
@@ -27,14 +27,14 @@ NIN, NPAD = int(CELL / detect.RES), int(PAD / detect.RES)
 class CellRaster:
     """Карты E по ячейкам 5 км (внутренняя часть 250×250 при 20 м)."""
 
-    def __init__(self, cells: dict, bands):
+    def __init__(self, cells: dict, bands, key="E"):
         ks = list(cells)
         ci = [k[0] for k in ks]; cj = [k[1] for k in ks]
         self.i0, self.j0 = min(ci), min(cj)
         self.M = -np.ones((max(ci) - self.i0 + 1, max(cj) - self.j0 + 1), int)
         for n, k in enumerate(ks):
             self.M[k[0] - self.i0, k[1] - self.j0] = n
-        self.st = {b: np.stack([cells[k]["E"][b] for k in ks]) for b in bands}
+        self.st = {b: np.stack([cells[k][key][b] for k in ks]) for b in bands}
         self.res = {b: CELL / self.st[b].shape[1] for b in bands}
         self.cells = cells; self.keys = ks
 
@@ -54,7 +54,7 @@ class CellRaster:
 
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
               ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None,
-              dM_max=0.0, dM_step=0.5, workers=8, inject=None, n_refs=3, native=True):
+              dM_max=0.0, dM_step=0.5, workers=8, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=True, tol_m=50.0):
     """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
@@ -202,9 +202,72 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                        Z={b: inner(Z[b]).astype(np.float16) for b in ("blue", "green", "red", "nir") if b in Z},
                        RGB=rgb, item=it.id, ref=",".join(r.id for r in rfs) or None, cov=cov), "ok"
 
+    tol_px = int(round(tol_m / 10.0))
+
+    def process_glrt(c):
+        """Все полосы на общей сетке 10 м; фон — регрессией по другим полосам того же снимка."""
+        i, j = c
+        bb = (i * CELL - PAD, j * CELL - PAD, (i + 1) * CELL + PAD, (j + 1) * CELL + PAD)
+        lon, lat = G.utm_to_lonlat((i + 0.5) * CELL, (j + 0.5) * CELL, epsg)
+        cands = [it for it in its if it.bbox[0] - 0.05 <= lon <= it.bbox[2] + 0.05 and it.bbox[1] - 0.05 <= lat <= it.bbox[3] + 0.05]
+        cands.sort(key=lambda it: (it.id != main.id, math.hypot(lon - (it.bbox[0] + it.bbox[2]) / 2, lat - (it.bbox[1] + it.bbox[3]) / 2)))
+        best = None
+        for it in cands[:3]:
+            try:
+                a = I.read_window(it.assets["blue"].href, epsg, bb, res=10)
+            except Exception:
+                continue
+            cov = float((a > 0).mean())
+            if best is None or cov > best[1]:
+                best = (it, cov, a)
+            if cov > 0.97:
+                break
+        if best is None:
+            return c, None, f"nofetch ({len(cands)} cands)"
+        if best[1] < 0.05:
+            return c, None, "nodata"
+        it, cov, a_blue = best
+        rfs = ref_for(it) if use_ref else []
+        IM = {}
+        for b in bands:
+            ev = a_blue if b == "blue" else I.read_window(it.assets[b].href, epsg, bb, res=10)
+            if inject:
+                ev = _inject(ev, b, bb, inject, RF, k0, 10)
+            IM[b] = ev
+        valid = np.all(np.stack([IM[b] > 0 for b in bands]), 0)
+        if "scl" in it.assets:  # маска облаков/теней/насыщения из L2A, с запасом на параллакс облаков
+            from scipy.ndimage import binary_dilation
+            scl = I.read_window(it.assets["scl"].href, epsg, bb, res=10, resampling="nearest")
+            bad = np.isin(scl.astype(int), (1, 3, 8, 9, 10))
+            valid &= ~binary_dilation(bad, iterations=20)
+        Y, S = {}, {}
+        for b in bands:
+            near = {c2 for c2 in bands if abs(Arep[c2] - Arep[b]) * kmdeg < 0.3}
+            regs = [IM[c2] for c2 in bands if c2 not in near]
+            if rfs:
+                rv = _ref_median(IM[b], [I.read_window(r.assets[b].href, epsg, bb, res=10) for r in rfs if b in r.assets])
+                if rv is not None:
+                    regs.append(rv)
+            R = bgsub.predict_band(IM[b], regs, valid)
+            Y[b], S[b] = bgsub.matched(R)
+
+        Uc = bgsub.remove_common_mode({b: Y[b] / S[b] for b in bands})
+
+        def inner(A):
+            k = int(round(A.shape[0] * PAD / (CELL + 2 * PAD)))
+            return A[k:A.shape[0] - k, k:A.shape[1] - k]
+        rgb = np.stack([inner(IM[c2]) for c2 in ("red", "green", "blue")], -1).astype(np.float16) if all(c2 in IM for c2 in ("red", "green", "blue")) else None
+        return c, dict(Y={b: inner(Y[b]).astype(np.float16) for b in bands},
+                       S={b: inner(S[b]).astype(np.float16) for b in bands},
+                       Z={b: inner(Y[b] / S[b]).astype(np.float16) for b in bands},
+                       U={b: inner(bgsub.standardize(bgsub.local_extreme(Uc[b], tol_px))).astype(np.float16) for b in bands},
+                       E={b: inner(np.abs(Y[b] / S[b])).astype(np.float16) for b in bands},
+                       RGB=rgb, item=it.id, ref=",".join(r.id for r in rfs) or None, cov=cov), "ok"
+
     tiles, fails = {}, []
     with ThreadPoolExecutor(workers) as ex:
-        for c, T, why in ex.map(lambda c: _safe(process, c), cells):
+        fn = process_glrt if method == "glrt" else process
+        for c, T, why in ex.map(lambda c: _safe(fn, c), cells):
             if T is None:
                 fails.append((c, why))
             else:
@@ -216,6 +279,9 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     if len(tiles) < 1:
         out["reasons"].append("no cells"); return out
     mos = CellRaster(tiles, bands)
+    if method == "glrt":
+        mosY, mosS = CellRaster(tiles, bands, "Y"), CellRaster(tiles, bands, "S")
+        mosU = CellRaster(tiles, bands, "U")
 
     def scan(disp=None):
         best = None
@@ -224,7 +290,10 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             roots = ROOTS[n]
             if len([b for b in bands if b in roots]) < need:
                 continue
-            r = detect.shift_search(roots, mos, bands, Rm, disp=disp, minb=need)
+            if method == "glrt":
+                r = detect.coherent_search_u(roots, mosU, bands, Rm, step=step or 20.0, disp=disp, minb=need)
+            else:
+                r = detect.shift_search(roots, mos, bands, Rm, disp=disp, minb=need)
             if best is None or r["score"] > best["score"]:
                 best = dict(r, dM=float(fine[n]), n=n)
         return best
@@ -238,8 +307,16 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         nr = scan(disp)
         nulls.append(nr["score"] if nr else -1e9)
     rootsb = ROOTS[res["n"]]
-    per = {b: max(float(np.nan_to_num(mos.get(b, np.array([x + res["sx"]]), np.array([y + res["sy"]]))[0], nan=-1))
-                  for (_d, _a, x, y) in rootsb[b]) for b in bands if b in rootsb}
+    if method == "glrt":
+        mosZ = CellRaster(tiles, bands, "Z")
+        per = {b: max((float(np.nan_to_num(mosZ.get(b, np.array([x + res["sx"]]), np.array([y + res["sy"]]))[0], nan=0))
+                       for (_d, _a, x, y) in rootsb[b]), key=abs) for b in bands if b in rootsb}
+        per_dn = {b: max((float(np.nan_to_num(mosY.get(b, np.array([x + res["sx"]]), np.array([y + res["sy"]]))[0], nan=0))
+                          for (_d, _a, x, y) in rootsb[b]), key=abs) for b in bands if b in rootsb}
+        out["per_band_dn"] = per_dn
+    else:
+        per = {b: max(float(np.nan_to_num(mos.get(b, np.array([x + res["sx"]]), np.array([y + res["sy"]]))[0], nan=-1))
+                      for (_d, _a, x, y) in rootsb[b]) for b in bands if b in rootsb}
     out.update(res, roots=rootsb, nulls=nulls, null_max=max(nulls), null_med=float(np.median(nulls)), per_band=per,
                seconds=time.time() - t0)
     out["_maps"] = dict(mos=mos, tiles=tiles)
