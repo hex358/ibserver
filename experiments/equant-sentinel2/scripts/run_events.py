@@ -28,6 +28,8 @@ ap.add_argument("--minb", type=int, default=3)
 ap.add_argument("--limit", type=int, default=5)
 ap.add_argument("--max-cloud", type=float, default=30.0)
 ap.add_argument("--min-sun", type=float, default=8.0)
+ap.add_argument("--min-v", type=float, default=1.5)
+ap.add_argument("--max-lat", type=float, default=70.0)
 ap.add_argument("--out", default=str(ROOT / "results/events"))
 a = ap.parse_args()
 
@@ -43,7 +45,7 @@ print("sentinels", [s.name for s in sents], "objects", len(objs))
 t0 = dt.datetime.fromisoformat(a.start).replace(tzinfo=dt.timezone.utc)
 t1 = dt.datetime.fromisoformat(a.end).replace(tzinfo=dt.timezone.utc)
 ev = C.find_crossings(sents, objs, O.jd_from_dt(t0), O.jd_from_dt(t1), step_s=30)
-day = [e for e in ev if e["desc"] and e["sun_el"] > a.min_sun and e["lit"]]
+day = [e for e in ev if e["desc"] and e["sun_el"] > a.min_sun and e["lit"] and abs(e["v_al"]) >= a.min_v and abs(e["lat"]) <= a.max_lat]
 print(f"crossings {len(ev)}, daytime {len(day)}")
 day.sort(key=lambda e: abs(e["v_al"]))
 SAT = {s.name: s for s in sents}; OBJ = {o.catnr: o for o in objs}
@@ -55,12 +57,10 @@ for e in day:
     tag = f"{e['obj'].split()[0]}_{O.dt_from_jd(e['jd']):%Y%m%dT%H%M%S}"
     print(f"\n== {tag} {e['sent']} v_al {e['v_al']:.2f} rng {e['rng']:.0f} age {e['age']:.2f} d  lat {e['lat']:.3f} lon {e['lon']:.3f}")
     try:
-        r = P.run_event(SAT[e["sent"]], OBJ[e["cat"]], e, Rm=a.rm, minb=a.minb)
+        r = P.run_event(SAT[e["sent"]], OBJ[e["cat"]], e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud)
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)
-    if r.get("cloud") is not None and r["cloud"] > a.max_cloud:
-        print("cloudy", r["cloud"])
     print("item", r.get("item"), "cloud", r.get("cloud"), "bands", r.get("bands"), "reasons", r.get("reasons")[:5])
     if "score" in r:
         print(f"RESULT {tag}: score {r['score']:.2f}  null max {r['null_max']:.2f} med {r['null_med']:.2f}  "
@@ -71,4 +71,5 @@ for e in day:
             viz.plot_event(r, maps, str(Path(a.out) / f"{tag}.png"))
     r.pop("roots", None)
     (Path(a.out) / f"{tag}.json").write_text(json.dumps(dict(event=e, result=r), default=str, indent=1))
-    done += 1
+    if "score" in r:
+        done += 1

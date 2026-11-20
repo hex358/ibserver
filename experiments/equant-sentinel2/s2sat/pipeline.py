@@ -15,7 +15,7 @@ CELL, PAD = 5000.0, 500.0  # нормировка z по ячейкам 5 км �
 
 
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
-              ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000):
+              ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None):
     """e: событие из crossings.event(). Возвращает dict с результатом и диагностикой."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
@@ -27,6 +27,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     main = min(inside, key=lambda i: i.properties.get("eo:cloud_cover", 100))
     epsg = I.epsg_of(main)
     out.update(item=main.id, epsg=epsg, cloud=main.properties.get("eo:cloud_cover"), granules=[i.id for i in its])
+    if max_cloud is not None and (out["cloud"] or 0) > max_cloud:
+        out["reasons"].append(f"cloud {out['cloud']:.0f}% > {max_cloud}"); return out
 
     # углы полос
     psi = G.track_azimuth(sen, e["jd"])
