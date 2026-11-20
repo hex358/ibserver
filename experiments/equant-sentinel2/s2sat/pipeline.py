@@ -59,7 +59,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
     t = dt_from_jd(e["jd"])
-    its = I.items_around(e["lon"], e["lat"], t, e["sent"][-1], d=0.6 + 0.012 * dM_max)
+    its = I.items_around(e["lon"], e["lat"], t, e["sent"][-1], d=0.8 + 0.012 * dM_max)
     if not its:
         out["reasons"].append("no granules"); return out
     inside = [i for i in its if i.bbox[0] <= e["lon"] <= i.bbox[2] and i.bbox[1] <= e["lat"] <= i.bbox[3]] or its
