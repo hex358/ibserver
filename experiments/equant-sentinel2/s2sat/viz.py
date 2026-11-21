@@ -20,7 +20,7 @@ def _crop(tiles, key, b, x, y, half, res=10.0):
         m = (I == i) & (J == j)
         if not m.any():
             continue
-        A = T[key] if key == "RGB" else T[key].get(b)
+        A = T[key] if key == "RGB" else (T[key] if key in T else T.get("U", {})).get(b)
         if A is None:
             continue
         rA = CELL / A.shape[0]

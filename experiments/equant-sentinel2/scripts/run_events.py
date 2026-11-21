@@ -109,6 +109,8 @@ def dm_for(e):
 
 def status(r):
     """Диагноз: detected / unobservable / too_faint (прогноз ниже порога) / MISSED (прогноз выше порога — исправимо)."""
+    if r.get("early_exit"):
+        return "too_faint"
     if "score" not in r or r["score"] < -1e8:
         return "unobservable"
     thr = r["null_max"] + 3
@@ -127,6 +129,12 @@ def snr_key(e):
     return -(size_m(e) ** 2) * (e["lam"] / e["rng"]) ** 2 * min(stretch, 10.0)
 
 day.sort(key=(snr_key if a.order == "snr" else (lambda e: abs(e["v_al"]))))
+_u, _seen_ev = [], set()
+for e in day:   # объекты с одной орбитой (модули МКС и т.п.) дают одно событие
+    k = (e["sent"], round(e["jd"] * 86400 / 3))
+    if k not in _seen_ev:
+        _seen_ev.add(k); _u.append(e)
+day = _u
 SAT = {s.name: s for s in sents}; OBJ = {o.catnr: o for o in objs}
 if a.agree:
     import numpy as np

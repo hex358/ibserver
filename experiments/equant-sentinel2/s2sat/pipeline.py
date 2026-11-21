@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import math
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -54,7 +55,7 @@ class CellRaster:
 
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
               ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None,
-              dM_max=0.0, dM_step=0.5, workers=8, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion", area_m2=None):
+              dM_max=0.0, dM_step=0.5, workers=4, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion", area_m2=None, early_thr=6.0):
     """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
@@ -276,26 +277,47 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                        Z={b: inner(Y[b] / S[b]).astype(np.float16) for b in bands},
                        G={b: inner(Gb[b]).astype(np.float32) for b in bands},
                        U={b: inner(bgsub.standardize(bgsub.local_extreme(Uc[b], tol_px))).astype(np.float16) for b in bands},
-                       E={b: inner(np.abs(Y[b] / S[b])).astype(np.float16) for b in bands},
+
                        RGB=rgb, item=it.id, ref=",".join(r.id for r in rfs) or None, cov=cov), "ok"
 
     tiles, fails = {}, []
-    with ThreadPoolExecutor(workers) as ex:
-        fn = process_glrt if method == "glrt" else process
-        for n_done, (c, T, why) in enumerate(ex.map(lambda c: _safe(fn, c), cells), 1):
-            if n_done % 10 == 0 or n_done == len(cells):
-                print(f"  cells {n_done}/{len(cells)} ({time.time() - t0:.0f}s)", flush=True)
-            if T is None:
-                fails.append((c, why))
-            else:
-                tiles[c] = T
+    fn = process_glrt if method == "glrt" else process
+
+    def run_cells(cs):
+        global _FN
+        _FN = fn
+        if method == "glrt" and len(cs) > 2:
+            import multiprocessing as mp
+            with mp.get_context("fork").Pool(min(workers, os.cpu_count() or 4)) as pool:
+                it = pool.imap_unordered(_call, cs)
+                for n_done, (c, T, why) in enumerate(it, 1):
+                    if n_done % 20 == 0 or n_done == len(cs):
+                        print(f"  cells {len(tiles) + len(fails) + 1}/{len(cells)} ({time.time() - t0:.0f}s)", flush=True)
+                    (fails.append((c, why)) if T is None else tiles.__setitem__(c, T))
+        else:
+            with ThreadPoolExecutor(workers) as ex:
+                for c, T, why in ex.map(lambda c: _safe(fn, c), cs):
+                    (fails.append((c, why)) if T is None else tiles.__setitem__(c, T))
+
+    # сначала ячейки в точке номинальной орбиты: ранний прогноз SNR (THEORY.md §6)
+    probe = sorted({(int(math.floor(q[2] / CELL)), int(math.floor(q[3] / CELL))) for lst in roots0.values() for q in lst} & set(cells))
+    run_cells(probe)
+    if method == "glrt" and area_m2 and tiles:
+        _mS, _mG = CellRaster(tiles, bands, "S"), CellRaster(tiles, bands, "G")
+        fc0 = forecast(e, roots0, bands, _mS, _mG, area_m2)
+        out["forecast"] = fc0
+        if fc0 is not None and fc0["T_pred"] < early_thr:
+            out["early_exit"] = True
+            out["reasons"].append(f"too faint: forecast T {fc0['T_pred']:.1f} < {early_thr}")
+            return out
+    run_cells([c for c in cells if c not in set(probe)])
     out["cells_ok"] = len(tiles)
     out["cell_fail"] = fails[:10]
     out["refs"] = sorted({T["ref"] for T in tiles.values()} - {None})
     out["refs"] = out["refs"][:5]
     if len(tiles) < 1:
         out["reasons"].append("no cells"); return out
-    mos = CellRaster(tiles, bands)
+    mos = CellRaster(tiles, bands, "U" if method == "glrt" else "E")
     if method == "glrt":
         mosY, mosS = CellRaster(tiles, bands, "Y"), CellRaster(tiles, bands, "S")
         mosU = CellRaster(tiles, bands, "U")
@@ -388,6 +410,14 @@ def _inject(ev, b, bb, inj, RF, k0, res=20):
     return ev
 
 
+_FN = None
+
+
+def _call(c):
+    """Для пула процессов (fork): вызывает функцию обработки ячейки, заданную в родителе."""
+    return _safe(_FN, c)
+
+
 def _safe(f, c):
     try:
         return f(c)
@@ -423,5 +453,6 @@ def forecast(e, roots, bands, mosS, mosG, area_m2, rho_scale=0.15, eff=0.59):
         us[b] = eff * flux_dn_px * kmax / sb
     if not us:
         return dict(T_pred=0.0, u=us, gain=gain)
-    return dict(T_pred=float(np.sqrt(sum(v * v for v in us.values()))), u={b: round(v, 1) for b, v in us.items()}, gain=gain,
-                rho_bg={b: None for b in us})
+    # в шкале статистики поиска: вклад полосы ограничен c = 8 (bgsub.standardize)
+    return dict(T_pred=float(np.sqrt(sum(min(abs(v), 8.0) ** 2 for v in us.values()))), u={b: round(v, 1) for b, v in us.items()},
+                gain=gain)
