@@ -335,7 +335,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
 
     def scan(disp=None, prof=None):
         best = None
-        need = max(minb, int(math.ceil(0.6 * len(bands))))
+        need = minb   # частичная видимость: искать при ≥ minb полос (нуль-тест с тем же правилом)
         for n in range(len(fine)):
             roots = ROOTS[n]
             if len([b for b in bands if b in roots]) < need:
