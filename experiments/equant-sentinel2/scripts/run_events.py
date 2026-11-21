@@ -28,6 +28,7 @@ ap.add_argument("--rm", type=float, default=1500.0)
 ap.add_argument("--minb", type=int, default=3)
 ap.add_argument("--limit", type=int, default=5)
 ap.add_argument("--max-cloud", type=float, default=30.0)
+ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=8.0)
 ap.add_argument("--min-v", type=float, default=1.5)
 ap.add_argument("--method", default="glrt")
@@ -118,7 +119,7 @@ def retry_dm(e, r):
 def status(r):
     """Диагноз: detected / unobservable / too_faint (прогноз ниже порога) / MISSED (прогноз выше порога — исправимо)."""
     if r.get("early_exit"):
-        return "too_faint"
+        return "blind_nominal" if (r.get("forecast") or {}).get("u") == {} else "too_faint"
     if (r.get("forecast") or {}).get("u") == {}:
         fc_blind = True
     else:
@@ -173,6 +174,12 @@ for e in day:
     if done >= a.limit:
         break
     e["size_m"] = size_m(e)
+    _tag = f"{e['obj'].split()[0]}_{O.dt_from_jd(e['jd']):%Y%m%dT%H%M%S}"
+    if a.resume and (Path(a.out) / f"{_tag}.json").exists():
+        _prev = json.loads((Path(a.out) / f"{_tag}.json").read_text()).get("result", {})
+        if "score" in _prev:
+            done += 1
+        continue
     tag = f"{e['obj'].split()[0]}_{O.dt_from_jd(e['jd']):%Y%m%dT%H%M%S}"
     print(f"\n== {tag} {e['sent']} size~{size_m(e):.0f}m v_al {e['v_al']:.2f} rng {e['rng']:.0f} age {e['age']:.2f} d  dis {e.get('disagree_km', float('nan')):.2f} km  lat {e['lat']:.3f} lon {e['lon']:.3f}")
     try:
