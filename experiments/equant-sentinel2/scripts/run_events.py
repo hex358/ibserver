@@ -32,7 +32,9 @@ ap.add_argument("--min-v", type=float, default=1.5)
 ap.add_argument("--method", default="glrt")
 ap.add_argument("--dm", type=float, default=20.0, help="перебор фазы вдоль орбиты, ±км")
 ap.add_argument("--max-lat", type=float, default=70.0)
-ap.add_argument("--agree", default=None, help="второй файл орбит для проверки согласия")
+ap.add_argument("--agree", default=None, help="второй набор орбит (маски через запятую) для проверки согласия; объекты без него проходят по --max-age")
+ap.add_argument("--max-age", type=float, default=1.5, help="макс. возраст TLE, сут")
+ap.add_argument("--order", default="snr", choices=["snr", "slow"], help="порядок проверки событий")
 ap.add_argument("--max-disagree", type=float, default=2.0, help="км на земле")
 ap.add_argument("--out", default=str(ROOT / "results/events"))
 a = ap.parse_args()
@@ -41,7 +43,14 @@ snaps = sorted((ROOT / "data/tle_snapshots").iterdir())
 snap = (ROOT / "data/tle_snapshots" / a.snapshot) if a.snapshot else snaps[-1]
 print("snapshot", snap.name)
 sents = [s for s in O.parse_tle((snap / "sentinel2.tle").read_text()) if s.name.startswith(a.sent)]
-objs = O.parse_tle((snap / a.orbits).read_text())
+import glob as _glob
+objs, _seen = [], set()
+for pat in a.orbits.split(","):
+    for fpath in sorted(_glob.glob(str(snap / pat.strip()))):
+        for o in O.parse_tle(Path(fpath).read_text()):
+            if o.catnr in _seen or o.name.startswith("SENTINEL-2") or o.perigee_km > 2000:
+                continue
+            _seen.add(o.catnr); objs.append(o)
 if a.obj:
     objs = [o for o in objs if o.name.split()[0] == a.obj or o.catnr == a.obj]
 print("sentinels", [s.name for s in sents], "objects", len(objs))
@@ -49,18 +58,39 @@ print("sentinels", [s.name for s in sents], "objects", len(objs))
 t0 = dt.datetime.fromisoformat(a.start).replace(tzinfo=dt.timezone.utc)
 t1 = dt.datetime.fromisoformat(a.end).replace(tzinfo=dt.timezone.utc)
 ev = C.find_crossings(sents, objs, O.jd_from_dt(t0), O.jd_from_dt(t1), step_s=30)
-day = [e for e in ev if e["desc"] and e["sun_el"] > a.min_sun and e["lit"] and abs(e["v_al"]) >= a.min_v and abs(e["lat"]) <= a.max_lat]
+day = [e for e in ev if e["desc"] and e["sun_el"] > a.min_sun and e["lit"] and abs(e["v_al"]) >= a.min_v
+       and abs(e["lat"]) <= a.max_lat and abs(e["age"]) <= a.max_age]
 print(f"crossings {len(ev)}, daytime {len(day)}")
-day.sort(key=lambda e: abs(e["v_al"]))
+def size_m(e):
+    """Грубая оценка размера по имени (для порядка проверки): станции, ступени, Starlink, прочее."""
+    n = e["obj"].upper()
+    if any(k in n for k in ("ISS", "CSS", "TIANHE", "TIANGONG")): return 100.0
+    if "R/B" in n or "ROCKET" in n: return 12.0
+    if n.startswith("STARLINK"):
+        try: return 30.0 if int(n.split("-")[1].split()[0]) >= 30000 else 10.0
+        except Exception: return 10.0
+    if "DEB" in n: return 1.0
+    return 5.0
+
+def snr_key(e):
+    # сигнал ∝ площадь изображения × растяжение push-broom (медленные сильнее)
+    stretch = 6.6 / max(abs(e["v_al"]) * e["lam"] / e["rng"] - 0.0, 1.0)
+    return -(size_m(e) ** 2) * (e["lam"] / e["rng"]) ** 2 * min(stretch, 10.0)
+
+day.sort(key=(snr_key if a.order == "snr" else (lambda e: abs(e["v_al"]))))
 SAT = {s.name: s for s in sents}; OBJ = {o.catnr: o for o in objs}
 if a.agree:
     import numpy as np
     from s2sat import geometry as G
-    OBJ2 = {o.catnr: o for o in O.parse_tle((snap / a.agree).read_text())}
+    OBJ2 = {}
+    for pat in a.agree.split(","):
+        for fpath in sorted(_glob.glob(str(snap / pat.strip()))):
+            OBJ2.update({o.catnr: o for o in O.parse_tle(Path(fpath).read_text())})
     keep = []
     for e in day:
         o2 = OBJ2.get(e["cat"])
         if o2 is None:
+            e["disagree_km"] = float("nan"); keep.append(e)  # второй орбиты нет: только фильтр возраста
             continue
         g1 = G.apparent_track(SAT[e["sent"]], OBJ[e["cat"]], e["jd"], [0.0])["ground"][0]
         g2 = G.apparent_track(SAT[e["sent"]], o2, e["jd"], [0.0])["ground"][0]
@@ -74,8 +104,9 @@ done = 0
 for e in day:
     if done >= a.limit:
         break
+    e["size_m"] = size_m(e)
     tag = f"{e['obj'].split()[0]}_{O.dt_from_jd(e['jd']):%Y%m%dT%H%M%S}"
-    print(f"\n== {tag} {e['sent']} v_al {e['v_al']:.2f} rng {e['rng']:.0f} age {e['age']:.2f} d  dis {e.get('disagree_km', float('nan')):.2f} km  lat {e['lat']:.3f} lon {e['lon']:.3f}")
+    print(f"\n== {tag} {e['sent']} size~{size_m(e):.0f}m v_al {e['v_al']:.2f} rng {e['rng']:.0f} age {e['age']:.2f} d  dis {e.get('disagree_km', float('nan')):.2f} km  lat {e['lat']:.3f} lon {e['lon']:.3f}")
     try:
         r = P.run_event(SAT[e["sent"]], OBJ[e["cat"]], e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=a.dm, method=a.method)
     except Exception as ex:
