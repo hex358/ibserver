@@ -54,7 +54,7 @@ class CellRaster:
 
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
               ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None,
-              dM_max=0.0, dM_step=0.5, workers=8, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion"):
+              dM_max=0.0, dM_step=0.5, workers=8, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion", area_m2=None):
     """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
@@ -338,6 +338,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     out.update(profile_dm=[float(x) for x in fine], profile=profile.tolist(), null_profiles=null_profiles)
     out.update(res, roots=rootsb, nulls=nulls, null_max=max(nulls), null_med=float(np.median(nulls)), per_band=per,
                seconds=time.time() - t0)
+    if method == "glrt":
+        out["forecast"] = forecast(e, ROOTS[k0], bands, mosS, mosG, area_m2)
     out["_maps"] = dict(mos=mos, tiles=tiles)
     return out
 
@@ -384,3 +386,35 @@ def _safe(f, c):
         return f(c)
     except Exception as ex:
         return c, None, "exc " + repr(ex)[:100]
+
+
+V_G = 6.63  # км/с, скорость следа строки по земле
+
+
+def forecast(e, roots, bands, mosS, mosG, area_m2, rho_scale=0.15, eff=0.59):
+    """Прогноз SNR по теории (THEORY.md §3, §4a) в точке номинальной орбиты.
+
+    Поток полосы Φ_b = (ρ_b − ρ_фона,b)·A·k·v_g/|v_al| (м²·отражение), ρ_b = rho_scale·s_b («красный» спектр
+    Starlink). Отклик фильтра ≈ eff·Φ[DN·пикс]·max(ядро); u_b = отклик/σ_b (σ_b — шум отклика в этой точке).
+    T_pred ≈ √Σu_b² (порядок величины статистики при известном положении)."""
+    if not area_m2:
+        return None
+    k = e["lam"] / e["rng"]; gain = k * V_G / max(abs(e["v_al"]), 0.3)
+    kmax = float(bgsub.KERNEL.max())
+    us = {}
+    for b in bands:
+        if b not in roots:
+            continue
+        _d, _a, x, y = roots[b][0]
+        sb = float(np.nan_to_num(mosS.get(b, np.array([x]), np.array([y]))[0], nan=np.nan))
+        gb = float(np.nan_to_num(mosG.get(b, np.array([x]), np.array([y]))[0], nan=np.nan))
+        if not (np.isfinite(sb) and np.isfinite(gb) and sb > 0):
+            continue
+        rho_bg = gb * 1e-4 - 0.1
+        rho_b = rho_scale * detect.SPECTRA["red"].get(b, 1.0) / 1.0
+        flux_dn_px = (rho_b - rho_bg) * area_m2 * gain / 100.0 * 1e4
+        us[b] = eff * flux_dn_px * kmax / sb
+    if not us:
+        return dict(T_pred=0.0, u=us, gain=gain)
+    return dict(T_pred=float(np.sqrt(sum(v * v for v in us.values()))), u={b: round(v, 1) for b, v in us.items()}, gain=gain,
+                rho_bg={b: None for b in us})

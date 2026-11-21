@@ -72,6 +72,19 @@ ev = C.find_crossings(sents, objs, O.jd_from_dt(t0), O.jd_from_dt(t1), step_s=30
 day = [e for e in ev if e["desc"] and e["sun_el"] > a.min_sun and e["lit"] and abs(e["v_al"]) >= a.min_v
        and abs(e["lat"]) <= a.max_lat and abs(e["age"]) <= a.max_age]
 print(f"crossings {len(ev)}, daytime {len(day)}")
+def area_m2(e):
+    """Площадь объекта (м²) для прогноза: оценка по имени (Starlink V2 mini ~120, v1.5 ~30, ступень ~36, станции)."""
+    n = e["obj"].upper()
+    if "ISS" in n: return 2500.0
+    if any(k in n for k in ("CSS", "TIANHE", "TIANGONG")): return 600.0
+    if "R/B" in n: return 36.0
+    if n.startswith("STARLINK"):
+        try: return 120.0 if int(n.split("-")[1].split()[0]) >= 30000 else 30.0
+        except Exception: return 30.0
+    if "DEB" in n: return 0.5
+    return 4.0
+
+
 def size_m(e):
     """Грубая оценка размера по имени (для порядка проверки): станции, ступени, Starlink, прочее."""
     n = e["obj"].upper()
@@ -95,10 +108,17 @@ def dm_for(e):
 
 
 def status(r):
-    """detected / not_detected / unobservable (нет снимка, облака, слепая зона, нет данных)."""
+    """Диагноз: detected / unobservable / too_faint (прогноз ниже порога) / MISSED (прогноз выше порога — исправимо)."""
     if "score" not in r or r["score"] < -1e8:
         return "unobservable"
-    return "detected" if r["score"] >= r["null_max"] + 3 else "not_detected"
+    thr = r["null_max"] + 3
+    if r["score"] >= thr:
+        return "detected"
+    fc = r.get("forecast") or {}
+    tp = fc.get("T_pred", float("nan"))
+    if np.isfinite(tp) and tp < thr:
+        return "too_faint"
+    return "MISSED"
 
 
 def snr_key(e):
@@ -137,13 +157,28 @@ for e in day:
         orb = OBJ[e["cat"]]
         if a.agree and e.get("supgp") and e["cat"] in OBJ2:
             orb = OBJ2[e["cat"]]          # SupGP (эфемериды оператора) точнее GP для Starlink
-        r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=dm_for(e), method=a.method)
+        r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=dm_for(e), method=a.method, area_m2=area_m2(e))
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)
     print("item", r.get("item"), "cloud", r.get("cloud"), "bands", r.get("bands"), "reasons", r.get("reasons")[:5])
     r["status"] = status(r); r["dm_window"] = dm_for(e)
-    print(f"STATUS {tag}: {r['status']}  window ±{r['dm_window']:.1f} km  reasons {r.get('reasons', [])[:2]}", flush=True)
+    if r["status"] == "MISSED":   # прогноз выше порога, но не найден: сразу пробуем шире окно орбиты/сдвига
+        try:
+            r2 = P.run_event(SAT[e["sent"]], orb, e, Rm=2 * a.rm, minb=a.minb, max_cloud=a.max_cloud,
+                             dM_max=min(2 * dm_for(e), 50.0), method=a.method, area_m2=area_m2(e))
+            r2.pop("_maps", None)
+            r2["status"] = status(r2)
+            print(f"RETRY {tag}: wider window ±{min(2 * dm_for(e), 50.0):.0f} km, Rm {2 * a.rm:.0f} m -> {r2['status']} "
+                  f"score {r2.get('score', float('nan')):.1f} thr {r2.get('null_max', float('nan')) + 3:.1f}", flush=True)
+            if r2["status"] == "detected":
+                r = r2; r["dm_window"] = min(2 * dm_for(e), 50.0); r["retry"] = True
+        except Exception as ex:
+            print("RETRY FAIL", repr(ex)[:150])
+    fc = r.get("forecast") or {}
+    print(f"STATUS {tag}: {r['status']}  score {r.get('score', float('nan')):.1f} thr {r.get('null_max', float('nan')) + 3:.1f}"
+          f"  T_pred {fc.get('T_pred', float('nan')):.1f} (gain {fc.get('gain', float('nan')):.2f}, u {fc.get('u', {})})"
+          f"  window ±{r['dm_window']:.1f} km  reasons {r.get('reasons', [])[:2]}", flush=True)
     if "score" in r:
         print(f"RESULT {tag}: spectrum {r.get('spectrum','')} f {r.get('f_hat',0):.2f} score {r['score']:.2f}  null max {r['null_max']:.2f} med {r['null_med']:.2f}  "
               f"dM {r['dM']:+.1f} km shift ({r['sx']:.0f}, {r['sy']:.0f})  >4σ {r['hit']}/{r['cnt']}  per-band "
