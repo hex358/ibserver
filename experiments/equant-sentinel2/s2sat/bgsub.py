@@ -211,3 +211,22 @@ def matched_bank(R, kernels, block=50):
             t = U > bestU
             bestU = np.where(t, U, bestU); Yb = np.where(t, Y, Yb); Sb = np.where(t, S, Sb)
     return Yb, Sb
+
+
+def rect_footprint(half_along_px, half_cross_px, angle_rad):
+    """Маска-прямоугольник, вытянутый вдоль направления angle (допуск положения полосы)."""
+    r = int(np.ceil(max(half_along_px, half_cross_px))) + 1
+    yy, xx = np.mgrid[-r:r + 1, -r:r + 1].astype(float)
+    ux, uy = np.cos(angle_rad), -np.sin(angle_rad)
+    t = xx * ux + yy * uy; d = -xx * uy + yy * ux
+    return (np.abs(t) <= half_along_px + 0.5) & (np.abs(d) <= half_cross_px + 0.5)
+
+
+def local_extreme_fp(u, footprint):
+    """Как local_extreme, но с произвольной маской окна (вытянутый допуск)."""
+    from scipy.ndimage import maximum_filter, minimum_filter
+    f = np.nan_to_num(u, nan=0.0)
+    hi = maximum_filter(f, footprint=footprint); lo = minimum_filter(f, footprint=footprint)
+    out = np.where(hi >= -lo, hi, lo).astype(np.float32)
+    out[np.isnan(u)] = np.nan
+    return out

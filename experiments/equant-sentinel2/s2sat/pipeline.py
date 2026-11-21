@@ -211,7 +211,16 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         ang_track = math.atan2(_Y[min(_k + 5, len(_Y) - 1)] - _Y[_k], _X[min(_k + 5, len(_X) - 1)] - _X[_k])
     else:
         ang_track = 0.0
+    # форма изображения (THEORY.md §3, калибровка E3b): поперёк — отрезки; вдоль — штрих длины L_вдоль
+    geo = image_geometry(e, area_m2)
+    La = geo["along_px"]
     KBANK = [bgsub.KERNEL] + [bgsub.line_kernel(L, ang_track + math.pi / 2) for L in (3, 5, 7)]
+    for L in sorted({max(3, int(round(La / 2))), max(3, int(round(La)))}):
+        if L > 3:
+            KBANK.append(bgsub.line_kernel(min(L, 25), ang_track))
+    # допуск: вдоль трассы — половина штриха (+20 м), поперёк — ±tol_m
+    FP = bgsub.rect_footprint(max(tol_px, min(La, 25) / 2 + 2), tol_px, ang_track)
+    out["image_geometry"] = geo
 
     def process_glrt(c):
         """Все полосы на общей сетке 10 м; фон — регрессией по другим полосам того же снимка."""
@@ -278,7 +287,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         return c, dict(S={b: blk(S[b], 10) for b in bands},
                        G={b: blk(Gb[b], 50) for b in bands},
                        Z={b: inner(Y[b] / S[b]).astype(np.float16) for b in bands},
-                       U={b: inner(bgsub.standardize(bgsub.local_extreme(Uc[b], tol_px))).astype(np.float16) for b in bands},
+                       U={b: inner(bgsub.standardize(bgsub.local_extreme_fp(Uc[b], FP))).astype(np.float16) for b in bands},
                        RGB=rgb, item=it.id, ref=",".join(r.id for r in rfs) or None, cov=cov), "ok"
 
     tiles, fails = {}, []
@@ -430,16 +439,29 @@ def _safe(f, c):
 V_G = 6.63  # км/с, скорость следа строки по земле
 
 
-def forecast(e, roots, bands, mosS, mosG, area_m2, rho_scale=0.15, eff=0.59):
-    """Прогноз SNR по теории (THEORY.md §3, §4a) в точке номинальной орбиты.
+RHO_OBJ = 0.28          # серое отражение Starlink по калибровке E3b (30245: 0.26, 30580: 0.30)
+F_HI, F_LO = 0.7, 0.25  # доля закрытого пикселя: измерено 0.25–0.71
+DIL20 = 0.5             # ослабление малого объекта в полосах 20 м
 
-    Поток полосы Φ_b = (ρ_b − ρ_фона,b)·A·k·v_g/|v_al| (м²·отражение), ρ_b = rho_scale·s_b («красный» спектр
-    Starlink). Отклик фильтра ≈ eff·Φ[DN·пикс]·max(ядро); u_b = отклик/σ_b (σ_b — шум отклика в этой точке).
-    T_pred ≈ √Σu_b² (порядок величины статистики при известном положении)."""
+
+def image_geometry(e, area_m2):
+    """Размер изображения (в пикселях 10 м): вдоль трассы — штрих push-broom, поперёк — проекция объекта."""
+    k = e["lam"] / e["rng"]
+    A = area_m2 or 4.0
+    L = math.sqrt(A * 7.5)                       # длинный размер (Starlink 120 м² → 30 м)
+    Wd = A / L                                   # ширина
+    along = (L * k + 10.0) * V_G / max(abs(e["v_al"]) * k, 0.3) / 10.0
+    across = max(1.0, Wd * k / 10.0)
+    return dict(k=k, L=L, along_px=float(np.clip(along, 1, 40)), across_px=float(across),
+                n_px=float(np.clip(along, 1, 25) * min(across, 4)))
+
+
+def forecast(e, roots, bands, mosS, mosG, area_m2, eff=0.59):
+    """Прогноз по калиброванной модели (THEORY.md, E3b): контраст пикселя c_b = f·(ρ_obj − ρ_фона,b)·ослабление_b,
+    отклик фильтра ≈ eff·c_b·√N, u_b = отклик/σ_b. T при f = 0.7 и f = 0.25 в шкале статистики (вклад ≤ 8)."""
     if not area_m2:
         return None
-    k = e["lam"] / e["rng"]; gain = k * V_G / max(abs(e["v_al"]), 0.3)
-    kmax = float(bgsub.KERNEL.max())
+    geo = image_geometry(e, area_m2); sqN = math.sqrt(geo["n_px"])
     us = {}
     for b in bands:
         if b not in roots:
@@ -450,13 +472,8 @@ def forecast(e, roots, bands, mosS, mosG, area_m2, rho_scale=0.15, eff=0.59):
         if not (np.isfinite(sb) and np.isfinite(gb) and sb > 0):
             continue
         rho_bg = gb * 1e-4 - 0.1
-        rho_b = rho_scale * detect.SPECTRA["red"].get(b, 1.0) / 1.0
-        flux_dn_px = (rho_b - rho_bg) * area_m2 * gain / 100.0 * 1e4
-        us[b] = eff * flux_dn_px * kmax / sb
-    if not us:
-        return dict(T_pred=0.0, u=us, gain=gain)
-    # в шкале статистики поиска: вклад полосы ограничен c = 8 (bgsub.standardize)
+        dil = 1.0 if M.BRES[b] == 10 else DIL20
+        us[b] = eff * (RHO_OBJ - rho_bg) * dil * 1e4 * sqN / sb          # при f = 1
     clipT = lambda f: float(np.sqrt(sum(min(abs(f * v), 8.0) ** 2 for v in us.values())))
-    return dict(T_pred=clipT(1.0), T_low=clipT(0.25),   # f = 1 и f = 0.25 (измерено 0.2–0.85, THEORY.md §3)
-                T_raw=float(np.sqrt(sum(v * v for v in us.values()))), u={b: round(v, 1) for b, v in us.items()},
-                gain=gain)
+    return dict(T_pred=clipT(F_HI), T_low=clipT(F_LO), T_raw=float(np.sqrt(sum((F_HI * v) ** 2 for v in us.values()))),
+                u={b: round(F_HI * v, 1) for b, v in us.items()}, geometry=geo)
