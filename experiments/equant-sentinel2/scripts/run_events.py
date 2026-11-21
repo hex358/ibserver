@@ -77,11 +77,36 @@ ev = C.find_crossings(sents, objs, O.jd_from_dt(t0), O.jd_from_dt(t1), step_s=30
 day = [e for e in ev if e["desc"] and e["sun_el"] > a.min_sun and e["lit"] and abs(e["v_al"]) >= a.min_v
        and abs(e["lat"]) <= a.max_lat and abs(e["age"]) <= a.max_age]
 print(f"crossings {len(ev)}, daytime {len(day)}")
+def _load_rcs():
+    """RCS (м²) из последнего satcat.csv в снимках, если есть."""
+    import csv
+    for sd in reversed(snap_list):
+        f = sd / "satcat.csv"
+        if f.exists():
+            out = {}
+            for row in csv.DictReader(f.read_text().splitlines()):
+                try:
+                    v = float(row.get("RCS") or "nan")
+                    if v == v and v > 0: out[str(int(row["NORAD_CAT_ID"]))] = v
+                except Exception:
+                    pass
+            print(f"RCS for {len(out)} objects from {f.parent.name}", flush=True)
+            return out
+    return {}
+
+
+RCS = _load_rcs()
+
+
 def area_m2(e):
     """Площадь объекта (м²) для прогноза: оценка по имени (Starlink V2 mini ~120, v1.5 ~30, ступень ~36, станции)."""
+    rcs = RCS.get(str(int(e["cat"]))) if e.get("cat") else None
+    if rcs:
+        return float(rcs)          # радарное сечение из SATCAT (м²) — оценка площади по данным
     n = e["obj"].upper()
-    if "ISS" in n: return 2500.0
-    if any(k in n for k in ("CSS", "TIANHE", "TIANGONG")): return 600.0
+    if n.startswith("ISS (") or e.get("cat") in ("25544",): return 2500.0
+    if n.startswith(("CSS (", "TIANHE", "TIANGONG")): return 600.0
+    if "OBJECT" in n: return 0.1   # неопознанный объект (часто кубсат)
     if "R/B" in n: return 36.0
     if n.startswith("STARLINK"):
         try: return 120.0 if int(n.split("-")[1].split()[0]) >= 30000 else 30.0
