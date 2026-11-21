@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="skyfield_data")
 
+import numpy as np
 from s2sat import orbits as O, crossings as C, pipeline as P  # noqa: E402
 
 ap = argparse.ArgumentParser()
@@ -30,7 +31,7 @@ ap.add_argument("--max-cloud", type=float, default=30.0)
 ap.add_argument("--min-sun", type=float, default=8.0)
 ap.add_argument("--min-v", type=float, default=1.5)
 ap.add_argument("--method", default="glrt")
-ap.add_argument("--dm", type=float, default=20.0, help="перебор фазы вдоль орбиты, ±км")
+ap.add_argument("--dm", default="auto", help="перебор фазы вдоль орбиты, ±км, или auto (по типу объекта и возрасту TLE, THEORY.md §2)")
 ap.add_argument("--max-lat", type=float, default=70.0)
 ap.add_argument("--agree", default=None, help="второй набор орбит (маски через запятую) для проверки согласия; объекты без него проходят по --max-age")
 ap.add_argument("--max-age", type=float, default=1.5, help="макс. возраст TLE, сут")
@@ -82,6 +83,24 @@ def size_m(e):
     if "DEB" in n: return 1.0
     return 5.0
 
+def dm_for(e):
+    """Окно по фазе (±км) по данным E1: Starlink манёврирует, прочие объекты известны до ~0.2–1.6 км."""
+    if a.dm != "auto":
+        return float(a.dm)
+    if e.get("supgp"):
+        return float(np.clip(3 + 1.5 * e.get("disagree_km", 0.0), 3, 25))
+    if e["obj"].upper().startswith("STARLINK"):
+        return float(np.clip(10 + 30 * abs(e["age"]), 10, 25))
+    return float(np.clip(1.5 + 2 * abs(e["age"]), 1.5, 6))
+
+
+def status(r):
+    """detected / not_detected / unobservable (нет снимка, облака, слепая зона, нет данных)."""
+    if "score" not in r or r["score"] < -1e8:
+        return "unobservable"
+    return "detected" if r["score"] >= r["null_max"] + 3 else "not_detected"
+
+
 def snr_key(e):
     # сигнал ∝ площадь изображения × растяжение push-broom (медленные сильнее)
     stretch = 6.6 / max(abs(e["v_al"]) * e["lam"] / e["rng"] - 0.0, 1.0)
@@ -103,7 +122,7 @@ if a.agree:
         g2 = G.apparent_track(SAT[e["sent"]], o2, e["jd"], [0.0])["ground"][0]
         d = float(np.linalg.norm(g1 - g2))
         if np.isfinite(d) and d <= a.max_disagree:
-            e["disagree_km"] = d; keep.append(e)
+            e["disagree_km"] = d; e["supgp"] = True; keep.append(e)
     print(f"orbit agreement <= {a.max_disagree} km: {len(keep)} of {len(day)}")
     day = keep
 Path(a.out).mkdir(parents=True, exist_ok=True)
@@ -115,13 +134,18 @@ for e in day:
     tag = f"{e['obj'].split()[0]}_{O.dt_from_jd(e['jd']):%Y%m%dT%H%M%S}"
     print(f"\n== {tag} {e['sent']} size~{size_m(e):.0f}m v_al {e['v_al']:.2f} rng {e['rng']:.0f} age {e['age']:.2f} d  dis {e.get('disagree_km', float('nan')):.2f} km  lat {e['lat']:.3f} lon {e['lon']:.3f}")
     try:
-        r = P.run_event(SAT[e["sent"]], OBJ[e["cat"]], e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=a.dm, method=a.method)
+        orb = OBJ[e["cat"]]
+        if a.agree and e.get("supgp") and e["cat"] in OBJ2:
+            orb = OBJ2[e["cat"]]          # SupGP (эфемериды оператора) точнее GP для Starlink
+        r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=dm_for(e), method=a.method)
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)
     print("item", r.get("item"), "cloud", r.get("cloud"), "bands", r.get("bands"), "reasons", r.get("reasons")[:5])
+    r["status"] = status(r); r["dm_window"] = dm_for(e)
+    print(f"STATUS {tag}: {r['status']}  window ±{r['dm_window']:.1f} km  reasons {r.get('reasons', [])[:2]}", flush=True)
     if "score" in r:
-        print(f"RESULT {tag}: score {r['score']:.2f}  null max {r['null_max']:.2f} med {r['null_med']:.2f}  "
+        print(f"RESULT {tag}: spectrum {r.get('spectrum','')} f {r.get('f_hat',0):.2f} score {r['score']:.2f}  null max {r['null_max']:.2f} med {r['null_med']:.2f}  "
               f"dM {r['dM']:+.1f} km shift ({r['sx']:.0f}, {r['sy']:.0f})  >4σ {r['hit']}/{r['cnt']}  per-band "
               + " ".join(f"{b}={v:.1f}" for b, v in r["per_band"].items()))
         if maps is not None:

@@ -106,6 +106,33 @@ def predict_band_fast(target, regs, valid, block=50, win=100, iters=1, ridge=1e-
     return R
 
 
+def _blocks(A, block):
+    """(nbr, nbc, block*block) вид массива по блокам (края дополняются NaN)."""
+    H, W = A.shape
+    nbr, nbc = -(-H // block), -(-W // block)
+    P = np.full((nbr * block, nbc * block), np.nan, np.float32); P[:H, :W] = A
+    return P.reshape(nbr, block, nbc, block).transpose(0, 2, 1, 3).reshape(nbr, nbc, block * block), (H, W)
+
+
+def _unblocks(V, shape, block):
+    """Значения по блокам (nbr, nbc) → массив shape."""
+    return np.repeat(np.repeat(V, block, 0), block, 1)[:shape[0], :shape[1]]
+
+
+def block_median_mad(A, block, min_n=100):
+    """Медиана и MAD (×1.4826) по блокам, векторно (один вызов nanmedian вместо цикла)."""
+    B, shp = _blocks(A, block)
+    n = np.isfinite(B).sum(-1)
+    with np.errstate(all="ignore"):
+        import warnings as _w
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", RuntimeWarning)
+            m = np.nanmedian(B, -1)
+            s = 1.4826 * np.nanmedian(np.abs(B - m[..., None]), -1)
+    m[n < min_n] = np.nan; s[n < min_n] = np.nan
+    return m, s, shp
+
+
 def matched(R, block=50):
     """Согласованный фильтр по остатку и нормировка на шум блока.
 
@@ -113,14 +140,8 @@ def matched(R, block=50):
     Rf = np.nan_to_num(R)
     Y = convolve(Rf, KERNEL, mode="nearest").astype(np.float32)
     Y[np.isnan(R)] = np.nan
-    H, W = R.shape
-    S = np.full((H, W), np.nan, np.float32)
-    for r0 in range(0, H, block):
-        for c0 in range(0, W, block):
-            v = Y[r0:r0 + block, c0:c0 + block]
-            f = v[np.isfinite(v)]
-            if f.size > 100:
-                S[r0:r0 + block, c0:c0 + block] = 1.4826 * np.median(np.abs(f - np.median(f))) + 1e-3
+    _m, sd, shp = block_median_mad(Y, block)
+    S = _unblocks(sd + 1e-3, shp, block).astype(np.float32)
     return Y, S
 
 
@@ -156,13 +177,7 @@ def remove_common_mode(Z: dict):
 def standardize(u, block=50, c=8.0):
     """Пере-калибровка по блокам: (u − медиана)/MAD. После выбора экстремума в окне распределение
     смещено (тяжёлый положительный хвост сцены); так под нулём отклик снова центрирован и единичен."""
-    out = np.full(u.shape, np.nan, np.float32)
-    H, W = u.shape
-    for r0 in range(0, H, block):
-        for c0 in range(0, W, block):
-            v = u[r0:r0 + block, c0:c0 + block]
-            f = v[np.isfinite(v)]
-            if f.size > 100:
-                m = np.median(f); s = 1.4826 * np.median(np.abs(f - m)) + 1e-6
-                out[r0:r0 + block, c0:c0 + block] = np.clip((v - m) / s, -c, c)  # вклад полосы ≤ c
+    m, sd, shp = block_median_mad(u, block)
+    M_ = _unblocks(m, shp, block); S_ = _unblocks(sd + 1e-6, shp, block)
+    out = np.clip((u - M_) / S_, -c, c).astype(np.float32)
     return out
