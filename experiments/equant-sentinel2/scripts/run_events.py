@@ -297,8 +297,8 @@ for e in day:
     strong = fc_.get("T_raw", 0) >= 2 * (r.get("null_max", 99) + 3)
     edge = abs(r.get("dM", 0)) > 0.9 * dm_for(e) or max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
     if r["status"] == "detected" and strong and edge:
-        r["status"] = "MISSED"   # «детекция» на краю окна при сильном прогнозе — признак, что объект за окном
-    if not a.no_retry and r["status"] in ("MISSED", "borderline") and fc_.get("T_low", 0) >= (r.get("null_max", 99) + 3) * 0.8:   # прогноз выше порога, но не найден: сразу пробуем шире окно орбиты/сдвига
+        r["status"] = "detected_edge"   # найдено на краю окна: при разрешённом повторе — подтвердить шире
+    if not a.no_retry and (r["status"] == "detected_edge" or r["status"] in ("MISSED", "borderline") and fc_.get("T_low", 0) >= (r.get("null_max", 99) + 3) * 0.8):   # прогноз выше порога, но не найден: сразу пробуем шире окно орбиты/сдвига
         try:
             shift_edge = max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
             r2 = P.run_event(SAT[e["sent"]], orb, e, Rm=(2 * a.rm if shift_edge else a.rm), minb=a.minb, max_cloud=a.max_cloud,
