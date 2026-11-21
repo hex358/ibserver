@@ -87,15 +87,17 @@ def _load_rcs():
             out = {}
             for row in csv.DictReader(f.read_text().splitlines()):
                 try:
+                    cid = str(int(row["NORAD_CAT_ID"])); OTYPE[cid] = row.get("OBJECT_TYPE", "")
                     v = float(row.get("RCS") or "nan")
-                    if v == v and v > 0: out[str(int(row["NORAD_CAT_ID"]))] = v
+                    if v == v and v > 0: out[cid] = v
                 except Exception:
                     pass
-            print(f"RCS for {len(out)} objects from {f.parent.name}", flush=True)
+            print(f"SATCAT: RCS for {len(out)} objects, types for {len(OTYPE)} ({f.parent.name})", flush=True)
             return out
     return {}
 
 
+OTYPE = {}
 RCS = _load_rcs()
 
 
@@ -108,6 +110,9 @@ def area_m2(e):
     if n.startswith("ISS (") or e.get("cat") in ("25544",): return 2500.0
     if n.startswith(("CSS (", "TIANHE", "TIANGONG")): return 600.0
     if "OBJECT" in n: return 0.1   # неопознанный объект (часто кубсат)
+    t = OTYPE.get(str(int(e["cat"]))) if e.get("cat") else None
+    if t == "R/B": return 36.0
+    if t == "DEB": return 0.5
     if "R/B" in n: return 36.0
     if n.startswith("STARLINK"):
         try: return 120.0 if int(n.split("-")[1].split()[0]) >= 30000 else 30.0
