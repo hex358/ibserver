@@ -294,7 +294,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         mosU = CellRaster(tiles, bands, "U")
         mosG = CellRaster(tiles, bands, "G")
 
-    def scan(disp=None):
+    def scan(disp=None, prof=None):
         best = None
         need = max(minb, int(math.ceil(0.6 * len(bands))))
         for n in range(len(fine)):
@@ -308,17 +308,21 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                     r = detect.coherent_search_u(roots, mosU, bands, Rm, step=step or 20.0, disp=disp, minb=need)
             else:
                 r = detect.shift_search(roots, mos, bands, Rm, disp=disp, minb=need)
+            if prof is not None:
+                prof[n] = r["score"]
             if best is None or r["score"] > best["score"]:
                 best = dict(r, dM=float(fine[n]), n=n)
         return best
 
-    res = scan()
+    profile = np.full(len(fine), np.nan)
+    res = scan(prof=profile)
+    null_profiles = []
     rng = np.random.default_rng(5); nulls = []
     for _ in range(n_null):
         disp = {}
         for b in bands:
             r = rng.uniform(1000, 4000); th = rng.uniform(0, 2 * math.pi); disp[b] = (r * math.cos(th), r * math.sin(th))
-        nr = scan(disp)
+        npf = np.full(len(fine), np.nan); nr = scan(disp, prof=npf); null_profiles.append(npf.tolist())
         nulls.append(nr["score"] if nr else -1e9)
     rootsb = ROOTS[res["n"]]
     if method == "glrt":
@@ -331,6 +335,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     else:
         per = {b: max(float(np.nan_to_num(mos.get(b, np.array([x + res["sx"]]), np.array([y + res["sy"]]))[0], nan=-1))
                       for (_d, _a, x, y) in rootsb[b]) for b in bands if b in rootsb}
+    out.update(profile_dm=[float(x) for x in fine], profile=profile.tolist(), null_profiles=null_profiles)
     out.update(res, roots=rootsb, nulls=nulls, null_max=max(nulls), null_med=float(np.median(nulls)), per_band=per,
                seconds=time.time() - t0)
     out["_maps"] = dict(mos=mos, tiles=tiles)

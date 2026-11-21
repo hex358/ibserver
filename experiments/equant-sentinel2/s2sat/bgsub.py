@@ -181,3 +181,4 @@ def standardize(u, block=50, c=8.0):
     M_ = _unblocks(m, shp, block); S_ = _unblocks(sd + 1e-6, shp, block)
     out = np.clip((u - M_) / S_, -c, c).astype(np.float32)
     return out
+
