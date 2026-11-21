@@ -322,7 +322,10 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         _mS, _mG = CellRaster(tiles, bands, "S"), CellRaster(tiles, bands, "G")
         fc0 = forecast(e, roots0, bands, _mS, _mG, area_m2)
         out["forecast"] = fc0
-        if fc0 is not None and fc0["T_pred"] < early_thr:
+        # ранний выход только если и на соседних фазах (±3 км — реальная ошибка SupGP) видимость не лучше номинала
+        nb0 = len(roots0)
+        nb_near = max([len(ROOTS[i]) for i in range(len(fine)) if abs(fine[i]) <= 3.0] or [nb0])
+        if fc0 is not None and fc0["T_pred"] < early_thr and nb_near <= nb0:
             out["early_exit"] = True
             out["reasons"].append(f"too faint: forecast T {fc0['T_pred']:.1f} < {early_thr}")
             return out
