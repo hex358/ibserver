@@ -1,0 +1,4 @@
+FAILED supgp_starlink.tle
+FAILED gp_starlink.tle
+FAILED gp_active.tle
+FAILED gp_last30.tle
