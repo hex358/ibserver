@@ -1,0 +1,59 @@
+== ISS SENTINEL-2B v_al -13.0 k 2.16 kmdeg 12.2
+  blue      det 4 z   357.5 peakDN   10058 flux   157045 npix  58 off along    -96 cross     54  size   97x 183 m  bg ρ 0.032 contrast +1.006
+  green     det 4 z   250.5 peakDN    5643 flux    85104 npix  61 off along    -64 cross     56  size   89x 190 m  bg ρ 0.042 contrast +0.564
+  red       det 4 z   223.6 peakDN    5369 flux    97855 npix  79 off along    -19 cross     32  size  102x 211 m  bg ρ 0.026 contrast +0.537
+  rededge1  det 4 z   102.1 peakDN    4749 flux    97838 npix  84 off along    -21 cross     53  size  116x 197 m  bg ρ 0.079 contrast +0.475
+  rededge2  det 4 z   104.6 peakDN    5075 flux   135270 npix  66 off along     -3 cross     51  size   94x 138 m  bg ρ 0.249 contrast +0.508
+  rededge3  det 4 z    61.4 peakDN    2465 flux    44304 npix  52 off along     36 cross     37  size   84x 136 m  bg ρ 0.233 contrast +0.246
+  nir       det 4 z    32.8 peakDN    5748 flux    67188 npix  33 off along    -75 cross     51  size   58x 103 m  bg ρ 0.234 contrast +0.575
+  swir16    det 4 z   140.3 peakDN    7638 flux   254331 npix 175 off along    -18 cross     71  size  198x 271 m  bg ρ 0.163 contrast +0.764
+== STARLINK-31550 SENTINEL-2B v_al -13.1 k 2.57 kmdeg 12.4
+  blue      det 9 z    15.7 peakDN     185 flux      605 npix   7 off along     21 cross    -28  size   32x  40 m  bg ρ 0.019 contrast +0.019
+  green     det 9 z    46.4 peakDN     395 flux     1156 npix  10 off along      1 cross    -35  size   38x  40 m  bg ρ 0.009 contrast +0.039
+  red       det 9 z    65.4 peakDN     423 flux     2016 npix  13 off along    -10 cross    -34  size   43x  55 m  bg ρ 0.004 contrast +0.042
+  rededge1  det 9 z    37.0 peakDN     220 flux     1890 npix  24 off along    -10 cross    -41  size   55x  68 m  bg ρ 0.002 contrast +0.022
+  rededge2  det 9 z    27.1 peakDN     157 flux     2083 npix  20 off along    -14 cross    -38  size   65x  55 m  bg ρ 0.001 contrast +0.016
+  rededge3  det 9 z    41.0 peakDN     251 flux     2673 npix  24 off along    -20 cross    -36  size   65x  68 m  bg ρ 0.001 contrast +0.025
+  nir       det 9 z    85.4 peakDN     554 flux     2856 npix  13 off along     12 cross    -37  size   43x  69 m  bg ρ 0.003 contrast +0.055
+  nir08     det 9 z    54.2 peakDN     306 flux     3236 npix  33 off along    -36 cross    -36  size   93x  80 m  bg ρ 0.002 contrast +0.031
+  swir16    det 9 z    68.2 peakDN     272 flux     6123 npix  52 off along    -12 cross    -32  size  105x  96 m  bg ρ 0.002 contrast +0.027
+  swir22    det 9 z    45.1 peakDN     215 flux     5741 npix  56 off along    -22 cross    -43  size  105x 102 m  bg ρ 0.002 contrast +0.022
+== STARLINK-32702 SENTINEL-2C v_al -14.4 k 2.42 kmdeg 11.3
+  blue      det 9 z    39.6 peakDN     560 flux     1921 npix   6 off along    -22 cross     11  size   28x  32 m  bg ρ 0.034 contrast +0.056
+  green     det 9 z    15.8 peakDN     393 flux     1560 npix   6 off along    -11 cross     11  size   37x  28 m  bg ρ 0.060 contrast +0.039
+  red       det 9 z    54.6 peakDN     844 flux     3013 npix   8 off along     -7 cross     19  size   37x  32 m  bg ρ 0.032 contrast +0.084
+  rededge1  det 9 z    14.0 peakDN     501 flux     3686 npix  12 off along     13 cross     16  size   41x  50 m  bg ρ 0.100 contrast +0.050
+  rededge2  det 9 z     4.5 peakDN     227 flux     1362 npix   7 off along     27 cross      8  size   41x  28 m  bg ρ 0.261 contrast +0.023
+  rededge3  det 9 z    -3.1 peakDN    -190 flux     -841 npix   4 off along    -89 cross   -127  size   23x  23 m  bg ρ 0.305 contrast -0.019
+  nir       det 9 z     4.6 peakDN     545 flux      975 npix   2 off along    -13 cross     16  size   19x  14 m  bg ρ 0.295 contrast +0.055
+  swir16    det 9 z    22.2 peakDN     511 flux     8149 npix  30 off along     12 cross     17  size   95x  59 m  bg ρ 0.167 contrast +0.051
+  swir22    det 9 z    20.4 peakDN     534 flux     5155 npix  23 off along     53 cross     15  size   59x  68 m  bg ρ 0.076 contrast +0.053
+== STARLINK-4026 SENTINEL-2C v_al -13.5 k 2.48 kmdeg 12.1
+  blue      det 2 z    15.1 peakDN    1445 flux    33839 npix  60 off along     70 cross      3  size   84x 153 m  bg ρ 0.035 contrast +0.144
+  green     det 2 z    10.2 peakDN    3361 flux   151887 npix  98 off along     20 cross     18  size  138x 183 m  bg ρ 0.058 contrast +0.336
+== STARLINK-6044 SENTINEL-2A v_al -14.4 k 2.56 kmdeg 12.1
+  blue      det 7 z    -7.7 peakDN    -761 flux    -1313 npix   2 off along    -23 cross    -27  size   18x  15 m  bg ρ 0.828 contrast -0.076
+  green     det 7 z     4.8 peakDN     424 flux      424 npix   1 off along     -3 cross   -144  size   10x  10 m  bg ρ 0.661 contrast +0.042
+  red       det 7 z    -3.9 peakDN    -342 flux     -342 npix   1 off along    144 cross     -3  size   10x  10 m  bg ρ 0.745 contrast -0.034
+  rededge3  det 7 z    -5.0 peakDN    -326 flux    -1283 npix   4 off along    -13 cross    -26  size   24x  24 m  bg ρ 0.936 contrast -0.033
+  nir       det 7 z    -6.5 peakDN    -682 flux    -1829 npix   4 off along    -25 cross    -20  size   21x  32 m  bg ρ 0.872 contrast -0.068
+  swir16    det 7 z    13.6 peakDN     378 flux     3457 npix  16 off along     -6 cross    -16  size   58x  51 m  bg ρ 0.087 contrast +0.038
+  swir22    det 7 z     8.3 peakDN     384 flux     4161 npix  17 off along    -31 cross    -16  size   68x  41 m  bg ρ 0.066 contrast +0.038
+== STARLINK-37359 SENTINEL-2B v_al -13.9 k 2.42 kmdeg 11.9
+  blue      det 4 z    -3.1 peakDN    -105 flux     -105 npix   1 off along     -3 cross    117  size   10x  10 m  bg ρ 0.032 contrast -0.011
+  green     det 4 z     3.4 peakDN     163 flux      163 npix   1 off along     28 cross     -6  size   10x  10 m  bg ρ 0.094 contrast +0.016
+  rededge1  det 4 z     3.4 peakDN     246 flux      246 npix   1 off along    102 cross    100  size   10x  10 m  bg ρ 0.123 contrast +0.025
+  rededge3  det 4 z     4.2 peakDN     171 flux      583 npix   4 off along     66 cross     36  size   24x  24 m  bg ρ 0.230 contrast +0.017
+  nir       det 4 z    -3.8 peakDN    -545 flux     -545 npix   1 off along   -127 cross    -80  size   10x  10 m  bg ρ 0.233 contrast -0.055
+  nir08     det 4 z     4.5 peakDN     264 flux      918 npix   4 off along    -98 cross     15  size   24x  24 m  bg ρ 0.240 contrast +0.026
+  swir16    det 4 z    -3.7 peakDN    -148 flux     -276 npix   2 off along     86 cross    -81  size   15x  18 m  bg ρ 0.213 contrast -0.015
+== STARLINK-33770 SENTINEL-2C v_al -12.5 k 2.54 kmdeg 12.0
+  blue      det 6 z     3.0 peakDN      52 flux       52 npix   1 off along     46 cross     68  size   10x  10 m  bg ρ 0.030 contrast +0.005
+  red       det 6 z     4.4 peakDN     162 flux      416 npix   3 off along    -42 cross   -118  size   25x  23 m  bg ρ 0.074 contrast +0.016
+  rededge1  det 6 z    -3.5 peakDN    -183 flux     -183 npix   1 off along     76 cross     95  size   10x  10 m  bg ρ 0.133 contrast -0.018
+  rededge2  det 6 z    -4.9 peakDN    -209 flux     -794 npix   4 off along    104 cross     86  size   24x  24 m  bg ρ 0.211 contrast -0.021
+  rededge3  det 6 z     3.3 peakDN     142 flux      281 npix   2 off along    -18 cross    125  size   17x  17 m  bg ρ 0.254 contrast +0.014
+  nir       det 6 z     5.1 peakDN     469 flux      469 npix   1 off along    -18 cross     65  size   10x  10 m  bg ρ 0.207 contrast +0.047
+  swir16    det 6 z    -3.4 peakDN    -215 flux     -422 npix   2 off along    -40 cross   -143  size   17x  17 m  bg ρ 0.257 contrast -0.022
+  swir22    det 6 z    -5.1 peakDN    -245 flux     -456 npix   2 off along     69 cross    -85  size   17x  17 m  bg ρ 0.204 contrast -0.025
+ALLDONE
