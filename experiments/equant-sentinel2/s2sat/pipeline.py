@@ -497,7 +497,10 @@ def forecast(e, roots, bands, mosS, mosG, area_m2, eff=0.59):
             continue
         rho_bg = gb * 1e-4 - 0.1
         dil = 1.0 if M.BRES[b] == 10 else DIL20
-        us[b] = eff * (RHO_OBJ - rho_bg) * dil * 1e4 * sqN / sb          # при f = 1
+        # экспозиция: объект мельче пути изображения за время строки затеняет пиксель лишь часть времени
+        t_line = 1.51e-3 if M.BRES[b] == 10 else 3.02e-3
+        expo = min(1.0, (geo["L"] * geo["k"] + 10.0) / max(abs(e["v_al"]) * 1000.0 * geo["k"] * t_line, 1e-6))
+        us[b] = eff * (RHO_OBJ - rho_bg) * dil * expo * 1e4 * sqN / sb          # при f = 1
     fh, fl = min(F_HI, fcap), min(F_LO, fcap)
     clipT = lambda f: float(np.sqrt(sum(min(abs(f * v), 8.0) ** 2 for v in us.values())))
     return dict(T_pred=clipT(fh), T_low=clipT(fl), T_raw=float(np.sqrt(sum((fh * v) ** 2 for v in us.values()))),
