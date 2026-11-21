@@ -135,6 +135,8 @@ def status(r):
         return "blind_nominal"   # при номинальной орбите ни одна полоса не видит объект (слепая зона детекторов)
     if np.isfinite(tp) and tp < thr:
         return "too_faint"
+    if fc.get("T_low", tp) < thr:
+        return "borderline"      # виден только при удачной ориентации (f близко к 1)
     return "MISSED"
 
 
@@ -197,7 +199,7 @@ for e in day:
     edge = abs(r.get("dM", 0)) > 0.9 * dm_for(e) or max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
     if r["status"] == "detected" and strong and edge:
         r["status"] = "MISSED"   # «детекция» на краю окна при сильном прогнозе — признак, что объект за окном
-    if r["status"] == "MISSED":   # прогноз выше порога, но не найден: сразу пробуем шире окно орбиты/сдвига
+    if r["status"] in ("MISSED", "borderline") and fc_.get("T_low", 0) >= (r.get("null_max", 99) + 3) * 0.8:   # прогноз выше порога, но не найден: сразу пробуем шире окно орбиты/сдвига
         try:
             r2 = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud,
                              dM_max=retry_dm(e, r), method=a.method, area_m2=area_m2(e))

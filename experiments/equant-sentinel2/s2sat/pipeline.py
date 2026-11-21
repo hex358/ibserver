@@ -455,6 +455,7 @@ def forecast(e, roots, bands, mosS, mosG, area_m2, rho_scale=0.15, eff=0.59):
     if not us:
         return dict(T_pred=0.0, u=us, gain=gain)
     # в шкале статистики поиска: вклад полосы ограничен c = 8 (bgsub.standardize)
-    return dict(T_pred=float(np.sqrt(sum(min(abs(v), 8.0) ** 2 for v in us.values()))),
+    clipT = lambda f: float(np.sqrt(sum(min(abs(f * v), 8.0) ** 2 for v in us.values())))
+    return dict(T_pred=clipT(1.0), T_low=clipT(0.25),   # f = 1 и f = 0.25 (измерено 0.2–0.85, THEORY.md §3)
                 T_raw=float(np.sqrt(sum(v * v for v in us.values()))), u={b: round(v, 1) for b, v in us.items()},
                 gain=gain)
