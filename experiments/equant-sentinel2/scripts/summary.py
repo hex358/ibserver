@@ -18,7 +18,10 @@ def classify(r):
     thr = r["null_max"] + 3
     fc = r.get("forecast") or {}
     us = fc.get("u")
-    T, Tl = (clipT(us, 1.0), clipT(us, 0.25)) if us else (float("nan"), float("nan"))
+    if "T_low" in fc:                     # v6+: сохранены T при f = 0.7 и f = 0.25
+        T, Tl = fc.get("T_pred", float("nan")), fc.get("T_low", float("nan"))
+    else:
+        T, Tl = (clipT(us, 1.0), clipT(us, 0.25)) if us else (float("nan"), float("nan"))
     if r["score"] >= thr:
         return "detected"
     if us == {}:
@@ -38,16 +41,18 @@ for d in sys.argv[1:]:
         st = classify(r)
         if st == "unobservable":
             st = "no_image" if "granules" in reason else ("cloud" if "cloud" in reason else "unobservable")
-        us = (r.get("forecast") or {}).get("u") or {}
+        fc_ = r.get("forecast") or {}; us = fc_.get("u") or {}
+        T1 = fc_.get("T_pred") if "T_low" in fc_ else (clipT(us, 1.0) if us else None)
+        T025 = fc_.get("T_low") if "T_low" in fc_ else (clipT(us, 0.25) if us else None)
         rows.append(dict(tag=f.stem, obj=e.get("obj"), sent=e.get("sent"), status=st, score=r.get("score"),
                          thr=(r["null_max"] + 3) if "null_max" in r else None,
-                         T1=clipT(us, 1.0) if us else None, T025=clipT(us, 0.25) if us else None,
+                         T1=T1, T025=T025,
                          v_al=e.get("v_al"), lat=e.get("lat"), lon=e.get("lon"), dM=r.get("dM"), window=r.get("dm_window")))
 seen = {}
 for r in rows:   # одно событие могло быть в нескольких каталогах результатов: берём лучший статус
     order = ["detected", "MISSED", "borderline", "too_faint", "blind_nominal", "cloud", "no_image", "unobservable"]
     k = r["tag"]
-    if k not in seen or order.index(r["status"]) < order.index(seen[k]["status"]):
+    if k not in seen:          # первый каталог в аргументах — самый свежий результат
         seen[k] = r
 rows = list(seen.values())
 c = collections.Counter(r["status"] for r in rows)
@@ -57,7 +62,7 @@ vis = [r for r in obs if r["status"] not in ("blind_nominal",)]
 exp = [r for r in vis if r["status"] in ("detected", "MISSED")]
 print(f"observable (image, no cloud): {len(obs)}; not blind: {len(vis)}; "
       f"expected visible even at f=0.25 or detected: {len(exp)}; detected: {c['detected']}")
-print(f"{'event':34s} {'status':13s} {'score':>6s} {'thr':>5s} {'T(f=1)':>7s} {'T(.25)':>7s} {'v_al':>6s} {'lat':>7s} {'lon':>8s}")
+print(f"{'event':34s} {'status':13s} {'score':>6s} {'thr':>5s} {'T(.7)':>7s} {'T(.25)':>7s} {'v_al':>6s} {'lat':>7s} {'lon':>8s}")
 for r in sorted(obs, key=lambda r: ["detected", "MISSED", "borderline", "too_faint", "blind_nominal"].index(r["status"])):
     f = lambda v, w=6, p=1: (f"{v:{w}.{p}f}" if isinstance(v, (int, float)) and v is not None and math.isfinite(v) else " " * (w - 1) + "-")
     print(f"{r['tag'][:34]:34s} {r['status']:13s} {f(r['score'])} {f(r['thr'],5)} {f(r['T1'],7)} {f(r['T025'],7)} {f(r['v_al'],6)} {f(r['lat'],7,2)} {f(r['lon'],8,2)}")
