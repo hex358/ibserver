@@ -148,7 +148,7 @@ def retry_dm(e, r):
     fc_ = r.get("forecast") or {}
     if fc_.get("T_raw", 0) >= 2 * (r.get("null_max", 99) + 3):
         return 60.0
-    return min(1.6 * dm_for(e), 40.0)
+    return min(max(2.5 * dm_for(e), 20.0), 40.0)   # ошибки SupGP по найденным: 1.2–7 км, у 31272 — 15 км
 
 
 def status(r):
