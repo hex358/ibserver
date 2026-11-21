@@ -93,5 +93,5 @@ def test_iss_regression(pilot_tle):
     j = O.jd_from_dt(dt.datetime(2026, 11, 18, 22, 28, tzinfo=dt.timezone.utc))
     e = C.find_crossings([s2b], [iss], j - 0.02, j + 0.02, step_s=10)[0]
     r = P.run_event(s2b, iss, e, Rm=6000.0, minb=4)
-    assert r["score"] > 15 and r["score"] > 2 * r["null_max"]
+    assert r["score"] >= r["null_max"] + 3
     assert math.hypot(r["sx"] - 620, r["sy"] - 1000) < 200

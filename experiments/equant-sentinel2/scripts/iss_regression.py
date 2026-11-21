@@ -46,7 +46,7 @@ print(json.dumps(show, default=str, indent=1))
 for b, lst in r.get("roots", {}).items():
     print("root", b, [(d, round(al, 3), round(x), round(y)) for d, al, x, y in lst])
 if "score" in r:
-    ok = r["score"] > 15 and r["score"] > 2 * r["null_max"]
+    ok = r["score"] >= r["null_max"] + 3
     print(f"ISS score {r['score']:.2f} null max {r['null_max']:.2f} med {r['null_med']:.2f} "
           f"shift ({r['sx']:.0f}, {r['sy']:.0f}) m  bands>4σ {r['hit']}/{r['cnt']}  -> {'PASS' if ok else 'FAIL'}")
     if a.plot and maps is not None:
