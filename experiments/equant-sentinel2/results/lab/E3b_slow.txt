@@ -1,0 +1,10 @@
+== STARLINK-30245 SENTINEL-2B v_al -4.7 k 2.57 kmdeg 21.5
+  blue      det 6 z    21.9 peakDN     734 flux     2026 npix   5 off along     57 cross     -5  size   30x  20 m  bg ρ 0.126 contrast +0.073
+  green     det 6 z    15.7 peakDN     687 flux    18198 npix  67 off along    -19 cross    -51  size  119x 120 m  bg ρ 0.211 contrast +0.069
+  red       det 7 z   -18.7 peakDN    -647 flux    -3613 npix  12 off along     48 cross     -2  size   60x  31 m  bg ρ 0.387 contrast -0.065
+  rededge1  det 7 z    -8.7 peakDN    -376 flux    -2522 npix  11 off along     -3 cross      9  size   40x  41 m  bg ρ 0.418 contrast -0.038
+  rededge2  det 7 z   -17.0 peakDN    -496 flux    -8014 npix  36 off along     -8 cross     14  size  120x  63 m  bg ρ 0.432 contrast -0.050
+  rededge3  det 7 z   -15.5 peakDN    -531 flux   -13575 npix  54 off along      8 cross      3  size  120x 102 m  bg ρ 0.482 contrast -0.053
+  nir       det 6 z   -19.1 peakDN    -622 flux    -3054 npix   8 off along     29 cross      5  size   50x  21 m  bg ρ 0.395 contrast -0.062
+  nir08     det 7 z    -8.2 peakDN    -326 flux    -3683 npix  19 off along    -36 cross     23  size   60x  41 m  bg ρ 0.440 contrast -0.033
+  swir22    det 7 z    -4.8 peakDN    -217 flux     -842 npix   4 off along     15 cross     15  size   20x  20 m  bg ρ 0.585 contrast -0.022
