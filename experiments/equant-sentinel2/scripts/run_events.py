@@ -118,7 +118,7 @@ def area_m2(e):
         try: return 120.0 if int(n.split("-")[1].split()[0]) >= 30000 else 30.0
         except Exception: return 30.0
     if "DEB" in n: return 0.5
-    return 4.0
+    return 1.0   # аппарат без RCS: размер неизвестен (часто кубсат/микроспутник) — консервативно 1 м²
 
 
 def size_m(e):
@@ -259,6 +259,9 @@ for e in day:
     if done >= a.limit:
         break
     e["size_m"] = size_m(e)
+    _n = e["obj"].upper(); _c = str(int(e["cat"])) if e.get("cat") else ""
+    e["area_source"] = ("rcs" if _c in RCS else "starlink" if _n.startswith("STARLINK") else
+                        "name/type" if (_n.startswith(("ISS (", "CSS (", "TIANHE", "TIANGONG")) or OTYPE.get(_c) in ("R/B", "DEB")) else "unknown")
     _tag = f"{e['obj'].split()[0]}_{O.dt_from_jd(e['jd']):%Y%m%dT%H%M%S}"
     if a.resume and (Path(a.out) / f"{_tag}.json").exists():
         _prev = json.loads((Path(a.out) / f"{_tag}.json").read_text()).get("result", {})
