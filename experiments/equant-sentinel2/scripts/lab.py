@@ -169,6 +169,7 @@ def analyse_event(tag, sen, ob, e, dm, shift, inject_trials=0, rng=None):
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(); ap.add_argument("--inject", type=int, default=0); ap.add_argument("--only", default=None)
+    ap.add_argument("--spec", action="append", default=[], help="NAME,src(gp20|merged|supgp),YYYY-mm-ddTHH:MM,dm,sx,sy,snaps(через +)")
     a = ap.parse_args()
     rng = np.random.default_rng(0)
     sents20 = O.parse_tle((S / "20261120T0320/sentinel2.tle").read_text())
@@ -186,6 +187,14 @@ if __name__ == "__main__":
         ("STARLINK-37359", "gp20", dt.datetime(2026, 11, 19, 18, 0, tzinfo=U), 6.0, (0, 0)),     # фон: пустыня (вставки)
         ("STARLINK-33770", "gp20", dt.datetime(2026, 11, 19, 17, 10, tzinfo=U), 0.0, (0, 0)),    # фон: поля
     ]
+    supgp = load_merged(["supgp_*.tle"], sorted(p.name for p in S.iterdir() if p.is_dir()))
+    if a.spec:
+        specs = []
+        SNAPS = {}
+        for sp in a.spec:
+            n_, src_, t_, dm_, sx_, sy_, sn_ = sp.split(",")
+            SNAPS[n_] = sn_.split("+")
+            specs.append((n_, src_, dt.datetime.fromisoformat(t_).replace(tzinfo=U), float(dm_), (float(sx_), float(sy_))))
     for name, src, t0, dm, shift in specs:
         if a.only and a.only not in name: continue
         try:
@@ -193,8 +202,12 @@ if __name__ == "__main__":
                 sen, ob = pilot["42063"], pilot["25544"]
                 e = [x for x in C.find_crossings([sen], [ob], O.jd_from_dt(t0), O.jd_from_dt(t0) + 1 / 48)][0]
             else:
-                objs = gp20 if src == "gp20" else merged
-                ss = sents20 if src == "gp20" else sents_m
+                if src == "supgp" and a.spec:
+                    objs = load_merged(["supgp_*.tle"], SNAPS[name])
+                    ss = [s_ for s_ in load_merged(["sentinel2.tle"], SNAPS[name]).values() if s_.name.startswith("SENTINEL-2")]
+                else:
+                    objs = gp20 if src == "gp20" else (supgp if src == "supgp" else merged)
+                    ss = sents20 if src == "gp20" else sents_m
                 ob, e = event_for(name, t0, objs, ss); sen = {s.name: s for s in ss}[e["sent"]]
             res = analyse_event(name, sen, ob, e, dm, shift, inject_trials=a.inject, rng=rng)
             (OUT / f"lab_{name}.json").write_text(json.dumps(res, default=float))
