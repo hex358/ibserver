@@ -55,7 +55,7 @@ class CellRaster:
 
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
               ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None,
-              dM_max=0.0, dM_step=0.5, workers=4, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion", area_m2=None, early_thr=6.0):
+              dM_max=0.0, dM_step=0.5, workers=4, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion", area_m2=None, early_thr=6.0, stretch=True):
     """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
@@ -221,7 +221,9 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     # допуск: вдоль трассы — половина штриха (+20 м), поперёк — ±tol_m
     # вдоль трассы ошибка угла полосы δα ≈ 0.002–0.003° (калибровка: 31550 ±20 м при 12 км/°, 30580 ±100 м при 33 км/°)
     # переходит в сдвиг kmdeg·δα — у медленных пролётов в разы больше
-    tol_along_px = max(tol_px, min(La, 25) / 2 + 2, DALPHA_DEG * kmdeg * 1000.0 / 10.0)
+    tol_along_px = max(tol_px, min(La, 25) / 2 + 2)   # систематику вдоль трассы берёт на себя растяжение σ
+    tdir = (math.cos(ang_track), math.sin(ang_track))
+    STRETCH = list(np.round(np.arange(-0.02, 0.02001, 0.004), 4)) if stretch else []
     FP = bgsub.rect_footprint(tol_along_px, tol_px, ang_track)
     out["tol_along_m"] = tol_along_px * 10.0
     out["image_geometry"] = geo
@@ -344,11 +346,24 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             roots = ROOTS[n]
             if len([b for b in bands if b in roots]) < need:
                 continue
-            if method == "glrt":
+            if method == "glrt" and model == "occlusion" and STRETCH:
+                # растяжение узора полос вдоль трассы: смещение полосы b = σ·(α_b − α_ref) (данные E3b, 36113)
+                ab = {b: roots[b][0][1] for b in bands if b in roots}; aref = min(ab.values())
+                r = None
+                for eps in STRETCH:
+                    sig = eps * kmdeg * 1000.0          # м на градус
+                    d2 = {}
+                    for b in ab:
+                        dx0, dy0 = disp[b] if disp else (0.0, 0.0)
+                        d2[b] = (dx0 + sig * (ab[b] - aref) * tdir[0], dy0 + sig * (ab[b] - aref) * tdir[1])
+                    rr = detect.occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=step or 30.0, disp=d2, minb=need)
+                    if r is None or rr["score"] > r["score"]:
+                        r = dict(rr, stretch=eps)
+            elif method == "glrt":
                 if model == "occlusion":
-                    r = detect.occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=step or 20.0, disp=disp, minb=need)
+                    r = detect.occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=step or 30.0, disp=disp, minb=need)
                 else:
-                    r = detect.coherent_search_u(roots, mosU, bands, Rm, step=step or 20.0, disp=disp, minb=need)
+                    r = detect.coherent_search_u(roots, mosU, bands, Rm, step=step or 30.0, disp=disp, minb=need)
             else:
                 r = detect.shift_search(roots, mos, bands, Rm, disp=disp, minb=need)
             if prof is not None:
