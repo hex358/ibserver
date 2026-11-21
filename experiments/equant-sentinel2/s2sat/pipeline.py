@@ -204,6 +204,13 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                        RGB=rgb, item=it.id, ref=",".join(r.id for r in rfs) or None, cov=cov), "ok"
 
     tol_px = int(round(tol_m / 10.0))
+    # банк ядер: круглое + отрезки поперёк трассы (сжатое push-broom изображение, THEORY.md §3)
+    if track0 is not None:
+        _A, _X, _Y = track0; _k = len(_X) // 2
+        ang_track = math.atan2(_Y[min(_k + 5, len(_Y) - 1)] - _Y[_k], _X[min(_k + 5, len(_X) - 1)] - _X[_k])
+    else:
+        ang_track = 0.0
+    KBANK = [bgsub.KERNEL] + [bgsub.line_kernel(L, ang_track + math.pi / 2) for L in (3, 5, 7)]
 
     def process_glrt(c):
         """Все полосы на общей сетке 10 м; фон — регрессией по другим полосам того же снимка."""
@@ -250,7 +257,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                 if rv is not None:
                     regs.append(rv)
             R = bgsub.predict_band(IM[b], regs, valid)
-            Y[b], S[b] = bgsub.matched(R)
+            Y[b], S[b] = bgsub.matched_bank(R, KBANK)
 
         Uc = bgsub.remove_common_mode({b: Y[b] / S[b] for b in bands})
         # яркость фона в каждой полосе (для модели заслонения: отклик = a − f·G_b)

@@ -182,3 +182,32 @@ def standardize(u, block=50, c=8.0):
     out = np.clip((u - M_) / S_, -c, c).astype(np.float32)
     return out
 
+
+
+def line_kernel(length_px, angle_rad, sigma_px=0.7):
+    """Ядро «отрезок длины length_px под углом angle» (размытый гауссом), ||k||₂ = 1."""
+    r = int(np.ceil(length_px / 2 + 2 * sigma_px)) + 1
+    yy, xx = np.mgrid[-r:r + 1, -r:r + 1].astype(float)
+    ux, uy = np.cos(angle_rad), -np.sin(angle_rad)          # ось строк направлена вниз
+    t = xx * ux + yy * uy; d = -xx * uy + yy * ux
+    tt = np.clip(t, -length_px / 2, length_px / 2)
+    k = np.exp(-((t - tt) ** 2 + d ** 2) / (2 * sigma_px ** 2))
+    return (k / np.sqrt((k * k).sum())).astype(np.float32)
+
+
+def matched_bank(R, kernels, block=50):
+    """Отклик по набору ядер; в каждом пикселе берётся ядро с максимальным |отклик/шум|.
+    Возвращает (Y в DN, S — шум выбранного ядра)."""
+    Rf = np.nan_to_num(R)
+    bestU = None; Yb = None; Sb = None
+    for k in kernels:
+        Y = convolve(Rf, k, mode="nearest").astype(np.float32); Y[np.isnan(R)] = np.nan
+        _m, sd, shp = block_median_mad(Y, block)
+        S = _unblocks(sd + 1e-3, shp, block).astype(np.float32)
+        U = np.abs(np.nan_to_num(Y / S))
+        if bestU is None:
+            bestU, Yb, Sb = U, Y, S
+        else:
+            t = U > bestU
+            bestU = np.where(t, U, bestU); Yb = np.where(t, Y, Yb); Sb = np.where(t, S, Sb)
+    return Yb, Sb
