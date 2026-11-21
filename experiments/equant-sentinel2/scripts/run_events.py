@@ -5,6 +5,7 @@
 Без --obj: все дневные события Starlink за окно, медленные первыми (--limit N).
 """
 import argparse
+import collections
 import datetime as dt
 import json
 import sys
@@ -28,6 +29,7 @@ ap.add_argument("--rm", type=float, default=1500.0)
 ap.add_argument("--minb", type=int, default=3)
 ap.add_argument("--limit", type=int, default=5)
 ap.add_argument("--max-cloud", type=float, default=30.0)
+ap.add_argument("--no-prefilter", action="store_true", help="не фильтровать события по контурам снимков")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=8.0)
 ap.add_argument("--min-v", type=float, default=1.5)
@@ -144,6 +146,47 @@ def snr_key(e):
     # сигнал ∝ площадь изображения × растяжение push-broom (медленные сильнее)
     stretch = 6.6 / max(abs(e["v_al"]) * e["lam"] / e["rng"] - 0.0, 1.0)
     return -(size_m(e) ** 2) * (e["lam"] / e["rng"]) ** 2 * min(stretch, 10.0)
+
+def footprints(t0, t1):
+    """Все снимки коллекции за окно (только контур, время, облачность), с кэшем на диске."""
+    from s2sat import imagery as I
+    cache = ROOT / "data/cache" / f"footprints_{t0:%Y%m%dT%H%M}_{t1:%Y%m%dT%H%M}.json"
+    if cache.exists():
+        return json.loads(cache.read_text())
+    out, t = [], t0
+    while t < t1:
+        t2 = min(t + dt.timedelta(hours=2), t1)
+        s_ = I.client().search(collections=[I.COLL], datetime=f"{t:%Y-%m-%dT%H:%M:%SZ}/{t2:%Y-%m-%dT%H:%M:%SZ}", limit=500,
+                               fields={"include": ["id", "geometry", "properties.datetime", "properties.eo:cloud_cover"], "exclude": ["assets", "links"]})
+        for it in s_.items_as_dicts():
+            out.append(dict(id=it["id"], geom=it["geometry"], t=it["properties"]["datetime"], cloud=it["properties"].get("eo:cloud_cover", 100)))
+        t = t2
+    cache.write_text(json.dumps(out))
+    return out
+
+
+if not a.no_prefilter and day:
+    from shapely.geometry import shape, Point
+    from shapely.strtree import STRtree
+    fps = footprints(t0 - dt.timedelta(minutes=10), t1 + dt.timedelta(minutes=10))
+    geoms = [shape(f["geom"]) for f in fps]; tree = STRtree(geoms)
+    tfp = [dt.datetime.fromisoformat(f["t"].replace("Z", "+00:00")) for f in fps]
+    keep, why = [], collections.Counter()
+    for e in day:
+        te = O.dt_from_jd(e["jd"]); pt = Point(e["lon"], e["lat"]); best = None
+        for k in tree.query(pt):
+            f = fps[k]
+            if f["id"][:3] != "S2" + e["sent"][-1] or abs((tfp[k] - te).total_seconds()) > 300 or not geoms[k].contains(pt):
+                continue
+            best = f if best is None or f["cloud"] < best["cloud"] else best
+        if best is None:
+            why["no_image"] += 1
+        elif best["cloud"] > a.max_cloud:
+            why["cloud"] += 1
+        else:
+            e["prefilter_cloud"] = best["cloud"]; keep.append(e)
+    print(f"prefilter: {len(fps)} footprints; kept {len(keep)} of {len(day)} events ({dict(why)})", flush=True)
+    day = keep
 
 day.sort(key=(snr_key if a.order == "snr" else (lambda e: abs(e["v_al"]))))
 _u, _seen_ev = [], set()

@@ -3,7 +3,7 @@ name = "s2sat"
 version = "0.1.0"
 description = "Спутники на снимках Sentinel-2: предсказание пересечений и детекция"
 requires-python = ">=3.10"
-dependencies = ["numpy", "scipy", "sgp4", "skyfield", "skyfield-data", "pyproj", "pystac-client", "rasterio", "matplotlib"]
+dependencies = ["numpy", "scipy", "sgp4", "skyfield", "skyfield-data", "pyproj", "pystac-client", "rasterio", "matplotlib", "shapely"]
 
 [project.optional-dependencies]
 test = ["pytest"]
