@@ -32,6 +32,7 @@ ap.add_argument("--max-cloud", type=float, default=30.0)
 ap.add_argument("--no-prefilter", action="store_true", help="не фильтровать события по контурам снимков")
 ap.add_argument("--save-maps", default=None, help="каталог для сохранения карт событий (npz) для офлайн-анализа")
 ap.add_argument("--sample", default=None, help="выборка событий: top:N,random:M (после префильтра)")
+ap.add_argument("--no-retry", action="store_true", help="без автоповтора (режим сбора данных)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=8.0)
 ap.add_argument("--min-v", type=float, default=1.5)
@@ -287,7 +288,7 @@ for e in day:
     edge = abs(r.get("dM", 0)) > 0.9 * dm_for(e) or max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
     if r["status"] == "detected" and strong and edge:
         r["status"] = "MISSED"   # «детекция» на краю окна при сильном прогнозе — признак, что объект за окном
-    if r["status"] in ("MISSED", "borderline") and fc_.get("T_low", 0) >= (r.get("null_max", 99) + 3) * 0.8:   # прогноз выше порога, но не найден: сразу пробуем шире окно орбиты/сдвига
+    if not a.no_retry and r["status"] in ("MISSED", "borderline") and fc_.get("T_low", 0) >= (r.get("null_max", 99) + 3) * 0.8:   # прогноз выше порога, но не найден: сразу пробуем шире окно орбиты/сдвига
         try:
             shift_edge = max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
             r2 = P.run_event(SAT[e["sent"]], orb, e, Rm=(2 * a.rm if shift_edge else a.rm), minb=a.minb, max_cloud=a.max_cloud,
