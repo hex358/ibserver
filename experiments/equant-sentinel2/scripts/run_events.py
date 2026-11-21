@@ -110,7 +110,7 @@ def dm_for(e):
 def retry_dm(e, r):
     """Окно повтора: сильный прогноз (≥ 2× порога) оправдывает широкий поиск (до ±60 км), иначе ×1.6."""
     fc_ = r.get("forecast") or {}
-    if fc_.get("T_pred", 0) >= 2 * (r.get("null_max", 99) + 3):
+    if fc_.get("T_raw", 0) >= 2 * (r.get("null_max", 99) + 3):
         return 60.0
     return min(1.6 * dm_for(e), 40.0)
 
@@ -186,7 +186,7 @@ for e in day:
     print("item", r.get("item"), "cloud", r.get("cloud"), "bands", r.get("bands"), "reasons", r.get("reasons")[:5])
     r["status"] = status(r); r["dm_window"] = dm_for(e)
     fc_ = r.get("forecast") or {}
-    strong = fc_.get("T_pred", 0) >= 2 * (r.get("null_max", 99) + 3)
+    strong = fc_.get("T_raw", 0) >= 2 * (r.get("null_max", 99) + 3)
     edge = abs(r.get("dM", 0)) > 0.9 * dm_for(e) or max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
     if r["status"] == "detected" and strong and edge:
         r["status"] = "MISSED"   # «детекция» на краю окна при сильном прогнозе — признак, что объект за окном
