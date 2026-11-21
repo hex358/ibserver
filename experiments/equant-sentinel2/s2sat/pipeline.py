@@ -219,7 +219,11 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         if L > 3:
             KBANK.append(bgsub.line_kernel(min(L, 25), ang_track))
     # допуск: вдоль трассы — половина штриха (+20 м), поперёк — ±tol_m
-    FP = bgsub.rect_footprint(max(tol_px, min(La, 25) / 2 + 2), tol_px, ang_track)
+    # вдоль трассы ошибка угла полосы δα ≈ 0.002–0.003° (калибровка: 31550 ±20 м при 12 км/°, 30580 ±100 м при 33 км/°)
+    # переходит в сдвиг kmdeg·δα — у медленных пролётов в разы больше
+    tol_along_px = max(tol_px, min(La, 25) / 2 + 2, DALPHA_DEG * kmdeg * 1000.0 / 10.0)
+    FP = bgsub.rect_footprint(tol_along_px, tol_px, ang_track)
+    out["tol_along_m"] = tol_along_px * 10.0
     out["image_geometry"] = geo
 
     def process_glrt(c):
@@ -439,6 +443,7 @@ def _safe(f, c):
 V_G = 6.63  # км/с, скорость следа строки по земле
 
 
+DALPHA_DEG = 0.004      # допуск на ошибку угла полосы вдоль трассы (данные E3/E3b)
 RHO_OBJ = 0.28          # серое отражение Starlink по калибровке E3b (30245: 0.26, 30580: 0.30)
 F_HI, F_LO = 0.7, 0.25  # доля закрытого пикселя: измерено 0.25–0.71
 DIL20 = 0.5             # ослабление малого объекта в полосах 20 м

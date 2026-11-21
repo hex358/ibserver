@@ -137,7 +137,7 @@ def dm_for(e):
     if a.dm != "auto":
         return float(a.dm)
     if e.get("supgp"):
-        return float(np.clip(3 + 1.5 * e.get("disagree_km", 0.0), 3, 25))
+        return 8.0   # по детекциям: реальная ошибка SupGP 1.2–2.9 км (31550 — 7 км) при расхождении GP–SupGP до 32 км
     if e["obj"].upper().startswith("STARLINK"):
         return float(np.clip(10 + 30 * abs(e["age"]), 10, 25))
     return float(np.clip(1.5 + 2 * abs(e["age"]), 1.5, 6))
