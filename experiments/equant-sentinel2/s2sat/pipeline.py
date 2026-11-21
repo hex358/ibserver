@@ -462,6 +462,7 @@ def forecast(e, roots, bands, mosS, mosG, area_m2, eff=0.59):
     if not area_m2:
         return None
     geo = image_geometry(e, area_m2); sqN = math.sqrt(geo["n_px"])
+    fcap = min(1.0, area_m2 * geo["k"] ** 2 / 100.0)   # объект мельче пикселя не закроет больше своей площади
     us = {}
     for b in bands:
         if b not in roots:
@@ -474,6 +475,7 @@ def forecast(e, roots, bands, mosS, mosG, area_m2, eff=0.59):
         rho_bg = gb * 1e-4 - 0.1
         dil = 1.0 if M.BRES[b] == 10 else DIL20
         us[b] = eff * (RHO_OBJ - rho_bg) * dil * 1e4 * sqN / sb          # при f = 1
+    fh, fl = min(F_HI, fcap), min(F_LO, fcap)
     clipT = lambda f: float(np.sqrt(sum(min(abs(f * v), 8.0) ** 2 for v in us.values())))
-    return dict(T_pred=clipT(F_HI), T_low=clipT(F_LO), T_raw=float(np.sqrt(sum((F_HI * v) ** 2 for v in us.values()))),
-                u={b: round(F_HI * v, 1) for b, v in us.items()}, geometry=geo)
+    return dict(T_pred=clipT(fh), T_low=clipT(fl), T_raw=float(np.sqrt(sum((fh * v) ** 2 for v in us.values()))),
+                u={b: round(fh * v, 1) for b, v in us.items()}, geometry=geo, fcap=fcap)
