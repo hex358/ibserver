@@ -370,6 +370,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                seconds=time.time() - t0)
     if method == "glrt":
         out["forecast"] = forecast(e, ROOTS[k0], bands, mosS, mosG, area_m2)
+    out["roots_all"] = [{b: [list(q) for q in lst] for b, lst in rr.items()} for rr in ROOTS]
     out["_maps"] = dict(mos=mos, tiles=tiles)
     return out
 

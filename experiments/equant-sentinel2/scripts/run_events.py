@@ -30,6 +30,8 @@ ap.add_argument("--minb", type=int, default=3)
 ap.add_argument("--limit", type=int, default=5)
 ap.add_argument("--max-cloud", type=float, default=30.0)
 ap.add_argument("--no-prefilter", action="store_true", help="не фильтровать события по контурам снимков")
+ap.add_argument("--save-maps", default=None, help="каталог для сохранения карт событий (npz) для офлайн-анализа")
+ap.add_argument("--sample", default=None, help="выборка событий: top:N,random:M (после префильтра)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=8.0)
 ap.add_argument("--min-v", type=float, default=1.5)
@@ -189,6 +191,13 @@ if not a.no_prefilter and day:
     day = keep
 
 day.sort(key=(snr_key if a.order == "snr" else (lambda e: abs(e["v_al"]))))
+if a.sample:
+    import random as _rnd
+    spec = dict(x.split(":") for x in a.sample.split(","))
+    ntop, nrnd = int(spec.get("top", 0)), int(spec.get("random", 0))
+    top = day[:ntop]; rest = day[ntop:]; _rnd.seed(7)
+    day = top + _rnd.sample(rest, min(nrnd, len(rest)))
+    print(f"sample: top {len(top)} + random {len(day) - len(top)}", flush=True)
 _u, _seen_ev = [], set()
 for e in day:   # объекты с одной орбитой (модули МКС и т.п.) дают одно событие
     k = (e["sent"], round(e["jd"] * 86400 / 3))
@@ -235,6 +244,17 @@ for e in day:
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)
+    if a.save_maps and maps is not None:
+        Path(a.save_maps).mkdir(parents=True, exist_ok=True)
+        arr = {}
+        for (ci, cj), T in maps["tiles"].items():
+            k = f"{ci}_{cj}"
+            for b, U in T["U"].items():
+                arr[f"U|{k}|{b}"] = np.clip(np.nan_to_num(U.astype(np.float32)) * 15, -127, 127).astype(np.int8)
+            if T.get("RGB") is not None:
+                arr[f"RGB|{k}"] = np.clip(T["RGB"].astype(np.float32) / 40, 0, 255).astype(np.uint8)
+        meta = dict(event=e, result={k: v for k, v in r.items() if k not in ("roots",)})
+        np.savez_compressed(Path(a.save_maps) / f"{tag}.npz", meta=json.dumps(meta, default=float), **arr)
     print("item", r.get("item"), "cloud", r.get("cloud"), "bands", r.get("bands"), "reasons", r.get("reasons")[:5])
     r["status"] = status(r); r["dm_window"] = dm_for(e)
     fc_ = r.get("forecast") or {}
