@@ -107,10 +107,22 @@ def dm_for(e):
     return float(np.clip(1.5 + 2 * abs(e["age"]), 1.5, 6))
 
 
+def retry_dm(e, r):
+    """Окно повтора: сильный прогноз (≥ 2× порога) оправдывает широкий поиск (до ±60 км), иначе ×1.6."""
+    fc_ = r.get("forecast") or {}
+    if fc_.get("T_pred", 0) >= 2 * (r.get("null_max", 99) + 3):
+        return 60.0
+    return min(1.6 * dm_for(e), 40.0)
+
+
 def status(r):
     """Диагноз: detected / unobservable / too_faint (прогноз ниже порога) / MISSED (прогноз выше порога — исправимо)."""
     if r.get("early_exit"):
         return "too_faint"
+    if (r.get("forecast") or {}).get("u") == {}:
+        fc_blind = True
+    else:
+        fc_blind = False
     if "score" not in r or r["score"] < -1e8:
         return "unobservable"
     thr = r["null_max"] + 3
@@ -118,6 +130,8 @@ def status(r):
         return "detected"
     fc = r.get("forecast") or {}
     tp = fc.get("T_pred", float("nan"))
+    if fc_blind:
+        return "blind_nominal"   # при номинальной орбите ни одна полоса не видит объект (слепая зона детекторов)
     if np.isfinite(tp) and tp < thr:
         return "too_faint"
     return "MISSED"
@@ -171,16 +185,21 @@ for e in day:
     maps = r.pop("_maps", None)
     print("item", r.get("item"), "cloud", r.get("cloud"), "bands", r.get("bands"), "reasons", r.get("reasons")[:5])
     r["status"] = status(r); r["dm_window"] = dm_for(e)
+    fc_ = r.get("forecast") or {}
+    strong = fc_.get("T_pred", 0) >= 2 * (r.get("null_max", 99) + 3)
+    edge = abs(r.get("dM", 0)) > 0.9 * dm_for(e) or max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
+    if r["status"] == "detected" and strong and edge:
+        r["status"] = "MISSED"   # «детекция» на краю окна при сильном прогнозе — признак, что объект за окном
     if r["status"] == "MISSED":   # прогноз выше порога, но не найден: сразу пробуем шире окно орбиты/сдвига
         try:
-            r2 = P.run_event(SAT[e["sent"]], orb, e, Rm=2 * a.rm, minb=a.minb, max_cloud=a.max_cloud,
-                             dM_max=min(2 * dm_for(e), 50.0), method=a.method, area_m2=area_m2(e))
+            r2 = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud,
+                             dM_max=retry_dm(e, r), method=a.method, area_m2=area_m2(e))
             r2.pop("_maps", None)
             r2["status"] = status(r2)
-            print(f"RETRY {tag}: wider window ±{min(2 * dm_for(e), 50.0):.0f} km, Rm {2 * a.rm:.0f} m -> {r2['status']} "
+            print(f"RETRY {tag}: wider window ±{retry_dm(e, r):.0f} km -> {r2['status']} "
                   f"score {r2.get('score', float('nan')):.1f} thr {r2.get('null_max', float('nan')) + 3:.1f}", flush=True)
             if r2["status"] == "detected":
-                r = r2; r["dm_window"] = min(2 * dm_for(e), 50.0); r["retry"] = True
+                r = r2; r["dm_window"] = retry_dm(e, r); r["retry"] = True
         except Exception as ex:
             print("RETRY FAIL", repr(ex)[:150])
     fc = r.get("forecast") or {}

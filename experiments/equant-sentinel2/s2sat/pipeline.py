@@ -272,12 +272,13 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             k = int(round(A.shape[0] * PAD / (CELL + 2 * PAD)))
             return A[k:A.shape[0] - k, k:A.shape[1] - k]
         rgb = np.stack([inner(IM[c2]) for c2 in ("red", "green", "blue")], -1).astype(np.float16) if all(c2 in IM for c2 in ("red", "green", "blue")) else None
-        return c, dict(Y={b: inner(Y[b]).astype(np.float16) for b in bands},
-                       S={b: inner(S[b]).astype(np.float16) for b in bands},
+        def blk(A, n):  # константа блока: храним n×n значений вместо полного разрешения
+            I_ = inner(A); f = I_.shape[0] // n
+            return I_[f // 2::f, f // 2::f][:n, :n].astype(np.float32)
+        return c, dict(S={b: blk(S[b], 10) for b in bands},
+                       G={b: blk(Gb[b], 50) for b in bands},
                        Z={b: inner(Y[b] / S[b]).astype(np.float16) for b in bands},
-                       G={b: inner(Gb[b]).astype(np.float32) for b in bands},
                        U={b: inner(bgsub.standardize(bgsub.local_extreme(Uc[b], tol_px))).astype(np.float16) for b in bands},
-
                        RGB=rgb, item=it.id, ref=",".join(r.id for r in rfs) or None, cov=cov), "ok"
 
     tiles, fails = {}, []
@@ -319,7 +320,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         out["reasons"].append("no cells"); return out
     mos = CellRaster(tiles, bands, "U" if method == "glrt" else "E")
     if method == "glrt":
-        mosY, mosS = CellRaster(tiles, bands, "Y"), CellRaster(tiles, bands, "S")
+        mosS = CellRaster(tiles, bands, "S")
         mosU = CellRaster(tiles, bands, "U")
         mosG = CellRaster(tiles, bands, "G")
 
@@ -358,8 +359,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         mosZ = CellRaster(tiles, bands, "Z")
         per = {b: max((float(np.nan_to_num(mosZ.get(b, np.array([x + res["sx"]]), np.array([y + res["sy"]]))[0], nan=0))
                        for (_d, _a, x, y) in rootsb[b]), key=abs) for b in bands if b in rootsb}
-        per_dn = {b: max((float(np.nan_to_num(mosY.get(b, np.array([x + res["sx"]]), np.array([y + res["sy"]]))[0], nan=0))
-                          for (_d, _a, x, y) in rootsb[b]), key=abs) for b in bands if b in rootsb}
+        per_dn = {b: round(per[b] * float(np.nan_to_num(mosS.get(b, np.array([rootsb[b][0][2] + res["sx"]]), np.array([rootsb[b][0][3] + res["sy"]]))[0], nan=0)), 1)
+                  for b in per}
         out["per_band_dn"] = per_dn
     else:
         per = {b: max(float(np.nan_to_num(mos.get(b, np.array([x + res["sx"]]), np.array([y + res["sy"]]))[0], nan=-1))
