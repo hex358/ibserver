@@ -31,3 +31,19 @@
 == STARLINK-4026 SENTINEL-2C v_al -13.5 k 2.48 kmdeg 12.1
   blue      det 2 z    15.1 peakDN    1445 flux    33839 npix  60 off along     70 cross      3  size   84x 153 m  bg ρ 0.035 contrast +0.144
   green     det 2 z    10.2 peakDN    3361 flux   151887 npix  98 off along     20 cross     18  size  138x 183 m  bg ρ 0.058 contrast +0.336
+== STARLINK-6044 SENTINEL-2A v_al -14.4 k 2.56 kmdeg 12.1
+  blue      det 7 z    -7.7 peakDN    -761 flux    -1313 npix   2 off along    -23 cross    -27  size   18x  15 m  bg ρ 0.828 contrast -0.076
+  green     det 7 z     4.8 peakDN     424 flux      424 npix   1 off along     -3 cross   -144  size   10x  10 m  bg ρ 0.661 contrast +0.042
+  red       det 7 z    -3.9 peakDN    -342 flux     -342 npix   1 off along    144 cross     -3  size   10x  10 m  bg ρ 0.745 contrast -0.034
+  rededge3  det 7 z    -5.0 peakDN    -326 flux    -1283 npix   4 off along    -13 cross    -26  size   24x  24 m  bg ρ 0.936 contrast -0.033
+  nir       det 7 z    -6.5 peakDN    -682 flux    -1829 npix   4 off along    -25 cross    -20  size   21x  32 m  bg ρ 0.872 contrast -0.068
+  swir16    det 7 z    13.6 peakDN     378 flux     3457 npix  16 off along     -6 cross    -16  size   58x  51 m  bg ρ 0.087 contrast +0.038
+  swir22    det 7 z     8.3 peakDN     384 flux     4161 npix  17 off along    -31 cross    -16  size   68x  41 m  bg ρ 0.066 contrast +0.038
+== STARLINK-37359 SENTINEL-2B v_al -13.9 k 2.42 kmdeg 11.9
+  blue      det 4 z    -3.1 peakDN    -105 flux     -105 npix   1 off along     -3 cross    117  size   10x  10 m  bg ρ 0.032 contrast -0.011
+  green     det 4 z     3.4 peakDN     163 flux      163 npix   1 off along     28 cross     -6  size   10x  10 m  bg ρ 0.094 contrast +0.016
+  rededge1  det 4 z     3.4 peakDN     246 flux      246 npix   1 off along    102 cross    100  size   10x  10 m  bg ρ 0.123 contrast +0.025
+  rededge3  det 4 z     4.2 peakDN     171 flux      583 npix   4 off along     66 cross     36  size   24x  24 m  bg ρ 0.230 contrast +0.017
+  nir       det 4 z    -3.8 peakDN    -545 flux     -545 npix   1 off along   -127 cross    -80  size   10x  10 m  bg ρ 0.233 contrast -0.055
+  nir08     det 4 z     4.5 peakDN     264 flux      918 npix   4 off along    -98 cross     15  size   24x  24 m  bg ρ 0.240 contrast +0.026
+  swir16    det 4 z    -3.7 peakDN    -148 flux     -276 npix   2 off along     86 cross    -81  size   15x  18 m  bg ρ 0.213 contrast -0.015
