@@ -140,3 +140,21 @@ def read_window(href: str, epsg: int, bounds, res=20.0, resampling="average"):
             last = ex
             time.sleep(2 * (k + 1))
     raise last
+
+
+def prune_cache(max_gb=30.0, target_gb=20.0):
+    """Ограничить кэш окон: при превышении max_gb удалить самые старые окна до target_gb."""
+    files = sorted(CACHE.glob("win_*.npy"), key=lambda p: p.stat().st_mtime)
+    total = sum(p.stat().st_size for p in files)
+    if total <= max_gb * 1e9:
+        return 0
+    removed = 0
+    for p in files:
+        if total <= target_gb * 1e9:
+            break
+        sz = p.stat().st_size
+        try:
+            p.unlink(); total -= sz; removed += 1
+        except OSError:
+            pass
+    return removed

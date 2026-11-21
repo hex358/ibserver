@@ -275,6 +275,11 @@ for e in day:
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)
+    try:
+        from s2sat import imagery as _I
+        _I.prune_cache()
+    except Exception:
+        pass
     if a.save_maps and maps is not None:
         Path(a.save_maps).mkdir(parents=True, exist_ok=True)
         arr = {}
