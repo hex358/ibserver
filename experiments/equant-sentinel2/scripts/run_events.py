@@ -244,7 +244,8 @@ for e in day:
         r["status"] = "MISSED"   # «детекция» на краю окна при сильном прогнозе — признак, что объект за окном
     if r["status"] in ("MISSED", "borderline") and fc_.get("T_low", 0) >= (r.get("null_max", 99) + 3) * 0.8:   # прогноз выше порога, но не найден: сразу пробуем шире окно орбиты/сдвига
         try:
-            r2 = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud,
+            shift_edge = max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
+            r2 = P.run_event(SAT[e["sent"]], orb, e, Rm=(2 * a.rm if shift_edge else a.rm), minb=a.minb, max_cloud=a.max_cloud,
                              dM_max=retry_dm(e, r), method=a.method, area_m2=area_m2(e))
             r2.pop("_maps", None)
             r2["status"] = status(r2)
