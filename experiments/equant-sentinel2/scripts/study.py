@@ -111,16 +111,26 @@ def sheet(meta, U, RGB, path, cand=None, half=40):
     r = meta["result"]; roots_all = r.get("roots_all") or []
     pdm = r.get("profile_dm") or [0.0]; k0 = int(np.argmin(np.abs(np.array(pdm))))
     roots0 = roots_all[k0] if roots_all else {}
-    bands = [b for b in ("blue", "green", "red", "nir", "rededge3", "swir16") if b in roots0 and b in U]
+    allb = set().union(*[set(x) for x in roots_all]) if roots_all else set(roots0)
+    bands = [b for b in ("blue", "green", "red", "nir", "rededge3", "swir16") if b in allb and b in U]
     if not bands:
         return
     rgbC = [Cells({k: v[..., i] for k, v in RGB.items()}) for i in range(3)] if RGB else None
-    rows = [("номинал", None)] + ([("кандидат", cand)] if cand else [])
+    rows = [("номинал", None)]
+    if r.get("score", -1e9) > -1e8 and r.get("n") is not None and roots_all:
+        rows.append(("найдено", dict(phase=int(r["n"]), dx=r.get("sx", 0.0), dy=r.get("sy", 0.0))))
+    if cand:
+        rows.append(("вслепую", cand))
     fig, ax = plt.subplots(2 * len(rows), len(bands), figsize=(2.4 * len(bands), 4.8 * len(rows)), squeeze=False)
     o = (np.arange(-half, half) + 0.5) * RES; OX, OY = np.meshgrid(o, -o)
     for ri, (lab, c) in enumerate(rows):
         for k, b in enumerate(bands):
-            x, y = roots0[b][0][2], roots0[b][0][3]
+            rr_ = roots_all[c["phase"]] if (c is not None and "phase" in c) else roots0
+            if b not in rr_:
+                for a_ in (ax[2 * ri, k], ax[2 * ri + 1, k]):
+                    a_.set_xticks([]); a_.set_yticks([])
+                continue
+            x, y = rr_[b][0][2], rr_[b][0][3]
             if c is not None:
                 x += c["dx"]; y += c["dy"]
             Ub = Cells(U[b]).get(x + OX, y + OY)
