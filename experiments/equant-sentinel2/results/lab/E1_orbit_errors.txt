@@ -1,0 +1,20 @@
+rows 35913 -> /home/user/ibserver/experiments/equant-sentinel2/results/lab/orbit_errors.csv
+comparison             kind           age           n | |along| km: p50   p90   p99 | |cross| p50 p90 | |radial| p50 p90
+gp_vs_supgp_+0.0d      starlink       age<0.75   6723 |   3.02  15.17   78.81 |  0.14  0.39 |  0.20  0.80
+gp_vs_supgp_+0.0d      starlink       age<1.5    3797 |  15.57  35.23  113.56 |  0.20  0.45 |  0.26  0.94
+gp_vs_supgp_+0.0d      starlink       age>=1.5     80 |  42.12 346.78 2164.25 |  0.28  0.61 |  0.51  9.71
+gp_vs_supgp_-0.5d      starlink       age<0.75  10356 |   8.90  22.54  119.67 |  0.16  0.42 |  0.25  0.88
+gp_vs_supgp_-0.5d      starlink       age<1.5     214 |  16.15  38.39  336.14 |  0.18  0.47 |  0.34  1.29
+gp_vs_supgp_-0.5d      starlink       age>=1.5     30 |  24.89 642.66 1712.33 |  0.39  0.74 |  0.35 33.49
+gp_vs_supgp_-1.0d      starlink       age<0.75  10561 |  22.98  54.47  340.39 |  0.16  0.41 |  0.32  1.04
+gp_vs_supgp_-1.0d      starlink       age<1.5      27 |  28.09 155.24  394.09 |  0.34  0.68 |  0.52  4.33
+gp_vs_supgp_-1.0d      starlink       age>=1.5     12 |  40.58 850.80 1381.92 |  0.38  1.04 |  0.68 47.80
+old_vs_new             oneweb         age<0.75    116 |   0.36   0.81    2.38 |  0.04  0.14 |  0.05  0.12
+old_vs_new             oneweb         age<1.5     317 |   0.36   1.27   15.05 |  0.03  0.10 |  0.07  0.11
+old_vs_new             oneweb         age>=1.5    106 |   0.53   2.13   39.27 |  0.05  0.10 |  0.09  0.13
+old_vs_new             other_payload  age<0.75     48 |   0.33   1.28    3.11 |  0.01  0.06 |  0.04  0.08
+old_vs_new             other_payload  age<1.5     979 |   0.22   1.64   11.38 |  0.02  0.15 |  0.07  0.12
+old_vs_new             other_payload  age>=1.5     99 |   1.02  19.51  117.01 |  0.04  0.31 |  0.12  0.42
+old_vs_new             starlink       age<0.75    147 |   3.34   9.72   26.00 |  0.11  0.31 |  0.08  0.35
+old_vs_new             starlink       age<1.5    1965 |   7.09 108.24  627.07 |  0.16  0.44 |  0.21  2.90
+old_vs_new             starlink       age>=1.5    334 |   8.71 132.95 1651.89 |  0.26  0.55 |  0.17  1.99

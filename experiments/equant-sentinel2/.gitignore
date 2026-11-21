@@ -15,3 +15,5 @@ results/events_glrt/
 results/*.sh
 results/events_slow/
 results/events_all/
+results/lab/prof_*
+results/lab/prof_run/

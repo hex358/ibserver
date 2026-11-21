@@ -1,0 +1,9 @@
+snapshots ['20261120T0320', '20261121T0627']
+sentinels ['SENTINEL-2A', 'SENTINEL-2B', 'SENTINEL-2C'] objects 1
+crossings 1, daytime 1
+
+== STARLINK-32702_20261120T084212 SENTINEL-2C size~30m v_al -14.38 rng 329 age 0.58 d  dis nan km  lat -7.057 lon 26.535
+  cells 10/16 (69s)
+  cells 16/16 (75s)
+item S2C_T35MMN_20261120T083527_L2A cloud 14.417896 bands ['blue', 'green', 'red', 'rededge1', 'rededge2', 'rededge3', 'nir', 'nir08', 'swir16', 'swir22'] reasons []
+RESULT STARLINK-32702_20261120T084212: score 16.96  null max 10.58 med 9.80  dM -5.0 km shift (1320, 1500)  >4σ 7/10  per-band blue=6.0 green=2.8 red=7.4 rededge1=0.1 rededge2=3.4 rededge3=-0.4 nir=-0.6 nir08=-0.8 swir16=3.0 swir22=0.7

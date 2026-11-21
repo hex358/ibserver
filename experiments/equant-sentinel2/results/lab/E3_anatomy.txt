@@ -1,0 +1,9 @@
+== ISS SENTINEL-2B v_al -13.0 k 2.16 kmdeg 12.2
+  blue      det 4 z   357.5 peakDN   10058 flux   157045 npix  58 off along    -96 cross     54  size   97x 183 m  bg ρ 0.032 contrast +1.006
+  green     det 4 z   250.5 peakDN    5643 flux    85104 npix  61 off along    -64 cross     56  size   89x 190 m  bg ρ 0.042 contrast +0.564
+  red       det 4 z   223.6 peakDN    5369 flux    97855 npix  79 off along    -19 cross     32  size  102x 211 m  bg ρ 0.026 contrast +0.537
+  rededge1  det 4 z   102.1 peakDN    4749 flux    97838 npix  84 off along    -21 cross     53  size  116x 197 m  bg ρ 0.079 contrast +0.475
+  rededge2  det 4 z   104.6 peakDN    5075 flux   135270 npix  66 off along     -3 cross     51  size   94x 138 m  bg ρ 0.249 contrast +0.508
+  rededge3  det 4 z    61.4 peakDN    2465 flux    44304 npix  52 off along     36 cross     37  size   84x 136 m  bg ρ 0.233 contrast +0.246
+  nir       det 4 z    32.8 peakDN    5748 flux    67188 npix  33 off along    -75 cross     51  size   58x 103 m  bg ρ 0.234 contrast +0.575
+  swir16    det 4 z   140.3 peakDN    7638 flux   254331 npix 175 off along    -18 cross     71  size  198x 271 m  bg ρ 0.163 contrast +0.764
