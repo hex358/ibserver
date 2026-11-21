@@ -14,3 +14,4 @@ results/occl/
 results/events_glrt/
 results/*.sh
 results/events_slow/
+results/events_all/

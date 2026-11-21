@@ -39,18 +39,28 @@ ap.add_argument("--max-disagree", type=float, default=2.0, help="км на зе�
 ap.add_argument("--out", default=str(ROOT / "results/events"))
 a = ap.parse_args()
 
-snaps = sorted((ROOT / "data/tle_snapshots").iterdir())
-snap = (ROOT / "data/tle_snapshots" / a.snapshot) if a.snapshot else snaps[-1]
-print("snapshot", snap.name)
-sents = [s for s in O.parse_tle((snap / "sentinel2.tle").read_text()) if s.name.startswith(a.sent)]
+snaps = sorted(p_ for p_ in (ROOT / "data/tle_snapshots").iterdir() if p_.is_dir())
+if a.snapshot == "all":
+    snap_list = snaps            # объединить все снимки: для каждого объекта самая свежая эпоха
+else:
+    snap_list = [(ROOT / "data/tle_snapshots" / a.snapshot) if a.snapshot else snaps[-1]]
+snap = snap_list[-1]
+print("snapshots", [x.name for x in snap_list])
+def _load(patterns, exclude_s2=True):
+    best = {}
+    for sd in snap_list:
+        for pat in patterns.split(","):
+            for fpath in sorted(_glob.glob(str(sd / pat.strip()))):
+                for o in O.parse_tle(Path(fpath).read_text()):
+                    if exclude_s2 and o.name.startswith("SENTINEL-2"):
+                        continue
+                    if o.catnr not in best or o.epoch_jd > best[o.catnr].epoch_jd:
+                        best[o.catnr] = o
+    return best
+
 import glob as _glob
-objs, _seen = [], set()
-for pat in a.orbits.split(","):
-    for fpath in sorted(_glob.glob(str(snap / pat.strip()))):
-        for o in O.parse_tle(Path(fpath).read_text()):
-            if o.catnr in _seen or o.name.startswith("SENTINEL-2") or o.perigee_km > 2000:
-                continue
-            _seen.add(o.catnr); objs.append(o)
+sents = [s for s in _load("sentinel2.tle", exclude_s2=False).values() if s.name.startswith(a.sent)]
+objs = [o for o in _load(a.orbits).values() if o.perigee_km <= 2000]
 if a.obj:
     objs = [o for o in objs if o.name.split()[0] == a.obj or o.catnr == a.obj]
 print("sentinels", [s.name for s in sents], "objects", len(objs))
@@ -82,10 +92,7 @@ SAT = {s.name: s for s in sents}; OBJ = {o.catnr: o for o in objs}
 if a.agree:
     import numpy as np
     from s2sat import geometry as G
-    OBJ2 = {}
-    for pat in a.agree.split(","):
-        for fpath in sorted(_glob.glob(str(snap / pat.strip()))):
-            OBJ2.update({o.catnr: o for o in O.parse_tle(Path(fpath).read_text())})
+    OBJ2 = _load(a.agree)
     keep = []
     for e in day:
         o2 = OBJ2.get(e["cat"])
