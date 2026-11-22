@@ -56,3 +56,5 @@ results/events_v9_*.log
 results/events_uni_all.log
 results/events_v9boot/
 results/events_v9boot.log
+results/events_v9n/
+results/events_v9n.log
