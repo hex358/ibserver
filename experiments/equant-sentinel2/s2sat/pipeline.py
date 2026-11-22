@@ -58,12 +58,12 @@ class CellRaster:
 
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
               ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None,
-              dM_max=0.0, dM_step=0.5, workers=4, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion", area_m2=None, early_thr=6.0, stretch=True, max_image_km=None, Rc=None):
+              dM_max=0.0, dM_step=0.5, workers=4, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion", area_m2=None, early_thr=6.0, stretch=True, max_image_km=None, Rc=None, dM_center=0.0):
     """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
     t = dt_from_jd(e["jd"])
-    its = I.items_around(e["lon"], e["lat"], t, e["sent"][-1], d=0.8 + 0.012 * dM_max)
+    its = I.items_around(e["lon"], e["lat"], t, e["sent"][-1], d=0.8 + 0.012 * (dM_max + abs(dM_center)))
     if not its:
         out["reasons"].append("no granules"); return out
     inside = [i for i in its if i.bbox[0] <= e["lon"] <= i.bbox[2] and i.bbox[1] <= e["lat"] <= i.bbox[3]] or its
@@ -99,7 +99,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         X, Y = G.ecef_to_utm(tr["ground"][ok], epsg); A = tr["alpha"][ok]
         return M.band_roots(A, X, Y, DG, bands), (A, X, Y)
 
-    roots0, track0 = roots_at_dm(0.0)
+    roots0, track0 = roots_at_dm(float(dM_center))
     gain = None
     if dM_max > 0 and track0 is not None:
         g0 = G.apparent_track(sen, obj, e["jd"], [0.0])["ground"]
@@ -108,12 +108,13 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         if max_image_km:     # окно по фазе ограничено сдвигом на снимке: встречным пролётам — шире, попутным — уже
             dM_max = min(dM_max, max_image_km * 1000.0 / max(gain, 1.0))
         dm_step = min(dM_step, max(0.05, 0.9 * Rm / max(gain, 1.0)))
-        fine = np.arange(-dM_max, dM_max + 1e-9, dm_step)
-        fine = np.unique(np.r_[fine, 0.0])
+        # окно вокруг dM_center: 0 — номинальная орбита; иначе поправка по найденному пролёту того же объекта
+        fine = dM_center + np.arange(-dM_max, dM_max + 1e-9, dm_step)
+        fine = np.unique(np.r_[fine, dM_center])
     else:
         fine = np.array([0.0])
-    ROOTS = [roots0 if abs(dm) < 1e-12 else roots_at_dm(dm)[0] for dm in fine]
-    k0 = int(np.argmin(np.abs(fine)))
+    ROOTS = [roots0 if abs(dm - dM_center) < 1e-12 else roots_at_dm(dm)[0] for dm in fine]
+    k0 = int(np.argmin(np.abs(fine - dM_center)))
     RF = ROOTS  # для _inject
     k_inj = int(np.argmin(np.abs(fine - (inject or {}).get("dm", 0.0))))
     bands_r = {b for rr in ROOTS for b in rr}
@@ -369,7 +370,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         out["forecast"] = fc0
         # ранний выход только если и на соседних фазах (±3 км — реальная ошибка SupGP) видимость не лучше номинала
         nb0 = len(roots0)
-        nb_near = max([len(ROOTS[i]) for i in range(len(fine)) if abs(fine[i]) <= 3.0] or [nb0])
+        nb_near = max([len(ROOTS[i]) for i in range(len(fine)) if abs(fine[i] - dM_center) <= 3.0] or [nb0])
         if fc0 is not None and fc0["T_pred"] < early_thr and nb_near <= nb0:
             out["early_exit"] = True
             out["reasons"].append(f"too faint: forecast T {fc0['T_pred']:.1f} < {early_thr}")

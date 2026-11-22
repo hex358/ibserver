@@ -37,6 +37,9 @@ ap.add_argument("--max-image-km", type=float, default=None, help="предел �
 ap.add_argument("--shard", default=None, help="k/n: обработать только события с номером ≡ k (mod n)")
 ap.add_argument("--rc", type=float, default=None, help="радиус поиска поперёк трассы на снимке, м (поперечная ошибка орбиты × ~2.5)")
 ap.add_argument("--tol", type=float, default=30.0, help="допуск положения полосы поперёк трассы, м")
+ap.add_argument("--bootstrap-from", default=None, help="каталоги с результатами: для объекта с найденным пролётом окно по фазе вокруг найденной поправки")
+ap.add_argument("--boot-drift", type=float, default=5.0, help="допустимый дрейф поправки вдоль орбиты, км/сут")
+ap.add_argument("--boot-min", type=float, default=2.0, help="минимальная полуширина окна вокруг найденной поправки, км")
 ap.add_argument("--reverse", action="store_true", help="обработать список с конца (второй параллельный процесс)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=40.0)   # правило съёмки: THEORY §12
@@ -253,6 +256,18 @@ if a.shard:
     day = [e for i, e in enumerate(day) if i % _n == _k]
     print(f"shard {_k}/{_n}: {len(day)} events", flush=True)
 SAT = {s.name: s for s in sents}; OBJ = {o.catnr: o for o in objs}
+BOOT = {}   # catnr -> [(jd, dM)] найденных пролётов (по --bootstrap-from)
+if a.bootstrap_from:
+    from s2sat.threshold import threshold as _thr_b
+    for _d in a.bootstrap_from.split(","):
+        for _f in Path(_d).glob("*.json"):
+            try:
+                _x = json.loads(_f.read_text()); _e, _r = _x["event"], _x["result"]
+            except Exception:
+                continue
+            if "score" in _r and "null_max" in _r and _r.get("dM") is not None and _r["score"] >= _thr_b(_r):
+                BOOT.setdefault(_e["cat"], []).append((_e["jd"], _r["dM"]))
+    print("bootstrap: detected crossings for", len(BOOT), "objects", flush=True)
 if a.agree:
     import numpy as np
     from s2sat import geometry as G
@@ -291,7 +306,14 @@ for e in day:
         orb = OBJ[e["cat"]]
         if a.agree and e.get("supgp") and e["cat"] in OBJ2:
             orb = OBJ2[e["cat"]]          # SupGP (эфемериды оператора) точнее GP для Starlink
-        r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=dm_for(e), method=a.method, area_m2=area_m2(e), max_image_km=a.max_image_km, Rc=a.rc, tol_m=a.tol)
+        _c, _w = 0.0, dm_for(e)
+        _bl = [(jd, dm) for jd, dm in BOOT.get(e["cat"], []) if abs(jd - e["jd"]) > 1e-4]   # не сам этот пролёт
+        if _bl:
+            jd_b, dm_b = min(_bl, key=lambda t: abs(t[0] - e["jd"]))
+            _c, _w = dm_b, max(a.boot_min, a.boot_drift * abs(e["jd"] - jd_b))
+            e["boot"] = dict(center=_c, half=_w, from_jd=jd_b)
+            print(f"  bootstrap: window {_c:+.1f} ± {_w:.1f} km (from crossing {e['jd'] - jd_b:+.2f} d)", flush=True)
+        r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=_w, dM_center=_c, method=a.method, area_m2=area_m2(e), max_image_km=a.max_image_km, Rc=a.rc, tol_m=a.tol)
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)
@@ -312,10 +334,10 @@ for e in day:
         meta = dict(event=e, result={k: v for k, v in r.items() if k not in ("roots",)})
         np.savez_compressed(Path(a.save_maps) / f"{tag}.npz", meta=json.dumps(meta, default=float), **arr)
     print("item", r.get("item"), "cloud", r.get("cloud"), "bands", r.get("bands"), "reasons", r.get("reasons")[:5])
-    r["status"] = status(r); r["dm_window"] = max((abs(x) for x in (r.get("profile_dm") or [])), default=dm_for(e))
+    r["status"] = status(r); r["dm_window"] = max((abs(x - (e.get("boot") or {}).get("center", 0.0)) for x in (r.get("profile_dm") or [])), default=dm_for(e))
     fc_ = r.get("forecast") or {}
     strong = fc_.get("T_raw", 0) >= 2 * (r.get("null_max", 99) + 3)
-    edge = abs(r.get("dM", 0)) > 0.9 * r["dm_window"] or max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
+    edge = abs(r.get("dM", 0) - (e.get("boot") or {}).get("center", 0.0)) > 0.9 * r["dm_window"] or max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
     if r["status"] == "detected" and strong and edge:
         r["status"] = "detected_edge"   # найдено на краю окна: при разрешённом повторе — подтвердить шире
     if not a.no_retry and (r["status"] == "detected_edge" or r["status"] in ("MISSED", "borderline") and fc_.get("T_low", 0) >= (r.get("null_max", 99) + 3) * 0.8):   # прогноз выше порога, но не найден: сразу пробуем шире окно орбиты/сдвига
