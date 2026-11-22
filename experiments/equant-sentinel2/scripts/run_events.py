@@ -158,6 +158,9 @@ def retry_dm(e, r):
     return min(max(2.5 * dm_for(e), 20.0), 40.0)   # ошибки SupGP по найденным: 1.2–7 км, у 31272 — 15 км
 
 
+from s2sat.threshold import threshold as _threshold
+
+
 def status(r):
     """Диагноз: detected / unobservable / too_faint (прогноз ниже порога) / MISSED (прогноз выше порога — исправимо)."""
     if r.get("early_exit"):
@@ -168,7 +171,7 @@ def status(r):
         fc_blind = False
     if "score" not in r or r["score"] < -1e8:
         return "unobservable"
-    thr = r["null_max"] + 3
+    thr = _threshold(r)
     if r["score"] >= thr:
         return "detected"
     fc = r.get("forecast") or {}
@@ -328,7 +331,7 @@ for e in day:
         except Exception as ex:
             print("RETRY FAIL", repr(ex)[:150])
     fc = r.get("forecast") or {}
-    print(f"STATUS {tag}: {r['status']}  score {r.get('score', float('nan')):.1f} thr {r.get('null_max', float('nan')) + 3:.1f}"
+    print(f"STATUS {tag}: {r['status']}  score {r.get('score', float('nan')):.1f} thr {(_threshold(r) if 'null_max' in r else float('nan')):.1f}"
           f"  T_pred {fc.get('T_pred', float('nan')):.1f} (gain {fc.get('gain', float('nan')):.2f}, u {fc.get('u', {})})"
           f"  window ±{r['dm_window']:.1f} km  reasons {r.get('reasons', [])[:2]}", flush=True)
     if "score" in r:

@@ -3,6 +3,8 @@
   python scripts/summary.py results/events_v4 [results/v4 ...]
 """
 import json, math, sys, collections
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]))
+from s2sat.threshold import threshold
 from pathlib import Path
 
 
@@ -15,7 +17,7 @@ def classify(r):
         return "blind_nominal" if (r.get("forecast") or {}).get("u") == {} else "too_faint"
     if "score" not in r or r["score"] < -1e8:
         return "unobservable"
-    thr = r["null_max"] + 3
+    thr = threshold(r)
     fc = r.get("forecast") or {}
     us = fc.get("u")
     if "T_low" in fc:                     # v6+: сохранены T при f = 0.7 и f = 0.25
@@ -45,7 +47,7 @@ for d in sys.argv[1:]:
         T1 = fc_.get("T_pred") if "T_low" in fc_ else (clipT(us, 1.0) if us else None)
         T025 = fc_.get("T_low") if "T_low" in fc_ else (clipT(us, 0.25) if us else None)
         rows.append(dict(tag=f.stem, obj=e.get("obj"), sent=e.get("sent"), status=st, score=r.get("score"),
-                         thr=(r["null_max"] + 3) if "null_max" in r else None,
+                         thr=threshold(r) if "null_max" in r else None,
                          T1=T1, T025=T025,
                          v_al=e.get("v_al"), lat=e.get("lat"), lon=e.get("lon"), dM=r.get("dM"), window=r.get("dm_window")))
 seen = {}
