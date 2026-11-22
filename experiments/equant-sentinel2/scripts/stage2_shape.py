@@ -21,17 +21,19 @@ from s2sat.threshold import threshold
 ap = argparse.ArgumentParser()
 ap.add_argument("dirs", nargs="+")
 ap.add_argument("--half", type=int, default=5)
+ap.add_argument("--align", type=int, default=5)
 a = ap.parse_args()
+ALIGN = a.align
 
 
 def load_tiles(e):
-    key = f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_glrt_z*"
+    key = f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_glrt_z*loglocal*"
     ds = sorted(glob.glob(str(I.CACHE / "tiles" / key)))
     if not ds:
         return None
     T = {}
     for p in Path(ds[-1]).glob("*.pkl"):
-        ci, cj = map(int, p.stem.split("_")); T[(ci, cj)] = pickle.loads(p.read_bytes())
+        ci, cj = map(int, p.stem.split("_")); T[(ci, cj)] = {"Z": pickle.loads(p.read_bytes())["Z"]}   # только Z (память)
     return T
 
 
@@ -48,6 +50,10 @@ def coherence(MZ, zb, roots, kmdeg, stretch, sx, sy, disp=None, half=5):
         x0, y0 = roots[b][0][2], roots[b][0][3]; al = roots[b][0][1]
         dx, dy = (disp or {}).get(b, (0.0, 0.0))
         px = x0 + sig * (al - aref) * tdir[0] + sx + dx; py = y0 + sig * (al - aref) * tdir[1] + sy + dy
+        # выравнивание по пику |Z| в радиусе ALIGN пикселей (реальные смещения полос 20–50 м)
+        gs = np.arange(-ALIGN, ALIGN + 1) * 10.0; SX_, SY_ = np.meshgrid(gs, -gs)
+        zc = np.abs(np.nan_to_num(MZ.get(b, px + SX_, py + SY_).astype(float)))
+        k = int(np.argmax(zc)); px, py = px + SX_.flat[k], py + SY_.flat[k]
         z = MZ.get(b, px + GX, py + GY).astype(float)
         if not np.isfinite(z).all():
             continue
