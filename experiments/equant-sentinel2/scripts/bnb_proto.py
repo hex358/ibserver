@@ -21,6 +21,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("json")
 ap.add_argument("--null", type=int, default=-1, help="номер нуль-прохода (смещения полос из JSON), -1 — настоящий")
 ap.add_argument("--chunk", type=int, default=8)
+ap.add_argument("--floor", type=float, default=None, help="уровень отсечения: блоки с UB ≤ floor отбрасываются (решение «найден» не меняют)")
 ap.add_argument("--until", default="20261121T1217")
 a = ap.parse_args()
 x = json.loads(Path(a.json).read_text()); e, r = x["event"], x["result"]
@@ -227,7 +228,7 @@ def nhyp(bx):
 init = [(n, min(n + a.chunk, N), 0, NE, 0, NA, 0, NC) for n in range(0, N, a.chunk)]
 ub0 = bound(init)
 heap = [(-u, bx) for u, bx in zip(ub0, init) if u > 0]; heapq.heapify(heap)
-best = -1e9; best_h = None; n_eval = 0; n_bound = len(init); it = 0
+best = -1e9 if a.floor is None else a.floor; best_h = None; n_eval = 0; n_bound = len(init); it = 0
 while heap and -heap[0][0] > best:
     it += 1
     batch = []
@@ -254,6 +255,8 @@ while heap and -heap[0][0] > best:
         print(f"  iter {it}: queue {len(heap)}, top UB {(-heap[0][0]) if heap else 0:.2f}, best {best:.2f}, exact {n_eval}, bounds {n_bound}", flush=True)
 n_brute = sum(1 for n in range(N) if len(roots[n]) >= minb) * NE * NA * NC
 ref = r["score"] if a.null < 0 else r["nulls"][a.null]
-print(f"{Path(a.json).stem} {'real' if a.null < 0 else 'null ' + str(a.null)}: B&B max {best:.3f} at n={best_h[0]} e={STRETCH[best_h[1]]:+.3f} a={best_h[2]:.0f} c={best_h[3]:.0f}"
+if best_h is None:
+    best_h = (-1, 0, float("nan"), float("nan"))
+print(f"{Path(a.json).stem} {'real' if a.null < 0 else 'null ' + str(a.null)}{'' if a.floor is None else f' floor {a.floor:.2f}'}: B&B max {best:.3f}{' (= below floor)' if best_h[0] < 0 else ''} at n={best_h[0]} e={STRETCH[best_h[1]]:+.3f} a={best_h[2]:.0f} c={best_h[3]:.0f}"
       f" | brute-force max {ref:.3f} | hypotheses: brute {n_brute:.2e}, B&B exact {n_eval:.2e}, bounds {n_bound:.2e}"
       f" -> pruning x{n_brute / max(n_eval, 1):.0f} | {time.time() - t0:.0f} s, {it} levels", flush=True)
