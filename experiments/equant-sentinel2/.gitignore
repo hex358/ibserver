@@ -44,3 +44,6 @@ results/events_rc_*.log
 results/clipcap*
 results/events_st/
 results/events_st.log
+results/events_uni/
+results/events_uni_*.log
+results/events_rc_*b.log

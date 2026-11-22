@@ -304,7 +304,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
 
     # кэш обработанных ячеек на диске: смена параметров поиска/порога не требует повторной обработки снимков
     import pickle
-    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_v1"
+    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_v1"
 
     def _tile_save(c, T):
         try:

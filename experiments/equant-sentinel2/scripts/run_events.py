@@ -36,6 +36,7 @@ ap.add_argument("--no-retry", action="store_true", help="без автоповт
 ap.add_argument("--max-image-km", type=float, default=None, help="предел сдвига на снимке (км) для окна по фазе")
 ap.add_argument("--shard", default=None, help="k/n: обработать только события с номером ≡ k (mod n)")
 ap.add_argument("--rc", type=float, default=None, help="радиус поиска поперёк трассы на снимке, м (поперечная ошибка орбиты × ~2.5)")
+ap.add_argument("--tol", type=float, default=30.0, help="допуск положения полосы поперёк трассы, м")
 ap.add_argument("--reverse", action="store_true", help="обработать список с конца (второй параллельный процесс)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=40.0)   # правило съёмки: THEORY §12
@@ -290,7 +291,7 @@ for e in day:
         orb = OBJ[e["cat"]]
         if a.agree and e.get("supgp") and e["cat"] in OBJ2:
             orb = OBJ2[e["cat"]]          # SupGP (эфемериды оператора) точнее GP для Starlink
-        r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=dm_for(e), method=a.method, area_m2=area_m2(e), max_image_km=a.max_image_km, Rc=a.rc)
+        r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=dm_for(e), method=a.method, area_m2=area_m2(e), max_image_km=a.max_image_km, Rc=a.rc, tol_m=a.tol)
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)
