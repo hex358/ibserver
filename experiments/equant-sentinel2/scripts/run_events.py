@@ -167,6 +167,8 @@ from s2sat.threshold import threshold as _threshold
 
 def status(r):
     """Диагноз: detected / unobservable / too_faint (прогноз ниже порога) / MISSED (прогноз выше порога — исправимо)."""
+    if (r.get("masked_frac") or 0) >= 0.5 and not ("score" in r and "null_max" in r and r["score"] >= _threshold(r)):
+        return "cloud_masked"     # точки объекта под маской облаков/теней: не видно, а не пропуск
     if r.get("early_exit"):
         return "blind_nominal" if (r.get("forecast") or {}).get("u") == {} else "too_faint"
     if (r.get("forecast") or {}).get("u") == {}:

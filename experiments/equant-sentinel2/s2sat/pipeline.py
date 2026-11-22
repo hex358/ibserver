@@ -450,6 +450,13 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                         for nr, _ in outs[1:]]
     out["null_disp"] = [{b: [float(v[0]), float(v[1])] for b, v in d.items()} for d in disps[1:]]
     rootsb = ROOTS[res["n"]]
+    # наблюдаемость (THEORY §13): доля окрестности 300 м вокруг точек полос у центра окна, закрытая маской облаков/теней
+    _g = np.arange(-300.0, 301.0, 30.0); _GX, _GY = np.meshgrid(_g, _g); _mf = []
+    for b, lst in ROOTS[k0].items():
+        for (_d, _a, x, y) in lst[:1]:
+            v = mosU.get(b, x + _GX, y + _GY) if method == "glrt" else mos.get(b, x + _GX, y + _GY)
+            _mf.append(float(np.mean(~np.isfinite(np.asarray(v, float)))))
+    out["masked_frac"] = float(np.median(_mf)) if _mf else None
     if method == "glrt":
         _zb = [b for b in bands if all(b in T["Z"] for T in tiles.values())]
         _mz = CellRaster(tiles, _zb, "Z") if _zb else None
