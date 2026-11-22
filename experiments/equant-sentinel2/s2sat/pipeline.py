@@ -407,16 +407,29 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                 best = dict(r, dM=float(fine[n]), n=n)
         return best
 
-    profile = np.full(len(fine), np.nan)
-    res = scan(prof=profile)
-    null_profiles = []
-    rng = np.random.default_rng(5); nulls = []
+    rng = np.random.default_rng(5); disps = [None]
     for _ in range(n_null):
         disp = {}
         for b in bands:
             r = rng.uniform(1000, 4000); th = rng.uniform(0, 2 * math.pi); disp[b] = (r * math.cos(th), r * math.sin(th))
-        npf = np.full(len(fine), np.nan); nr = scan(disp, prof=npf); null_profiles.append(npf.tolist())
-        nulls.append(nr["score"] if nr else -1e9)
+        disps.append(disp)
+
+    def _one(disp):
+        pf = np.full(len(fine), np.nan); rr = scan(disp, prof=pf)
+        return rr, pf
+
+    # настоящий проход и нуль-прогоны независимы: параллельно на всех ядрах (fork, мозаики общие только на чтение)
+    global _SCAN
+    _SCAN = _one
+    if workers > 1 and len(disps) > 1:
+        import multiprocessing as mp
+        with mp.get_context("fork").Pool(min(workers, os.cpu_count() or 4)) as pool:
+            outs = pool.map(_call_scan, disps, chunksize=1)
+    else:
+        outs = [_one(d) for d in disps]
+    res, profile = outs[0]
+    null_profiles = [pf.tolist() for _, pf in outs[1:]]
+    nulls = [(nr["score"] if nr else -1e9) for nr, _ in outs[1:]]
     rootsb = ROOTS[res["n"]]
     if method == "glrt":
         _zb = [b for b in bands if all(b in T["Z"] for T in tiles.values())]
@@ -478,6 +491,12 @@ def _inject(ev, b, bb, inj, RF, k0, res=20):
 
 
 _FN = None
+_SCAN = None
+
+
+def _call_scan(d):
+    """Для пула процессов (fork): один проход поиска (настоящий или нуль) с функцией, заданной в родителе."""
+    return _SCAN(d)
 
 
 def _call(c):
