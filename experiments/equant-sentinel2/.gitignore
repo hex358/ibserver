@@ -37,3 +37,8 @@ results/clip*/
 results/clip*.log
 results/events_fast30_*.log
 results/events_joint30_*.log
+results/events_hs/
+results/events_hs_*.log
+results/events_rc/
+results/events_rc_*.log
+results/clipcap*

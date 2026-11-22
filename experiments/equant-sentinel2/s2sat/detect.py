@@ -174,14 +174,20 @@ SPECTRA = {
 CAP_RANK = int(__import__("os").environ.get("S2_CAPRANK", "0"))
 
 
-def occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=20.0, disp=None, minb=3, spectra=None, cap_rank=None):
+def occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=20.0, disp=None, minb=3, spectra=None, cap_rank=None, cross=None):
     """GLRT модели заслонения: объект закрывает долю f пикселя, отклик полосы b
         y_b = 1e4·f·(ρ_b − ρ_фона,b),  ρ_b = A·s_b  (форма спектра s задана, A и f ≥ 0 свободны),
     ρ_фона,b = G_b·1e−4 − 0.1 (L2A). В единицах u_b = y_b/σ_b: u = p1·x1 + p2·x2 + шум,
     x1 = s_b/σ_b, x2 = −1e4·ρ_фона,b/σ_b, p1 = 1e4·f·A, p2 = f. T² = uᵀX(XᵀX)⁻¹Xᵀu (2 ст. свободы);
     при f̂ < 0 — модель с одним параметром. Максимум по набору спектров."""
     spectra = spectra or SPECTRA
-    S = np.arange(-Rm, Rm + 1e-6, step); SX, SY = np.meshgrid(S, S)
+    if cross:   # сетка в осях трассы: вдоль ±Rm, поперёк ±Rc (поперечная ошибка орбиты × k ≈ 2.5 на снимке)
+        Rc, (tx, ty) = cross
+        Aa = np.arange(-Rm, Rm + 1e-6, step); Cc = np.arange(-Rc, Rc + 1e-6, step)
+        AA, CC = np.meshgrid(Aa, Cc)
+        SX, SY = AA * tx - CC * ty, AA * ty + CC * tx
+    else:
+        S = np.arange(-Rm, Rm + 1e-6, step); SX, SY = np.meshgrid(S, S)
     sh = SX.shape
     per = []
     cnt = np.zeros(sh); hit = np.zeros(sh)

@@ -55,7 +55,7 @@ class CellRaster:
 
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
               ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None,
-              dM_max=0.0, dM_step=0.5, workers=4, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion", area_m2=None, early_thr=6.0, stretch=True, max_image_km=None):
+              dM_max=0.0, dM_step=0.5, workers=4, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion", area_m2=None, early_thr=6.0, stretch=True, max_image_km=None, Rc=None):
     """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
@@ -130,7 +130,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
 
     # ячейки вдоль полосы возможных положений
     cells = set()
-    rad = Rm + 400
+    rad = max(Rm, Rc or 0) + 400
     for rr in ROOTS:
         pts = [(q[1], q[2], q[3]) for lst in rr.values() for q in lst]
         for _a, x, y in pts:
@@ -361,12 +361,12 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                     for b in ab:
                         dx0, dy0 = disp[b] if disp else (0.0, 0.0)
                         d2[b] = (dx0 + sig * (ab[b] - aref) * tdir[0], dy0 + sig * (ab[b] - aref) * tdir[1])
-                    rr = detect.occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=step or 30.0, disp=d2, minb=need)
+                    rr = detect.occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=step or 30.0, disp=d2, minb=need, cross=(Rc, tdir) if Rc else None)
                     if r is None or rr["score"] > r["score"]:
                         r = dict(rr, stretch=eps)
             elif method == "glrt":
                 if model == "occlusion":
-                    r = detect.occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=step or 30.0, disp=disp, minb=need)
+                    r = detect.occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=step or 30.0, disp=disp, minb=need, cross=(Rc, tdir) if Rc else None)
                 else:
                     r = detect.coherent_search_u(roots, mosU, bands, Rm, step=step or 30.0, disp=disp, minb=need)
             else:
