@@ -67,3 +67,7 @@ results/events_v10ad.log
 results/events_v11/
 results/events_v11.log
 results/events_bnbtest/
+results/events_cov/
+results/events_cov.log
+results/events_cov2/
+results/events_cov2.log
