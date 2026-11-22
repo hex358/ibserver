@@ -42,3 +42,5 @@ results/events_hs_*.log
 results/events_rc/
 results/events_rc_*.log
 results/clipcap*
+results/events_st/
+results/events_st.log

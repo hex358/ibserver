@@ -225,7 +225,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     # переходит в сдвиг kmdeg·δα — у медленных пролётов в разы больше
     tol_along_px = max(tol_px, min(La, 25) / 2 + 2)   # систематику вдоль трассы берёт на себя растяжение σ
     tdir = (math.cos(ang_track), math.sin(ang_track))
-    STRETCH = list(np.round(np.arange(-0.02, 0.02001, 0.004), 4)) if stretch else []
+    _smax = float(__import__("os").environ.get("S2_STRETCH_MAX", "0.02"))   # по находкам: у 4 растяжение на краю ±0.02
+    STRETCH = list(np.round(np.arange(-_smax, _smax + 1e-5, 0.004), 4)) if stretch else []
     FP = bgsub.rect_footprint(tol_along_px, tol_px, ang_track)
     out["tol_along_m"] = tol_along_px * 10.0
     out["image_geometry"] = geo
