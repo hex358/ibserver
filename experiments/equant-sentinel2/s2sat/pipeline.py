@@ -434,22 +434,80 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         pf = np.full(len(fine), np.nan); rr = scan(disp, prof=pf)
         return rr, pf
 
-    # настоящий проход и нуль-прогоны независимы: параллельно на всех ядрах (fork, мозаики общие только на чтение)
     global _SCAN
-    _SCAN = _one
-    if workers > 1 and len(disps) > 1:
+    srch = None
+    if SEARCH == "bnb" and method == "glrt" and model == "occlusion":
+        # перебор по схеме Equant (THEORY §14): точный максимум; нули — с отсечением по уровню решения «счёт − 4»
+        from . import bnb as _bnb
+        srch = _bnb.Search(ROOTS, fine, STRETCH, kmdeg, tdir, R_al, Rc or 0.0, step or 30.0, mosU, mosS, mosG, tiles, bands, minb=minb)
+        out["search_note"] = getattr(srch, "reason", "")
+        if not srch.ok:
+            srch = None
+    if srch is not None:
         import multiprocessing as mp
-        with mp.get_context("fork").Pool(min(workers, os.cpu_count() or 4)) as pool:
-            outs = pool.map(_call_scan, disps, chunksize=1)
+
+        def _pmap(fn, items):
+            global _SCAN
+            _SCAN = fn
+            if workers > 1 and len(items) > 1:
+                with mp.get_context("fork").Pool(min(workers, os.cpu_count() or 4)) as pool:
+                    return pool.map(_call_scan, items, chunksize=1)
+            return [fn(d) for d in items]
+        # 1) быстрые нижние оценки нулей (короткий перебор «сначала лучший»): L = медиана + 4 ≤ настоящего порога
+        quick = _pmap(lambda d: srch.run(d, budget=BNB_QUICK), disps[1:])
+        lo = [q[0] if q[0] is not None else 0.0 for q in quick]
+        L = float(np.median(lo)) + 4.0
+        # 2) настоящий проход с отсечением по L: «≤ L» доказывает «не найден»; иначе — точный максимум
+        b0, h0, ub0, ne0 = srch.run(floor=L)
+        out["search_L"] = L
+        if b0 is None:
+            q0 = srch.run(budget=BNB_QUICK)                 # нижняя оценка счёта для отчёта
+            b0, h0 = (q0[0], q0[1]) if q0[1] is not None else (None, None)
+            out["score_upper"] = L; out["decision"] = "not_detected_certified"
+            if h0 is None:
+                srch = None
+    if srch is not None:
+        res = srch.result_at(h0); res["score"] = float(b0)
+        floor = float(b0) - 4.0 - 1e-6
+        if out.get("decision") == "not_detected_certified":
+            outs_n = quick                                  # для «не найден» достаточно нижних оценок нулей
+        else:
+            outs_n = _pmap(lambda d: srch.run(d, floor=floor, budget=BNB_BUDGET), disps[1:])
+        nulls, nb_list = [], []
+        for (bn, hn, ubn, nen), d in zip(outs_n, disps[1:]):
+            if out.get("decision") == "not_detected_certified":
+                val = bn if bn is not None else 0.0        # нижняя оценка (решение уже доказано)
+            elif bn is not None and bn >= ubn - 1e-9:
+                val = bn                                   # точный максимум нуля
+            elif ubn <= floor + 1e-9:
+                val = floor                                # доказано ≤ уровня: верхняя граница (консервативно)
+            else:
+                val = max(ubn, bn if bn is not None else -1e9)   # бюджет исчерпан: верхняя граница
+            nulls.append(float(val))
+            nb_list.append(None if hn is None else {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v)
+                                                    for k, v in srch.result_at(hn, d).items() if k in ("score", "dM", "n", "sx", "sy", "stretch", "a_hat", "f_hat", "spectrum")})
+        out["null_best"] = nb_list
+        out["null_below_floor"] = [bool(bn is None and ubn <= floor + 1e-9) for bn, hn, ubn, nen in outs_n]
+        out["search"] = dict(method="bnb", eval_real=int(ne0), eval_null=[int(x[3]) for x in outs_n],
+                             brute=int(sum(1 for R in ROOTS if len([b for b in bands if b in R]) >= minb) * max(len(STRETCH), 1) * len(srch.Aa) * len(srch.Cc)))
+        profile = np.full(len(fine), np.nan); profile[res["n"]] = float(b0)
+        null_profiles = [[float("nan")] * len(fine) for _ in nulls]
     else:
-        outs = [_one(d) for d in disps]
-    res, profile = outs[0]
-    null_profiles = [pf.tolist() for _, pf in outs[1:]]
-    nulls = [(nr["score"] if nr else -1e9) for nr, _ in outs[1:]]
-    # параметры лучших кандидатов нуля (для проверки формы на второй ступени, THEORY §13)
-    out["null_best"] = [None if not nr else {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v)
-                                             for k, v in nr.items() if k in ("score", "dM", "n", "sx", "sy", "stretch", "a_hat", "f_hat", "spectrum")}
-                        for nr, _ in outs[1:]]
+        # настоящий проход и нуль-прогоны независимы: параллельно на всех ядрах (fork, мозаики общие только на чтение)
+        _SCAN = _one
+        if workers > 1 and len(disps) > 1:
+            import multiprocessing as mp
+            with mp.get_context("fork").Pool(min(workers, os.cpu_count() or 4)) as pool:
+                outs = pool.map(_call_scan, disps, chunksize=1)
+        else:
+            outs = [_one(d) for d in disps]
+        res, profile = outs[0]
+        null_profiles = [pf.tolist() for _, pf in outs[1:]]
+        nulls = [(nr["score"] if nr else -1e9) for nr, _ in outs[1:]]
+        # параметры лучших кандидатов нуля (для проверки формы на второй ступени, THEORY §13)
+        out["null_best"] = [None if not nr else {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v)
+                                                 for k, v in nr.items() if k in ("score", "dM", "n", "sx", "sy", "stretch", "a_hat", "f_hat", "spectrum")}
+                            for nr, _ in outs[1:]]
     out["null_disp"] = [{b: [float(v[0]), float(v[1])] for b, v in d.items()} for d in disps[1:]]
     rootsb = ROOTS[res["n"]]
     # точки полос в лучшей гипотезе С учётом растяжения узора (σ·(α_b − α_ref) вдоль трассы) и сдвига
@@ -526,6 +584,9 @@ def _inject(ev, b, bb, inj, RF, k0, res=20):
 
 _FN = None
 BG_MODEL = os.environ.get("S2_BG", "loglocal")      # "loglocal" (THEORY §13) или "block" (прежняя)
+SEARCH = os.environ.get("S2_SEARCH", "bnb")          # "bnb" — перебор по схеме Equant (THEORY §14), "grid" — полный
+BNB_BUDGET = float(os.environ.get("S2_BNB_BUDGET", "3e6"))
+BNB_QUICK = float(os.environ.get("S2_BNB_QUICK", "2e4"))
 _SCAN = None
 
 
