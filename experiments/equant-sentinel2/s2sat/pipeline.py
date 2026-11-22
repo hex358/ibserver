@@ -324,6 +324,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_{BG_MODEL}_v1"
 
     def _tile_save(c, T):
+        if inject:
+            return
         try:
             _tc.mkdir(parents=True, exist_ok=True)
             with open(_tc / f"{c[0]}_{c[1]}.pkl", "wb") as fh:
@@ -337,7 +339,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         todo = []
         for c in cs:
             pth = _tc / f"{c[0]}_{c[1]}.pkl"
-            if pth.exists():
+            if not inject and pth.exists():          # с подстановкой кэш не используется (иначе объекта нет)
                 try:
                     with open(pth, "rb") as fh:
                         tiles[c] = pickle.load(fh)
