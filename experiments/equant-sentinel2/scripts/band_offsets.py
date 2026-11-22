@@ -18,17 +18,26 @@ from s2sat.pipeline import CellRaster
 ap = argparse.ArgumentParser()
 ap.add_argument("json")
 ap.add_argument("--r", type=float, default=200.0)
+ap.add_argument("--bg", default="", help="суффикс ключа кэша, напр. *loglocal*")
 a = ap.parse_args()
 x = json.loads(Path(a.json).read_text()); e, r = x["event"], x["result"]
 n = r["n"]; roots = r["roots_all"][n]
 key = f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_glrt_z*"
-dirs = sorted(glob.glob(str(I.CACHE / "tiles" / key)))
+dirs = sorted(glob.glob(str(I.CACHE / "tiles" / (key + (a.bg if a.bg else "")))))
 if not dirs:
     sys.exit(f"no tile cache for {key}")
+from s2sat.pipeline import CELL
+_need = set()
+for b_ in roots:
+    x_, y_ = roots[b_][0][2] + r["sx"], roots[b_][0][3] + r["sy"]
+    for dx_ in (-3000, 0, 3000):
+        for dy_ in (-3000, 0, 3000):
+            _need.add((int((x_ + dx_) // CELL), int((y_ + dy_) // CELL)))
 tiles = {}
-for p in Path(dirs[-1]).glob("*.pkl"):
+for p in Path(dirs[-1]).glob("*.pkl"):     # только ячейки около объекта (память)
     ci, cj = map(int, p.stem.split("_"))
-    tiles[(ci, cj)] = pickle.loads(p.read_bytes())
+    if (ci, cj) in _need:
+        tiles[(ci, cj)] = pickle.loads(p.read_bytes())
 bands = [b for b in roots if all(b in T["U"] for T in tiles.values())]
 U = CellRaster(tiles, bands, "U")
 A = np.array([roots[b][0][1] for b in bands]); P = np.array([roots[b][0][2:4] for b in bands])
