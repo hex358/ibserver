@@ -174,11 +174,15 @@ def remove_common_mode(Z: dict):
     return out
 
 
-def standardize(u, block=50, c=8.0):
+ZCLIP = float(__import__("os").environ.get("S2_ZCLIP", "8"))
+
+
+def standardize(u, block=50, c=None):
     """Пере-калибровка по блокам: (u − медиана)/MAD. После выбора экстремума в окне распределение
     смещено (тяжёлый положительный хвост сцены); так под нулём отклик снова центрирован и единичен."""
     m, sd, shp = block_median_mad(u, block)
     M_ = _unblocks(m, shp, block); S_ = _unblocks(sd + 1e-6, shp, block)
+    c = ZCLIP if c is None else c
     out = np.clip((u - M_) / S_, -c, c).astype(np.float32)
     return out
 

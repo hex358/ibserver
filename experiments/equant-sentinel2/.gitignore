@@ -33,3 +33,7 @@ results/events_v8_prev/
 results/events_joint/
 results/events_joint30/
 results/events_fastcheck/
+results/clip*/
+results/clip*.log
+results/events_fast30_*.log
+results/events_joint30_*.log
