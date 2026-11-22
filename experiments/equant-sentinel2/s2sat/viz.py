@@ -35,7 +35,10 @@ def plot_event(r, maps, path, half=40):
     bands = [b for b in ("blue", "nir", "green", "red") if b in r["roots"]] or list(r["roots"])[:4]
     fig, ax = plt.subplots(3, len(bands), figsize=(3 * len(bands), 9), squeeze=False)
     for k, b in enumerate(bands):
-        x, y = r["roots"][b][0][2] + r["sx"], r["roots"][b][0][3] + r["sy"]
+        if r.get("pos_best") and b in r["pos_best"]:      # с учётом растяжения узора полос
+            x, y = r["pos_best"][b]
+        else:
+            x, y = r["roots"][b][0][2] + r["sx"], r["roots"][b][0][3] + r["sy"]
         rgb = _crop(tiles, "RGB", b, x, y, half)
         ok = np.isfinite(rgb) & (rgb > 0)
         lo, hi = np.percentile(rgb[ok], [1, 99]) if ok.any() else (0, 1)

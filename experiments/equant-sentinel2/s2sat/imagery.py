@@ -142,9 +142,12 @@ def read_window(href: str, epsg: int, bounds, res=20.0, resampling="average"):
     raise last
 
 
-def prune_cache(max_gb=30.0, target_gb=20.0):
-    """Ограничить кэш окон: при превышении max_gb удалить самые старые окна до target_gb."""
-    files = sorted(list(CACHE.glob("win_*.npy")) + list(CACHE.glob("tiles/*/*.pkl")), key=lambda p: p.stat().st_mtime)
+def prune_cache(max_gb=40.0, target_gb=30.0):
+    """Ограничить кэш: при превышении max_gb удалить самые старые файлы до target_gb — сначала окна снимков
+    (их можно перечитать), обработанные ячейки — в последнюю очередь (их пересчёт дорог)."""
+    win = sorted(CACHE.glob("win_*.npy"), key=lambda p: p.stat().st_mtime)
+    til = sorted(CACHE.glob("tiles/*/*.pkl"), key=lambda p: p.stat().st_mtime)
+    files = win + til
     total = sum(p.stat().st_size for p in files)
     if total <= max_gb * 1e9:
         return 0

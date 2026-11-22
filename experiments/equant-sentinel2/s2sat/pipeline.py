@@ -450,6 +450,12 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                         for nr, _ in outs[1:]]
     out["null_disp"] = [{b: [float(v[0]), float(v[1])] for b, v in d.items()} for d in disps[1:]]
     rootsb = ROOTS[res["n"]]
+    # точки полос в лучшей гипотезе С учётом растяжения узора (σ·(α_b − α_ref) вдоль трассы) и сдвига
+    _ab = {b: rootsb[b][0][1] for b in bands if b in rootsb}
+    _aref = min(_ab.values()) if _ab else 0.0; _sig = (res.get("stretch") or 0.0) * kmdeg * 1000.0
+    pos_best = {b: [rootsb[b][0][2] + res["sx"] + _sig * (_ab[b] - _aref) * tdir[0],
+                    rootsb[b][0][3] + res["sy"] + _sig * (_ab[b] - _aref) * tdir[1]] for b in _ab}
+    out["pos_best"] = pos_best
     # наблюдаемость (THEORY §13): доля окрестности 300 м вокруг точек полос у центра окна, закрытая маской облаков/теней
     _g = np.arange(-300.0, 301.0, 30.0); _GX, _GY = np.meshgrid(_g, _g); _mf = []
     for b, lst in ROOTS[k0].items():
@@ -461,8 +467,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         _zb = [b for b in bands if all(b in T["Z"] for T in tiles.values())]
         _mz = CellRaster(tiles, _zb, "Z") if _zb else None
         mosZ = type("MZ", (), {"get": staticmethod(lambda b, X, Y: (_mz.get(b, X, Y) if b in _zb else mosU.get(b, X, Y)))})
-        per = {b: max((float(np.nan_to_num(mosZ.get(b, np.array([x + res["sx"]]), np.array([y + res["sy"]]))[0], nan=0))
-                       for (_d, _a, x, y) in rootsb[b]), key=abs) for b in bands if b in rootsb}
+        per = {b: float(np.nan_to_num(mosZ.get(b, np.array([pos_best[b][0]]), np.array([pos_best[b][1]]))[0], nan=0))
+               for b in bands if b in pos_best}
         per_dn = {b: round(per[b] * float(np.nan_to_num(mosS.get(b, np.array([rootsb[b][0][2] + res["sx"]]), np.array([rootsb[b][0][3] + res["sy"]]))[0], nan=0)), 1)
                   for b in per}
         out["per_band_dn"] = per_dn
