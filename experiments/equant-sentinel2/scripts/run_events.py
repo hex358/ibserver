@@ -37,7 +37,7 @@ ap.add_argument("--max-image-km", type=float, default=None, help="предел �
 ap.add_argument("--shard", default=None, help="k/n: обработать только события с номером ≡ k (mod n)")
 ap.add_argument("--reverse", action="store_true", help="обработать список с конца (второй параллельный процесс)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
-ap.add_argument("--min-sun", type=float, default=8.0)
+ap.add_argument("--min-sun", type=float, default=40.0)   # правило съёмки: THEORY §12
 ap.add_argument("--min-v", type=float, default=1.5)
 ap.add_argument("--method", default="glrt")
 ap.add_argument("--dm", default="auto", help="перебор фазы вдоль орбиты, ±км, или auto (по типу объекта и возрасту TLE, THEORY.md §2)")
