@@ -302,9 +302,35 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     tiles, fails = {}, []
     fn = process_glrt if method == "glrt" else process
 
+    # кэш обработанных ячеек на диске: смена параметров поиска/порога не требует повторной обработки снимков
+    import pickle
+    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_v1"
+
+    def _tile_save(c, T):
+        try:
+            _tc.mkdir(parents=True, exist_ok=True)
+            with open(_tc / f"{c[0]}_{c[1]}.pkl", "wb") as fh:
+                pickle.dump(T, fh, protocol=5)
+        except OSError:
+            pass
+
     def run_cells(cs):
         global _FN
         _FN = fn
+        todo = []
+        for c in cs:
+            pth = _tc / f"{c[0]}_{c[1]}.pkl"
+            if pth.exists():
+                try:
+                    with open(pth, "rb") as fh:
+                        tiles[c] = pickle.load(fh)
+                    continue
+                except Exception:
+                    pass
+            todo.append(c)
+        cs = todo
+        if not cs:
+            return
         if method == "glrt" and len(cs) > 2:
             import multiprocessing as mp
             with mp.get_context("fork").Pool(min(workers, os.cpu_count() or 4)) as pool:
@@ -312,11 +338,11 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                 for n_done, (c, T, why) in enumerate(it, 1):
                     if n_done % 20 == 0 or n_done == len(cs):
                         print(f"  cells {len(tiles) + len(fails) + 1}/{len(cells)} ({time.time() - t0:.0f}s)", flush=True)
-                    (fails.append((c, why)) if T is None else tiles.__setitem__(c, T))
+                    (fails.append((c, why)) if T is None else (tiles.__setitem__(c, T), _tile_save(c, T)))
         else:
             with ThreadPoolExecutor(workers) as ex:
                 for c, T, why in ex.map(lambda c: _safe(fn, c), cs):
-                    (fails.append((c, why)) if T is None else tiles.__setitem__(c, T))
+                    (fails.append((c, why)) if T is None else (tiles.__setitem__(c, T), _tile_save(c, T)))
 
     # сначала ячейки в точке номинальной орбиты: ранний прогноз SNR (THEORY.md §6)
     probe = sorted({(int(math.floor(q[2] / CELL)), int(math.floor(q[3] / CELL))) for lst in roots0.values() for q in lst} & set(cells))
