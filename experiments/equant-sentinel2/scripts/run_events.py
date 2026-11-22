@@ -42,6 +42,8 @@ ap.add_argument("--boot-drift", type=float, default=5.0, help="допустим�
 ap.add_argument("--boot-min", type=float, default=2.0, help="минимальная полуширина окна вокруг найденной поправки, км")
 ap.add_argument("--orbit-rule", default="newest", choices=["newest", "fitspan"],
                 help="fitspan: SupGP с последней эпохой ДО снимка (прогноз оператора вперёд), иначе GP с первой эпохой ПОСЛЕ (подгонка по наблюдениям назад); THEORY §14")
+ap.add_argument("--adaptive-window", action="store_true", help="окно = max(dm-floor, 1.5·расхождение источников орбиты), ≤ 45 км")
+ap.add_argument("--dm-floor", type=float, default=8.0)
 ap.add_argument("--reverse", action="store_true", help="обработать список с конца (второй параллельный процесс)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=40.0)   # правило съёмки: THEORY §12
@@ -88,6 +90,25 @@ print("sentinels", [s.name for s in sents], "objects", len(objs))
 t0 = dt.datetime.fromisoformat(a.start).replace(tzinfo=dt.timezone.utc)
 t1 = dt.datetime.fromisoformat(a.end).replace(tzinfo=dt.timezone.utc)
 ev = C.find_crossings(sents, objs, O.jd_from_dt(t0), O.jd_from_dt(t1), step_s=30)
+if a.orbit_rule == "fitspan" and len(snap_list) > 1:
+    # пересечения по орбитам каждого снимка каталога: свежая орбита при пересчёте назад уводит объект на десятки км,
+    # и пролёт выпадает из снимков; берём пролёт, если объект мог быть в кадре хотя бы по одной орбите
+    _want_c = {o.catnr for o in objs}
+    _seen = {(x["sent"], x["cat"], round(x["jd"] * 1440)) for x in ev}
+    for sd in snap_list[:-1]:
+        _objs_s = {}
+        for pat in a.orbits.split(","):
+            for fpath in sorted(_glob.glob(str(sd / pat.strip()))):
+                for o in O.parse_tle(Path(fpath).read_text()):
+                    if o.catnr in _want_c and (o.catnr not in _objs_s or o.epoch_jd > _objs_s[o.catnr].epoch_jd):
+                        _objs_s[o.catnr] = o
+        if not _objs_s:
+            continue
+        for x in C.find_crossings(sents, list(_objs_s.values()), O.jd_from_dt(t0), O.jd_from_dt(t1), step_s=30):
+            k_ = (x["sent"], x["cat"], round(x["jd"] * 1440))
+            if not any((k_[0], k_[1], k_[2] + d_) in _seen for d_ in (-1, 0, 1)):
+                _seen.add(k_); ev.append(x)
+    print(f"crossings incl. older orbits: {len(ev)}", flush=True)
 day = [e for e in ev if e["desc"] and e["sun_el"] > a.min_sun and e["lit"] and abs(e["v_al"]) >= a.min_v
        and abs(e["lat"]) <= a.max_lat and abs(e["age"]) <= a.max_age]
 print(f"crossings {len(ev)}, daytime {len(day)}")
@@ -147,6 +168,8 @@ def size_m(e):
 
 def dm_for(e):
     """Окно по фазе (±км) по данным E1: Starlink манёврирует, прочие объекты известны до ~0.2–1.6 км."""
+    if e.get("dm_adaptive"):
+        return float(e["dm_adaptive"])          # по расхождению источников орбиты (THEORY §14)
     if a.dm != "auto":
         return float(a.dm)
     if e.get("supgp"):
@@ -287,6 +310,19 @@ def orbit_for(e):
     if gp:
         o = min(gp, key=lambda o: o.epoch_jd); return o, "gp_after", e["jd"] - o.epoch_jd
     return None, "none", float("nan")
+
+
+def orbit_disagreement(e, o, src):
+    """|вдоль| между выбранной орбитой и ближайшей по эпохе орбитой другого источника в момент снимка, км.
+    По 17 найденным: реальная ошибка ≤ max(8, 1.2·расхождение) во всех случаях (THEORY §14)."""
+    alts = ALL_GP.get(e["cat"], []) if src == "supgp_before" else ALL_SG.get(e["cat"], [])
+    if not alts:
+        return float("nan")
+    alt = min(alts, key=lambda x: abs(x.epoch_jd - e["jd"]))
+    import numpy as _np
+    jd = _np.array([e["jd"]]); r1, v1 = o.ecef(jd); r2, _ = alt.ecef(jd)
+    u = v1[0] / _np.linalg.norm(v1[0])
+    return abs(float((r2[0] - r1[0]) @ u))
 BOOT = {}   # catnr -> [(jd, dM)] найденных пролётов (по --bootstrap-from)
 if a.bootstrap_from:
     from s2sat.threshold import threshold as _thr_b
@@ -341,7 +377,12 @@ for e in day:
             _o, _src, _age = orbit_for(e)
             if _o is not None:
                 orb = _o; e["orbit_src"] = _src; e["orbit_age"] = _age
-                print(f"  orbit: {_src}, age {_age:+.2f} d", flush=True)
+                _D = orbit_disagreement(e, _o, _src); e["orbit_disagree_km"] = _D
+                if a.adaptive_window and _D == _D:
+                    _w = min(45.0, max(a.dm_floor, 1.5 * _D)); _c = (e.get("boot") or {}).get("center", 0.0)
+                    if not e.get("boot"):
+                        e["dm_adaptive"] = _w
+                print(f"  orbit: {_src}, age {_age:+.2f} d, other source differs by {_D:.1f} km", flush=True)
         _c, _w = 0.0, dm_for(e)
         _bl = [(jd, dm) for jd, dm in BOOT.get(e["cat"], []) if abs(jd - e["jd"]) > 1e-4]   # не сам этот пролёт
         if _bl:
