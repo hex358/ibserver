@@ -444,6 +444,11 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     res, profile = outs[0]
     null_profiles = [pf.tolist() for _, pf in outs[1:]]
     nulls = [(nr["score"] if nr else -1e9) for nr, _ in outs[1:]]
+    # параметры лучших кандидатов нуля (для проверки формы на второй ступени, THEORY §13)
+    out["null_best"] = [None if not nr else {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v)
+                                             for k, v in nr.items() if k in ("score", "dM", "n", "sx", "sy", "stretch", "a_hat", "f_hat", "spectrum")}
+                        for nr, _ in outs[1:]]
+    out["null_disp"] = [{b: [float(v[0]), float(v[1])] for b, v in d.items()} for d in disps[1:]]
     rootsb = ROOTS[res["n"]]
     if method == "glrt":
         _zb = [b for b in bands if all(b in T["Z"] for T in tiles.values())]
