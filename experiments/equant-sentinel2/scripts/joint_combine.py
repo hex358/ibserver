@@ -41,13 +41,35 @@ def joint_max(curves, times, a_grid, b_grid, min_n=2):
 
 
 if __name__ == "__main__":
-    groups = collections.defaultdict(list)
-    for d in sys.argv[1:]:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("dirs", nargs="+")
+    ap.add_argument("--B", type=float, default=None, help="предел дрейфа ошибки вдоль орбиты, км/сут (по умолчанию — из данных)")
+    ap.add_argument("--margin", type=float, default=1.0)
+    A = ap.parse_args()
+    groups = collections.defaultdict(list); seen = {}
+    for d in A.dirs:
         for f in sorted(Path(d).glob("*.json")):
-            x = json.loads(f.read_text()); e, r = x["event"], x["result"]
+            x = json.loads(f.read_text())
+            if not isinstance(x, dict) or "event" not in x:
+                continue
+            e, r = x["event"], x["result"]
             if "profile" not in r or "null_profiles" not in r:
                 continue
+            k = (e["cat"], e["sent"], round(e["jd"] * 1440))     # одно пересечение могло посчитаться дважды
+            if k in seen:
+                continue
+            seen[k] = 1
             groups[(e["cat"], e["obj"].split()[0])].append((e, r))
+    # дрейф ошибки орбиты по данным: объекты, найденные по отдельности на ≥2 пролётах
+    drifts = []
+    for lst in groups.values():
+        det = sorted([(e["jd"], r["dM"]) for e, r in lst if r.get("score", -1e9) >= r.get("null_max", 1e9) + 3 and r.get("dM") is not None])
+        for (t1, m1), (t2, m2) in zip(det, det[1:]):
+            if t2 - t1 > 0.05:
+                drifts.append(abs(m2 - m1) / (t2 - t1))
+    print("measured |d(dM)/dt| km/day from individually detected pairs:", [round(x, 2) for x in sorted(drifts)])
+    B_data = (2.0 * max(drifts) if drifts else None)
     rows = []
     for (cat, name), lst in sorted(groups.items(), key=lambda kv: kv[0][1]):
         lst.sort(key=lambda er: er[0]["jd"])
@@ -64,16 +86,16 @@ if __name__ == "__main__":
         star = name.upper().startswith("STARLINK")
         W = max(float(c[0][-1]) for c in curves)
         a_grid = np.arange(-W, W + 1e-9, 0.25)
-        B = 40.0 if star else 5.0
+        B = A.B if A.B is not None else (max(B_data, 2.0) if B_data else (10.0 if star else 3.0))
         b_grid = np.arange(-B, B + 1e-9, B / 40)
         J, aa, bb, n = joint_max(curves, times, a_grid, b_grid)
         nn = min(len(x) for x in nulls)
         Jn = [joint_max([(g, zn[k]) for (g, _), zn in zip(curves, nulls)], times, a_grid, b_grid)[0] for k in range(nn)]
-        det = J >= max(Jn) + 1.0
-        rows.append(dict(obj=name, n=len(curves), ind=ind, J=J, a=aa, b=bb, n_used=n, null_max=max(Jn), null_med=float(np.median(Jn)), det=det))
+        det = J >= max(Jn) + A.margin
+        rows.append(dict(obj=name, n=len(curves), ind=ind, J=J, a=aa, b=bb, B=B, n_used=n, null_max=max(Jn), null_med=float(np.median(Jn)), det=det))
         print(f"{name:16s} crossings {len(curves)}  J {J:6.2f}  null max {max(Jn):5.2f} med {np.median(Jn):5.2f}  a {aa:+6.2f} km  b {bb:+5.1f} km/d  "
               f"used {n}  -> {'DETECTED' if det else 'no'}   per-crossing (sat, Δt, z_max, margin): {ind}", flush=True)
-    out = Path(sys.argv[1]) / "joint_summary.json"
+    out = Path(A.dirs[0]) / "joint_summary.json"
     out.write_text(json.dumps(rows, default=float))
     dets = [r for r in rows if r.get("det")]
     print(f"\nobjects {len(rows)}, with ≥2 crossings {sum(1 for r in rows if r['J'] is not None)}, joint detections {len(dets)}")

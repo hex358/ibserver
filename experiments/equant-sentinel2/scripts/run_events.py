@@ -33,6 +33,7 @@ ap.add_argument("--no-prefilter", action="store_true", help="не фильтро
 ap.add_argument("--save-maps", default=None, help="каталог для сохранения карт событий (npz) для офлайн-анализа")
 ap.add_argument("--sample", default=None, help="выборка событий: top:N,random:M (после префильтра)")
 ap.add_argument("--no-retry", action="store_true", help="без автоповтора (режим сбора данных)")
+ap.add_argument("--reverse", action="store_true", help="обработать список с конца (второй параллельный процесс)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=8.0)
 ap.add_argument("--min-v", type=float, default=1.5)
@@ -49,6 +50,8 @@ a = ap.parse_args()
 snaps = sorted(p_ for p_ in (ROOT / "data/tle_snapshots").iterdir() if p_.is_dir())
 if a.snapshot == "all":
     snap_list = snaps            # объединить все снимки: для каждого объекта самая свежая эпоха
+elif a.snapshot.startswith("until:"):
+    snap_list = [x for x in snaps if x.name <= a.snapshot[6:]]   # воспроизводимый набор: снимки не позже указанного
 else:
     snap_list = [(ROOT / "data/tle_snapshots" / a.snapshot) if a.snapshot else snaps[-1]]
 snap = snap_list[-1]
@@ -223,6 +226,8 @@ if not a.no_prefilter and day:
     day = keep
 
 day.sort(key=(snr_key if a.order == "snr" else (lambda e: abs(e["v_al"]))))
+if a.reverse:
+    day.reverse()
 if a.sample:
     import random as _rnd
     spec = dict(x.split(":") for x in a.sample.split(","))
