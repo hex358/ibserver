@@ -33,6 +33,8 @@ ap.add_argument("--no-prefilter", action="store_true", help="не фильтро
 ap.add_argument("--save-maps", default=None, help="каталог для сохранения карт событий (npz) для офлайн-анализа")
 ap.add_argument("--sample", default=None, help="выборка событий: top:N,random:M (после префильтра)")
 ap.add_argument("--no-retry", action="store_true", help="без автоповтора (режим сбора данных)")
+ap.add_argument("--max-image-km", type=float, default=None, help="предел сдвига на снимке (км) для окна по фазе")
+ap.add_argument("--shard", default=None, help="k/n: обработать только события с номером ≡ k (mod n)")
 ap.add_argument("--reverse", action="store_true", help="обработать список с конца (второй параллельный процесс)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=8.0)
@@ -241,6 +243,10 @@ for e in day:   # объекты с одной орбитой (модули МК
     if k not in _seen_ev:
         _seen_ev.add(k); _u.append(e)
 day = _u
+if a.shard:
+    _k, _n = map(int, a.shard.split("/"))
+    day = [e for i, e in enumerate(day) if i % _n == _k]
+    print(f"shard {_k}/{_n}: {len(day)} events", flush=True)
 SAT = {s.name: s for s in sents}; OBJ = {o.catnr: o for o in objs}
 if a.agree:
     import numpy as np
@@ -280,7 +286,7 @@ for e in day:
         orb = OBJ[e["cat"]]
         if a.agree and e.get("supgp") and e["cat"] in OBJ2:
             orb = OBJ2[e["cat"]]          # SupGP (эфемериды оператора) точнее GP для Starlink
-        r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=dm_for(e), method=a.method, area_m2=area_m2(e))
+        r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=dm_for(e), method=a.method, area_m2=area_m2(e), max_image_km=a.max_image_km)
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)
@@ -301,10 +307,10 @@ for e in day:
         meta = dict(event=e, result={k: v for k, v in r.items() if k not in ("roots",)})
         np.savez_compressed(Path(a.save_maps) / f"{tag}.npz", meta=json.dumps(meta, default=float), **arr)
     print("item", r.get("item"), "cloud", r.get("cloud"), "bands", r.get("bands"), "reasons", r.get("reasons")[:5])
-    r["status"] = status(r); r["dm_window"] = dm_for(e)
+    r["status"] = status(r); r["dm_window"] = max((abs(x) for x in (r.get("profile_dm") or [])), default=dm_for(e))
     fc_ = r.get("forecast") or {}
     strong = fc_.get("T_raw", 0) >= 2 * (r.get("null_max", 99) + 3)
-    edge = abs(r.get("dM", 0)) > 0.9 * dm_for(e) or max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
+    edge = abs(r.get("dM", 0)) > 0.9 * r["dm_window"] or max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
     if r["status"] == "detected" and strong and edge:
         r["status"] = "detected_edge"   # найдено на краю окна: при разрешённом повторе — подтвердить шире
     if not a.no_retry and (r["status"] == "detected_edge" or r["status"] in ("MISSED", "borderline") and fc_.get("T_low", 0) >= (r.get("null_max", 99) + 3) * 0.8):   # прогноз выше порога, но не найден: сразу пробуем шире окно орбиты/сдвига
