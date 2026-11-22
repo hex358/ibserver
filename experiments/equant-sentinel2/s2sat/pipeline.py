@@ -36,6 +36,9 @@ class CellRaster:
         for n, k in enumerate(ks):
             self.M[k[0] - self.i0, k[1] - self.j0] = n
         self.st = {b: np.stack([cells[k][key][b] for k in ks]) for b in bands}
+        for n, k in enumerate(ks):          # ячейки ссылаются на мозаику, а не держат копию (память)
+            for b in bands:
+                cells[k][key][b] = self.st[b][n]
         self.res = {b: CELL / self.st[b].shape[1] for b in bands}
         self.cells = cells; self.keys = ks
 
