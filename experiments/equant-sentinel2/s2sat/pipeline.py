@@ -298,7 +298,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             return I_[f // 2::f, f // 2::f][:n, :n].astype(np.float32)
         return c, dict(S={b: blk(S[b], 10) for b in bands},
                        G={b: blk(Gb[b], 50) for b in bands},
-                       Z={b: inner(Y[b] / S[b]).astype(np.float16) for b in bands},
+                       Z={b: inner(Y[b] / S[b]).astype(np.float16) for b in bands if M.BRES[b] == 10},   # память: Z только 10 м (отчёт/картинки)
                        U={b: inner(bgsub.standardize(bgsub.local_extreme_fp(Uc[b], FP))).astype(np.float16) for b in bands},
                        RGB=rgb, item=it.id, ref=",".join(r.id for r in rfs) or None, cov=cov), "ok"
 
@@ -419,7 +419,9 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         nulls.append(nr["score"] if nr else -1e9)
     rootsb = ROOTS[res["n"]]
     if method == "glrt":
-        mosZ = CellRaster(tiles, bands, "Z")
+        _zb = [b for b in bands if all(b in T["Z"] for T in tiles.values())]
+        _mz = CellRaster(tiles, _zb, "Z") if _zb else None
+        mosZ = type("MZ", (), {"get": staticmethod(lambda b, X, Y: (_mz.get(b, X, Y) if b in _zb else mosU.get(b, X, Y)))})
         per = {b: max((float(np.nan_to_num(mosZ.get(b, np.array([x + res["sx"]]), np.array([y + res["sy"]]))[0], nan=0))
                        for (_d, _a, x, y) in rootsb[b]), key=abs) for b in bands if b in rootsb}
         per_dn = {b: round(per[b] * float(np.nan_to_num(mosS.get(b, np.array([rootsb[b][0][2] + res["sx"]]), np.array([rootsb[b][0][3] + res["sy"]]))[0], nan=0)), 1)
