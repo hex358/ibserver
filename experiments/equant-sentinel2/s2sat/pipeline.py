@@ -342,7 +342,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     mos = CellRaster(tiles, bands, "U" if method == "glrt" else "E")
     if method == "glrt":
         mosS = CellRaster(tiles, bands, "S")
-        mosU = CellRaster(tiles, bands, "U")
+        mosU = mos                         # та же мозаика U: не держать вторую копию в памяти
         mosG = CellRaster(tiles, bands, "G")
 
     def scan(disp=None, prof=None):
