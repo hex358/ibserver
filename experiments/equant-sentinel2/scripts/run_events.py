@@ -40,6 +40,8 @@ ap.add_argument("--tol", type=float, default=30.0, help="допуск полож
 ap.add_argument("--bootstrap-from", default=None, help="каталоги с результатами: для объекта с найденным пролётом окно по фазе вокруг найденной поправки")
 ap.add_argument("--boot-drift", type=float, default=5.0, help="допустимый дрейф поправки вдоль орбиты, км/сут")
 ap.add_argument("--boot-min", type=float, default=2.0, help="минимальная полуширина окна вокруг найденной поправки, км")
+ap.add_argument("--orbit-rule", default="newest", choices=["newest", "fitspan"],
+                help="fitspan: SupGP с последней эпохой ДО снимка (прогноз оператора вперёд), иначе GP с первой эпохой ПОСЛЕ (подгонка по наблюдениям назад); THEORY §14")
 ap.add_argument("--reverse", action="store_true", help="обработать список с конца (второй параллельный процесс)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=40.0)   # правило съёмки: THEORY §12
@@ -258,6 +260,33 @@ if a.shard:
     day = [e for i, e in enumerate(day) if i % _n == _k]
     print(f"shard {_k}/{_n}: {len(day)} events", flush=True)
 SAT = {s.name: s for s in sents}; OBJ = {o.catnr: o for o in objs}
+
+
+def _load_all(patterns):
+    """Все эпохи каждого объекта из всех снимков каталога (для выбора по интервалу подгонки)."""
+    allo = {}
+    for sd in snap_list:
+        for pat in patterns.split(","):
+            for fpath in sorted(_glob.glob(str(sd / pat.strip()))):
+                for o in O.parse_tle(Path(fpath).read_text()):
+                    allo.setdefault(o.catnr, {})[round(o.epoch_jd, 6)] = o
+    return {k: list(v.values()) for k, v in allo.items()}
+
+
+if a.orbit_rule == "fitspan":
+    ALL_SG = _load_all(a.agree or "supgp_*.tle"); ALL_GP = _load_all(a.orbits)
+
+
+def orbit_for(e):
+    """Орбита для снимка по интервалу подгонки (по 17 найденным: SupGP до снимка — медиана 1.3 км, макс 6.3;
+    GP после — 1.5 / 20.4; SupGP после — 3.0 / 30.3; GP до — 3.2 / 107)."""
+    sg = [o for o in ALL_SG.get(e["cat"], []) if o.epoch_jd <= e["jd"] and e["jd"] - o.epoch_jd <= 2.0]
+    if sg:
+        o = max(sg, key=lambda o: o.epoch_jd); return o, "supgp_before", e["jd"] - o.epoch_jd
+    gp = [o for o in ALL_GP.get(e["cat"], []) if o.epoch_jd > e["jd"] and o.epoch_jd - e["jd"] <= 2.0]
+    if gp:
+        o = min(gp, key=lambda o: o.epoch_jd); return o, "gp_after", e["jd"] - o.epoch_jd
+    return None, "none", float("nan")
 BOOT = {}   # catnr -> [(jd, dM)] найденных пролётов (по --bootstrap-from)
 if a.bootstrap_from:
     from s2sat.threshold import threshold as _thr_b
@@ -308,6 +337,11 @@ for e in day:
         orb = OBJ[e["cat"]]
         if a.agree and e.get("supgp") and e["cat"] in OBJ2:
             orb = OBJ2[e["cat"]]          # SupGP (эфемериды оператора) точнее GP для Starlink
+        if a.orbit_rule == "fitspan":
+            _o, _src, _age = orbit_for(e)
+            if _o is not None:
+                orb = _o; e["orbit_src"] = _src; e["orbit_age"] = _age
+                print(f"  orbit: {_src}, age {_age:+.2f} d", flush=True)
         _c, _w = 0.0, dm_for(e)
         _bl = [(jd, dm) for jd, dm in BOOT.get(e["cat"], []) if abs(jd - e["jd"]) > 1e-4]   # не сам этот пролёт
         if _bl:
