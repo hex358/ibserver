@@ -148,72 +148,110 @@ def score_points(n, e_idx, AA, CC):
     return best
 
 
+# массивы корней: RX/RY[n, b, k], VAL[n, b, k], DA[n, b] = α_первого − α_ref (для растяжения)
+KMAX = max(len(v) for R in roots for v in R.values())
+NB = len(bands); BI = {b: i for i, b in enumerate(bands)}
+RX = np.zeros((N, NB, KMAX)); RY = np.zeros((N, NB, KMAX)); VAL = np.zeros((N, NB, KMAX), bool); DA = np.zeros((N, NB))
+DXY = np.array([disp.get(b, (0.0, 0.0)) for b in bands])
+for n, R in enumerate(roots):
+    for b, lst in R.items():
+        i = BI[b]; DA[n, i] = lst[0][0] - aref[n]
+        for k_, q in enumerate(lst):
+            RX[n, i, k_] = q[1] + DXY[i, 0]; RY[n, i, k_] = q[2] + DXY[i, 1]; VAL[n, i, k_] = True
+KST = kmdeg * 1000.0
+
+
 def bound(boxes):
-    """UB для блоков [n0,n1)×[e0,e1)×[a0,a1)×[c0,c1)."""
-    nb = len(boxes); M = {}
-    navail = np.zeros(nb)
-    for b in bands:
-        mx = np.zeros(nb); have = np.zeros(nb, bool)
-        dx, dy = disp.get(b, (0.0, 0.0))
-        for i, (n0, n1, e0, e1, a0, a1, c0, c1) in enumerate(boxes):
-            xs = []; ys = []
-            for n in range(n0, n1):
-                for root in roots[n].get(b, []):
-                    for ee in (e0, e1 - 1):
-                        off = positions(n, ee, b, root)
-                        for aa in (Aa[a0], Aa[a1 - 1]):
-                            for cc in (Cc[c0], Cc[c1 - 1]):
-                                xs.append(root[1] + dx + (off + aa) * t[0] + cc * nrm[0]); ys.append(root[2] + dy + (off + aa) * t[1] + cc * nrm[1])
-            if xs:
-                have[i] = True; mx[i] = rect_max(b, np.array([min(xs)]), np.array([max(xs)]), np.array([min(ys)]), np.array([max(ys)]))[0]
-        M[b] = np.where(have, mx, 0.0); navail += have
-    Ms = np.stack([M[b] for b in bands])                 # (bands, boxes)
-    third = np.sort(Ms, axis=0)[-3] if len(bands) >= 3 else np.zeros(nb)
+    """UB для блоков [n0,n1)×[e0,e1)×[a0,a1)×[c0,c1), векторно по блокам × полосам × детекторам × фазам."""
+    B = np.array(boxes); nb = len(B)
+    n0, n1, e0, e1, a0, a1, c0, c1 = B.T
+    alo, ahi = Aa[a0], Aa[a1 - 1]; clo, chi = Cc[c0], Cc[c1 - 1]
+    slo, shi = STRETCH[e0], STRETCH[e1 - 1]
+    span = int((n1 - n0).max())
+    xmin = np.full((nb, NB, KMAX), np.inf); xmax = np.full((nb, NB, KMAX), -np.inf)
+    ymin = np.full((nb, NB, KMAX), np.inf); ymax = np.full((nb, NB, KMAX), -np.inf)
+    anyv = np.zeros((nb, NB, KMAX), bool); nav = np.zeros((nb, span), int)
+    for j in range(span):
+        n = n0 + j; okn = n < n1; n = np.minimum(n, N - 1)
+        da = DA[n]                                                   # (nb, NB)
+        o1 = slo[:, None] * KST * da; o2 = shi[:, None] * KST * da
+        olo, ohi = np.minimum(o1, o2), np.maximum(o1, o2)            # (nb, NB)
+        al_lo = (olo + alo[:, None]); al_hi = (ohi + ahi[:, None])
+        def rng(coef, lo, hi):
+            v1, v2 = lo * coef, hi * coef
+            return np.minimum(v1, v2), np.maximum(v1, v2)
+        tx_lo, tx_hi = rng(t[0], al_lo, al_hi); ty_lo, ty_hi = rng(t[1], al_lo, al_hi)
+        nx_lo, nx_hi = rng(nrm[0], clo[:, None], chi[:, None]); ny_lo, ny_hi = rng(nrm[1], clo[:, None], chi[:, None])
+        v = VAL[n] & okn[:, None, None]                              # (nb, NB, K)
+        X = RX[n]; Y = RY[n]
+        xl = X + (tx_lo + nx_lo)[..., None]; xh = X + (tx_hi + nx_hi)[..., None]
+        yl = Y + (ty_lo + ny_lo)[..., None]; yh = Y + (ty_hi + ny_hi)[..., None]
+        xmin = np.where(v, np.minimum(xmin, xl), xmin); xmax = np.where(v, np.maximum(xmax, xh), xmax)
+        ymin = np.where(v, np.minimum(ymin, yl), ymin); ymax = np.where(v, np.maximum(ymax, yh), ymax)
+        anyv |= v; nav[:, j] = np.where(okn, v.any(-1).sum(-1), 0)
+    M = np.zeros((nb, NB))
+    for bi, b in enumerate(bands):
+        for k_ in range(KMAX):
+            m = anyv[:, bi, k_]
+            if m.any():
+                val = rect_max(b, xmin[m, bi, k_], xmax[m, bi, k_], ymin[m, bi, k_], ymax[m, bi, k_])
+                M[m, bi] = np.maximum(M[m, bi], val)
+    Ms = M.T
+    third = np.sort(Ms, axis=0)[-3] if NB >= 3 else np.zeros(nb)
     ub = np.sqrt((np.minimum(Ms, third) ** 2).sum(0))
-    return np.where(navail >= minb, ub, 0.0)
+    return np.where(nav.max(1) >= minb, ub, 0.0)
 
 
 t0 = time.time()
-boxes = [(n, min(n + a.chunk, N), 0, NE, 0, NA, 0, NC) for n in range(0, N, a.chunk)]
-best = -1e9; best_h = None; n_eval = 0; n_bound = 0; it = 0
-while boxes:
+import heapq
+
+
+def split(bx):
+    n0, n1, e0, e1, a0, a1, c0, c1 = bx
+    nm, em, am, cm = (n0 + n1) // 2, (e0 + e1) // 2, (a0 + a1) // 2, (c0 + c1) // 2
+    gstep = (r.get("gain_m_per_km") or 1000) * (float(np.median(np.diff(r["profile_dm"]))) if N > 1 else 0)
+    ext = {"n": (n1 - n0 - 1) * gstep, "e": (e1 - e0 - 1) * 0.004 * KST * float(np.abs(DA).max()),
+           "a": (a1 - a0 - 1) * step, "c": (c1 - c0 - 1) * step}
+    d = max(ext, key=ext.get)
+    if d == "n" and n1 - n0 > 1: return [(n0, nm, e0, e1, a0, a1, c0, c1), (nm, n1, e0, e1, a0, a1, c0, c1)]
+    if d == "e" and e1 - e0 > 1: return [(n0, n1, e0, em, a0, a1, c0, c1), (n0, n1, em, e1, a0, a1, c0, c1)]
+    if d == "a" and a1 - a0 > 1: return [(n0, n1, e0, e1, a0, am, c0, c1), (n0, n1, e0, e1, am, a1, c0, c1)]
+    return [(n0, n1, e0, e1, a0, a1, c0, cm), (n0, n1, e0, e1, a0, a1, cm, c1)]
+
+
+def nhyp(bx):
+    n0, n1, e0, e1, a0, a1, c0, c1 = bx
+    return (n1 - n0) * (e1 - e0) * (a1 - a0) * (c1 - c0)
+
+
+init = [(n, min(n + a.chunk, N), 0, NE, 0, NA, 0, NC) for n in range(0, N, a.chunk)]
+ub0 = bound(init)
+heap = [(-u, bx) for u, bx in zip(ub0, init) if u > 0]; heapq.heapify(heap)
+best = -1e9; best_h = None; n_eval = 0; n_bound = len(init); it = 0
+while heap and -heap[0][0] > best:
     it += 1
-    ub = bound(boxes); n_bound += len(boxes)
-    boxes = [bx for bx, u in zip(boxes, ub) if u > best]
-    nxt = []
-    for bx in boxes:
-        n0, n1, e0, e1, a0, a1, c0, c1 = bx
-        if (n1 - n0) * (e1 - e0) * (a1 - a0) * (c1 - c0) <= 64:      # лист: точный счёт всех гипотез блока
+    batch = []
+    while heap and len(batch) < 512 and -heap[0][0] > best:
+        batch.append(heapq.heappop(heap)[1])
+    kids = []
+    for bx in batch:
+        if nhyp(bx) <= 64:                                           # лист: точный счёт всех гипотез
+            n0, n1, e0, e1, a0, a1, c0, c1 = bx
             for n in range(n0, n1):
                 for ee in range(e0, e1):
-                    AA, CC = np.meshgrid(Aa[a0:a1], Cc[c0:c1]); s = score_points(n, ee, AA.ravel(), CC.ravel()); n_eval += s.size
-                    j = int(np.argmax(s))
-                    if s[j] > best:
-                        best = float(s[j]); best_h = (n, ee, float(AA.ravel()[j]), float(CC.ravel()[j]))
-            continue
-        nm, em, am, cm = (n0 + n1) // 2, (e0 + e1) // 2, (a0 + a1) // 2, (c0 + c1) // 2
-        s = score_points(nm, em, np.array([Aa[am]]), np.array([Cc[cm]])); n_eval += 1
-        if s[0] > best:
-            best = float(s[0]); best_h = (nm, em, float(Aa[am]), float(Cc[cm]))
-        # делим по измерению с наибольшим размахом на снимке
-        ext = {"n": (n1 - n0) * (r.get("gain_m_per_km") or 1000) * (float(np.median(np.diff(r["profile_dm"]))) if N > 1 else 0),
-               "e": (e1 - e0) * 0.004 * kmdeg * 1000 * 2.5, "a": (a1 - a0) * step, "c": (c1 - c0) * step}
-        d = max(ext, key=ext.get)
-        if d == "n" and n1 - n0 > 1:
-            nxt += [(n0, nm, e0, e1, a0, a1, c0, c1), (nm, n1, e0, e1, a0, a1, c0, c1)]
-        elif d == "e" and e1 - e0 > 1:
-            nxt += [(n0, n1, e0, em, a0, a1, c0, c1), (n0, n1, em, e1, a0, a1, c0, c1)]
-        elif d == "a" and a1 - a0 > 1:
-            nxt += [(n0, n1, e0, e1, a0, am, c0, c1), (n0, n1, e0, e1, am, a1, c0, c1)]
-        elif c1 - c0 > 1:
-            nxt += [(n0, n1, e0, e1, a0, a1, c0, cm), (n0, n1, e0, e1, a0, a1, cm, c1)]
+                    AA, CC = np.meshgrid(Aa[a0:a1], Cc[c0:c1]); sc = score_points(n, ee, AA.ravel(), CC.ravel()); n_eval += sc.size
+                    jj = int(np.argmax(sc))
+                    if sc[jj] > best:
+                        best = float(sc[jj]); best_h = (n, ee, float(AA.ravel()[jj]), float(CC.ravel()[jj]))
         else:
-            for dd in ("n", "e", "a"):
-                pass
-            nxt += [(n0, nm, e0, e1, a0, a1, c0, c1), (nm, n1, e0, e1, a0, a1, c0, c1)] if n1 - n0 > 1 else \
-                   [(n0, n1, e0, em, a0, a1, c0, c1), (n0, n1, em, e1, a0, a1, c0, c1)] if e1 - e0 > 1 else \
-                   [(n0, n1, e0, e1, a0, am, c0, c1), (n0, n1, e0, e1, am, a1, c0, c1)]
-    boxes = nxt
+            kids += split(bx)
+    if kids:
+        uk = bound(kids); n_bound += len(kids)
+        for u, bx in zip(uk, kids):
+            if u > best:
+                heapq.heappush(heap, (-u, bx))
+    if it % 20 == 0:
+        print(f"  iter {it}: queue {len(heap)}, top UB {(-heap[0][0]) if heap else 0:.2f}, best {best:.2f}, exact {n_eval}, bounds {n_bound}", flush=True)
 n_brute = sum(1 for n in range(N) if len(roots[n]) >= minb) * NE * NA * NC
 ref = r["score"] if a.null < 0 else r["nulls"][a.null]
 print(f"{Path(a.json).stem} {'real' if a.null < 0 else 'null ' + str(a.null)}: B&B max {best:.3f} at n={best_h[0]} e={STRETCH[best_h[1]]:+.3f} a={best_h[2]:.0f} c={best_h[3]:.0f}"
