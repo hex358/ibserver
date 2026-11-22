@@ -41,8 +41,11 @@ for b, al, (x0, y0) in zip(bands, A, P):
     px = x0 + sig * (al - aref) * tdir[0] + r["sx"]; py = y0 + sig * (al - aref) * tdir[1] + r["sy"]
     v = U.get(b, px + GX, py + GY).astype(float)
     v0 = float(np.nan_to_num(U.get(b, np.array([px]), np.array([py]))[0]))
-    k = np.nanargmax(np.abs(np.nan_to_num(v)))
-    dx, dy = GX.flat[k], GY.flat[k]
+    av = np.abs(np.nan_to_num(v)); k = int(np.argmax(av)); pk = av.flat[k]
+    from scipy.ndimage import label
+    lab, _ = label(av >= 0.7 * pk)                       # плато вокруг пика (после фильтра экстремума и отсечки)
+    m = lab == lab.flat[k]; w = av * m
+    dx, dy = float((GX * w).sum() / w.sum()), float((GY * w).sum() / w.sum())
     rows.append((b, al - aref, float(np.dot([dx, dy], tdir)), float(np.dot([dx, dy], ndir)), float(np.nan_to_num(v.flat[k])), v0))
 for b, da, al_, cr_, vk, v0 in sorted(rows, key=lambda t: t[1]):
     print(f"  {b:9s} Δα {da:7.4f}°  peak {vk:6.1f}σ (at point {v0:5.1f}σ)  offset along {al_:6.0f} m  across {cr_:6.0f} m")
