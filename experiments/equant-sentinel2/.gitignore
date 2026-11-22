@@ -51,3 +51,6 @@ results/events_uni_0b.log
 results/events_uni_1b.log
 results/events_uni_0c.log
 results/events_uni_all.log
+results/events_v9/
+results/events_v9_*.log
+results/events_uni_all.log

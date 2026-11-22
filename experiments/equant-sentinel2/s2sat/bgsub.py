@@ -94,13 +94,9 @@ def predict_band_fast(target, regs, valid, block=50, win=100, iters=1, ridge=1e-
         beta = np.linalg.solve(XtX, Xty[..., None])[..., 0]               # (nbr, nbc, p)
         B = beta[bi][:, bj]                                                # (H, W, p)
         R = y - np.einsum("hwp,hwp->hw", X, B)
-        # σ по блокам (по валидным пикселям, MAD)
-        sig = np.ones((nbr, nbc))
-        for a in range(nbr):
-            for b in range(nbc):
-                v = R[a * block:(a + 1) * block, b * block:(b + 1) * block][valid[a * block:(a + 1) * block, b * block:(b + 1) * block]]
-                if v.size > 50:
-                    sig[a, b] = 1.4826 * np.median(np.abs(v - np.median(v))) + 1e-6
+        # σ по блокам (по валидным пикселям, MAD), векторно
+        _m, _s, _shp = block_median_mad(np.where(valid, R, np.nan).astype(np.float32), block, min_n=min(50, block * block // 2))
+        sig = np.where(np.isfinite(_s), _s, np.nanmedian(_s) if np.isfinite(_s).any() else 1.0) + 1e-6
         w = (valid & (np.abs(R) < 4 * sig[bi][:, bj])).astype(np.float64)
     R = R.astype(np.float32); R[~valid] = np.nan
     return R

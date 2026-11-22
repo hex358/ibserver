@@ -228,6 +228,11 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     # переходит в сдвиг kmdeg·δα — у медленных пролётов в разы больше
     tol_along_px = max(tol_px, min(La, 25) / 2 + 2)   # систематику вдоль трассы берёт на себя растяжение σ
     tdir = (math.cos(ang_track), math.sin(ang_track))
+    # вдоль видимой трассы сдвиг дублирует фазу dM: оставить половину шага фазы на снимке + допуск (THEORY §13)
+    R_al = Rm
+    if Rc and gain and len(fine) > 1:
+        R_al = min(Rm, 0.5 * gain * float(np.median(np.diff(fine))) + tol_along_px * 10.0 + 30.0)
+    out["search_along_m"] = R_al
     _smax = float(__import__("os").environ.get("S2_STRETCH_MAX", "0.02"))   # по находкам: у 4 растяжение на краю ±0.02
     STRETCH = list(np.round(np.arange(-_smax, _smax + 1e-5, 0.004), 4)) if stretch else []
     FP = bgsub.rect_footprint(tol_along_px, tol_px, ang_track)
@@ -271,14 +276,22 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             bad = np.isin(scl.astype(int), (1, 3, 8, 9, 10))
             valid &= ~binary_dilation(bad, iterations=20)
         Y, S = {}, {}
+        if BG_MODEL == "loglocal":
+            # THEORY §13: тень рельефа множит все полосы одинаково → в логарифмах она общее слагаемое;
+            # прогноз полосы по остальным локально (блок 100 м, окно 300 м); остаток обратно в DN
+            LG = {c2: np.log(np.maximum(IM[c2], 1.0)).astype(np.float32) for c2 in bands}
         for b in bands:
             near = {c2 for c2 in bands if abs(Arep[c2] - Arep[b]) * kmdeg < 0.3}
-            regs = [IM[c2] for c2 in bands if c2 not in near]
-            if rfs:
-                rv = _ref_median(IM[b], [I.read_window(r.assets[b].href, epsg, bb, res=10) for r in rfs if b in r.assets])
-                if rv is not None:
-                    regs.append(rv)
-            R = bgsub.predict_band(IM[b], regs, valid)
+            if BG_MODEL == "loglocal":
+                Rl = bgsub.predict_band(LG[b], [LG[c2] for c2 in bands if c2 not in near], valid, block=10, win=30)
+                R = (IM[b] * (1.0 - np.exp(-Rl))).astype(np.float32)
+            else:
+                regs = [IM[c2] for c2 in bands if c2 not in near]
+                if rfs:
+                    rv = _ref_median(IM[b], [I.read_window(r.assets[b].href, epsg, bb, res=10) for r in rfs if b in r.assets])
+                    if rv is not None:
+                        regs.append(rv)
+                R = bgsub.predict_band(IM[b], regs, valid)
             Y[b], S[b] = bgsub.matched_bank(R, KBANK)
 
         Uc = bgsub.remove_common_mode({b: Y[b] / S[b] for b in bands})
@@ -307,7 +320,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
 
     # кэш обработанных ячеек на диске: смена параметров поиска/порога не требует повторной обработки снимков
     import pickle
-    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_v1"
+    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_{BG_MODEL}_v1"
 
     def _tile_save(c, T):
         try:
@@ -391,12 +404,12 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                     for b in ab:
                         dx0, dy0 = disp[b] if disp else (0.0, 0.0)
                         d2[b] = (dx0 + sig * (ab[b] - aref) * tdir[0], dy0 + sig * (ab[b] - aref) * tdir[1])
-                    rr = detect.occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=step or 30.0, disp=d2, minb=need, cross=(Rc, tdir) if Rc else None)
+                    rr = detect.occlusion_search(roots, mosU, mosS, mosG, bands, R_al, step=step or 30.0, disp=d2, minb=need, cross=(Rc, tdir) if Rc else None)
                     if r is None or rr["score"] > r["score"]:
                         r = dict(rr, stretch=eps)
             elif method == "glrt":
                 if model == "occlusion":
-                    r = detect.occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=step or 30.0, disp=disp, minb=need, cross=(Rc, tdir) if Rc else None)
+                    r = detect.occlusion_search(roots, mosU, mosS, mosG, bands, R_al, step=step or 30.0, disp=disp, minb=need, cross=(Rc, tdir) if Rc else None)
                 else:
                     r = detect.coherent_search_u(roots, mosU, bands, Rm, step=step or 30.0, disp=disp, minb=need)
             else:
@@ -491,6 +504,7 @@ def _inject(ev, b, bb, inj, RF, k0, res=20):
 
 
 _FN = None
+BG_MODEL = os.environ.get("S2_BG", "loglocal")      # "loglocal" (THEORY §13) или "block" (прежняя)
 _SCAN = None
 
 
