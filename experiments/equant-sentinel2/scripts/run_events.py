@@ -69,7 +69,8 @@ import glob as _glob
 sents = [s for s in _load("sentinel2.tle", exclude_s2=False).values() if s.name.startswith(a.sent)]
 objs = [o for o in _load(a.orbits).values() if o.perigee_km <= 2000]
 if a.obj:
-    objs = [o for o in objs if o.name.split()[0] == a.obj or o.catnr == a.obj]
+    _want = set(x.strip() for x in a.obj.split(","))
+    objs = [o for o in objs if o.name.split()[0] in _want or o.catnr in _want]
 print("sentinels", [s.name for s in sents], "objects", len(objs))
 
 t0 = dt.datetime.fromisoformat(a.start).replace(tzinfo=dt.timezone.utc)
