@@ -171,7 +171,10 @@ SPECTRA = {
 }
 
 
-def occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=20.0, disp=None, minb=3, spectra=None):
+CAP_RANK = int(__import__("os").environ.get("S2_CAPRANK", "0"))
+
+
+def occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=20.0, disp=None, minb=3, spectra=None, cap_rank=None):
     """GLRT модели заслонения: объект закрывает долю f пикселя, отклик полосы b
         y_b = 1e4·f·(ρ_b − ρ_фона,b),  ρ_b = A·s_b  (форма спектра s задана, A и f ≥ 0 свободны),
     ρ_фона,b = G_b·1e−4 − 0.1 (L2A). В единицах u_b = y_b/σ_b: u = p1·x1 + p2·x2 + шум,
@@ -202,6 +205,12 @@ def occlusion_search(roots, mosU, mosS, mosG, bands, Rm, step=20.0, disp=None, m
         x2 = -inv * (np.where(ok, bg, 1000.0) - 1000.0)   # −1e4·ρ_фона/σ (DN)
         per.append((b, inv, x2, uu))
         cnt += ok; hit += ok & (np.abs(uu) > 3)
+    cap_rank = CAP_RANK if cap_rank is None else cap_rank
+    if cap_rank and len(per) >= cap_rank:
+        # многополосная согласованность: вклад полосы не больше m-й по силе полосы в этой точке,
+        # так одиночное яркое пятно в одной полосе (нуль) не даёт счёта, а объект в ≥ m полосах — даёт
+        Au = np.sort(np.stack([np.abs(p_[3]) for p_ in per]), axis=0)[-cap_rank]
+        per = [(b, inv, x2, np.clip(uu, -Au, Au)) for b, inv, x2, uu in per]
     best_T = np.full(sh, -1e9); best_spec = np.full(sh, "", object)
     out_a = out_f = None
     for name, sp in spectra.items():
