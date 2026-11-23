@@ -98,7 +98,12 @@ def apparent_track(sen, obj, jd0, alphas_deg, dpos_km=None, half_window_s=120.0,
     def state(t):
         rS, vS = sen.ecef(t)
         rO, vO = obj.ecef(t)
-        if dpos_km:
+        if dpos_km is not None and np.ndim(dpos_km) > 0:
+            # ошибка орбиты по трём осям: (вдоль скорости, поперёк = r×v, по радиусу), км (THEORY §17)
+            da, dc, dr = (float(v) for v in dpos_km)
+            uv = unit(vO); ur = unit(rO); uc = unit(np.cross(ur, uv))
+            rO = rO + da * uv + dc * uc + dr * ur
+        elif dpos_km:
             rO = rO + dpos_km * unit(vO)
         return rS, vS, rO
 
