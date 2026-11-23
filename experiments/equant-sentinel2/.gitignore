@@ -84,3 +84,7 @@ results/events_phys/
 results/events_phys.log
 results/shape/*.pkl
 results/shape/*.log
+results/recon/
+results/recon_b/
+results/recon_c/
+results/recon_figs/
