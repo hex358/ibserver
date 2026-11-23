@@ -227,3 +227,159 @@ class Search:
         rr = detect.occlusion_search(R, self.mosU, self.mosS, self.mosG, self.bands, 0.0, step=30.0, disp=d2, minb=self.minb)
         sx, sy = a * t[0] + c * nr[0], a * t[1] + c * nr[1]
         return dict(rr, sx=float(sx), sy=float(sy), stretch=float(self.ST[e]), dM=float(self.fine[n]), n=int(n))
+
+
+class SearchPhys(Search):
+    """Физическая модель (THEORY §17): гипотеза θ = (n — фаза вдоль на сетке, da — доля шага фазы, dc — поперёк,
+    dr — по радиусу). Положения полос линейны по (da, dc, dr): p_b = root_b(n) + Σ_d θ_d·J_{b,d}(n), где J — производные
+    точной геометрии (конечные разности). Априорное распределение ошибки орбиты — штраф в счёте:
+    T²_апост = T² − (a/σ_a)² − (dc/σ_c)² − (dr/σ_r)², a = фаза(n) + da. Отсечение по схеме Equant без изменений."""
+
+    def __init__(self, ROOTS, fine, J, sig, grids, mosU, mosS, mosG, tiles, bands, minb=3, cap_rank=None,
+                 cell=5000.0, margin=4500.0, max_px=float(__import__("os").environ.get("S2_BNB_MAXPX", "6e8"))):
+        # J: (N, NB, D, 2) м на единицу θ_d; grids: список массивов значений θ_d; sig: (σ_a, σ_c, σ_r) км
+        self.J = np.asarray(J, float); self.G = [np.asarray(g, float) for g in grids]; self.sig = sig
+        self.Dn = len(self.G)
+        super().__init__(ROOTS, fine, [0.0], 12.0, (1.0, 0.0), 0.0, 0.0, 30.0, mosU, mosS, mosG, tiles, bands,
+                         minb=minb, cap_rank=cap_rank, cell=cell, margin=margin + float(np.abs(self.J).max(initial=0) * max(np.abs(g).max() for g in self.G)), max_px=max_px)
+
+    def _pen(self, n, coefs):
+        a = self.fine[n] + coefs[0]
+        return (a / self.sig[0]) ** 2 + sum((coefs[d] / self.sig[d]) ** 2 for d in range(1, self.Dn))
+
+    def _pen_min(self, n0, n1, lo, hi):
+        # минимум штрафа по блоку (по каждой оси отдельно; оси независимы)
+        a_lo = self.fine[n0] + lo[0]; a_hi = self.fine[n1 - 1] + hi[0]
+        pa = 0.0 if a_lo <= 0 <= a_hi else min(a_lo ** 2, a_hi ** 2) / self.sig[0] ** 2
+        p = pa
+        for d in range(1, self.Dn):
+            p += 0.0 if lo[d] <= 0 <= hi[d] else min(lo[d] ** 2, hi[d] ** 2) / self.sig[d] ** 2
+        return p
+
+    def _bound_phys(self, boxes, DXY):
+        nb = len(boxes); NB = len(self.bands); K = self.K
+        INF = np.inf
+        xmin = np.full((nb, NB, K), INF); xmax = np.full((nb, NB, K), -INF); ymin = np.full((nb, NB, K), INF); ymax = np.full((nb, NB, K), -INF)
+        anyv = np.zeros((nb, NB, K), bool); nav = np.zeros(nb, int); pmin = np.zeros(nb)
+        for i, bx in enumerate(boxes):
+            n0, n1 = bx[0], bx[1]
+            lo = [self.G[d][bx[2 + 2 * d]] for d in range(self.Dn)]; hi = [self.G[d][bx[3 + 2 * d] - 1] for d in range(self.Dn)]
+            pmin[i] = self._pen_min(n0, n1, lo, hi)
+            for n in range(n0, n1):
+                v = self.VAL[n]
+                if not v.any():
+                    continue
+                Jn = self.J[n]                                   # (NB, D, 2)
+                dxl = sum(np.minimum(lo[d] * Jn[:, d, 0], hi[d] * Jn[:, d, 0]) for d in range(self.Dn))
+                dxh = sum(np.maximum(lo[d] * Jn[:, d, 0], hi[d] * Jn[:, d, 0]) for d in range(self.Dn))
+                dyl = sum(np.minimum(lo[d] * Jn[:, d, 1], hi[d] * Jn[:, d, 1]) for d in range(self.Dn))
+                dyh = sum(np.maximum(lo[d] * Jn[:, d, 1], hi[d] * Jn[:, d, 1]) for d in range(self.Dn))
+                X = self.RX[n] + DXY[:, 0:1]; Y = self.RY[n] + DXY[:, 1:2]
+                xmin[i] = np.where(v, np.minimum(xmin[i], X + dxl[:, None]), xmin[i]); xmax[i] = np.where(v, np.maximum(xmax[i], X + dxh[:, None]), xmax[i])
+                ymin[i] = np.where(v, np.minimum(ymin[i], Y + dyl[:, None]), ymin[i]); ymax[i] = np.where(v, np.maximum(ymax[i], Y + dyh[:, None]), ymax[i])
+                anyv[i] |= v; nav[i] = max(nav[i], int(v.any(-1).sum()))
+        M = np.zeros((nb, NB))
+        for bi, b in enumerate(self.bands):
+            for k in range(K):
+                m = anyv[:, bi, k]
+                if m.any():
+                    M[m, bi] = np.maximum(M[m, bi], self._rect_max(b, xmin[m, bi, k], xmax[m, bi, k], ymin[m, bi, k], ymax[m, bi, k]))
+        Ms = M.T
+        if self.cap and NB >= self.cap:
+            Ms = np.minimum(Ms, np.sort(Ms, axis=0)[-self.cap])
+        ub2 = (Ms ** 2).sum(0) - pmin
+        return np.where(nav >= self.minb, np.sqrt(np.maximum(ub2, 0.0)), 0.0)
+
+    def _score_phys(self, n, coef_sets, disp):
+        """Точный счёт с штрафом для набора θ (coef_sets: (M, D)) при фазе n."""
+        R = self.roots[n]
+        if len(R) < self.minb:
+            return np.full(len(coef_sets), -1e9)
+        C = np.asarray(coef_sets, float)
+        per = []; cnt = np.zeros(len(C))
+        for b, lst in R.items():
+            bi = self.BI[b]; dx, dy = disp.get(b, (0.0, 0.0)) if disp else (0.0, 0.0)
+            SX = C @ self.J[n, bi, :, 0]; SY = C @ self.J[n, bi, :, 1]
+            bu = bs = bg = None
+            for (al, x, y) in lst:
+                X = x + dx + SX; Y = y + dy + SY
+                u = self.mosU.get(b, X, Y).astype(np.float64); sv = self.mosS.get(b, X, Y).astype(np.float64); gv = self.mosG.get(b, X, Y).astype(np.float64)
+                if bu is None:
+                    bu, bs, bg = u, sv, gv
+                else:
+                    tk = np.abs(np.nan_to_num(u)) > np.abs(np.nan_to_num(bu)); bu, bs, bg = np.where(tk, u, bu), np.where(tk, sv, bs), np.where(tk, gv, bg)
+            okb = np.isfinite(bu) & np.isfinite(bs) & (bs > 0) & np.isfinite(bg)
+            inv = np.where(okb, 1.0 / np.where(okb, bs, 1), 0); uu = np.where(okb, bu, 0); x2 = -inv * (np.where(okb, bg, 1000.0) - 1000.0)
+            per.append((b, inv, x2, uu)); cnt += okb
+        if self.cap and len(per) >= self.cap:
+            Au = np.sort(np.stack([np.abs(p[3]) for p in per]), axis=0)[-self.cap]
+            per = [(b, inv, x2, np.clip(uu, -Au, Au)) for b, inv, x2, uu in per]
+        best = np.full(len(C), -1e9)
+        for sp in detect.SPECTRA.values():
+            A11 = A12 = A22 = B1 = B2 = 0.0
+            for b, inv, x2, uu in per:
+                x1 = sp.get(b, 1.0) * 1e3 * inv
+                A11 = A11 + x1 * x1; A12 = A12 + x1 * x2; A22 = A22 + x2 * x2; B1 = B1 + x1 * uu; B2 = B2 + x2 * uu
+            det = A11 * A22 - A12 * A12
+            with np.errstate(invalid="ignore", divide="ignore"):
+                ah = (A22 * B1 - A12 * B2) / (det + 1e-12 * (A11 * A22 + 1e-30)); fh = (A11 * B2 - A12 * B1) / (det + 1e-12 * (A11 * A22 + 1e-30))
+                T2 = np.where(fh >= 0, ah * B1 + fh * B2, B1 * B1 / A11)
+            pen = np.array([self._pen(n, c) for c in C])
+            Tm = np.where(cnt >= self.minb, np.sqrt(np.maximum(np.nan_to_num(T2, nan=0.0) - pen, 0)), -1e9)
+            best = np.maximum(best, Tm)
+        return best
+
+    def run(self, disp=None, floor=None, budget=None, chunk=4):
+        DXY = np.array([disp.get(b, (0.0, 0.0)) if disp else (0.0, 0.0) for b in self.bands])
+        full = tuple(x for d in range(self.Dn) for x in (0, len(self.G[d])))
+        init = [(n, min(n + chunk, self.N)) + full for n in range(0, self.N, chunk)]
+        ub0 = self._bound_phys(init, DXY)
+        lim = -1e9 if floor is None else floor
+        heap = [(-u, bx) for u, bx in zip(ub0, init) if u > lim]; heapq.heapify(heap)
+        best, best_h, n_eval = -1e9, None, 0
+        while heap and -heap[0][0] > max(best, lim):
+            if budget and n_eval > budget:
+                break
+            batch = []
+            while heap and len(batch) < 256 and -heap[0][0] > max(best, lim):
+                batch.append(heapq.heappop(heap)[1])
+            kids = []
+            for bx in batch:
+                sizes = [bx[1] - bx[0]] + [bx[3 + 2 * d] - bx[2 + 2 * d] for d in range(self.Dn)]
+                if int(np.prod(sizes)) <= 64:
+                    grids = [self.G[d][bx[2 + 2 * d]:bx[3 + 2 * d]] for d in range(self.Dn)]
+                    C = np.array(np.meshgrid(*grids, indexing="ij")).reshape(self.Dn, -1).T
+                    for n in range(bx[0], bx[1]):
+                        s = self._score_phys(n, C, disp); n_eval += s.size
+                        j = int(np.argmax(s))
+                        if s[j] > best:
+                            best = float(s[j]); best_h = (n, tuple(C[j]))
+                    continue
+                # делим по оси с наибольшим размахом на снимке
+                ext = [(bx[1] - bx[0] - 1) * 1.0 * self.gstep * 1000.0 * 0 + (bx[1] - bx[0] - 1) * float(np.abs(self.J[:, :, 0, :]).max(initial=1.0)) * (self.G[0][1] - self.G[0][0] if len(self.G[0]) > 1 else 1.0)]
+                for d in range(self.Dn):
+                    lo, hi = bx[2 + 2 * d], bx[3 + 2 * d]
+                    step = (self.G[d][1] - self.G[d][0]) if len(self.G[d]) > 1 else 0.0
+                    ext.append((hi - lo - 1) * step * float(np.abs(self.J[:, :, d, :]).max(initial=0)))
+                dd = int(np.argmax(ext))
+                if dd == 0 and bx[1] - bx[0] > 1:
+                    m = (bx[0] + bx[1]) // 2; kids += [(bx[0], m) + bx[2:], (m, bx[1]) + bx[2:]]
+                else:
+                    if dd == 0:
+                        dd = 1 + int(np.argmax(ext[1:]))
+                    d = dd - 1; lo, hi = bx[2 + 2 * d], bx[3 + 2 * d]
+                    if hi - lo <= 1:
+                        cand = [i for i in range(self.Dn) if bx[3 + 2 * i] - bx[2 + 2 * i] > 1]
+                        if not cand:
+                            m = (bx[0] + bx[1]) // 2; kids += [(bx[0], m) + bx[2:], (m, bx[1]) + bx[2:]]; continue
+                        d = cand[0]; lo, hi = bx[2 + 2 * d], bx[3 + 2 * d]
+                    mid = (lo + hi) // 2; l = list(bx)
+                    l1 = l.copy(); l1[3 + 2 * d] = mid; l2 = l.copy(); l2[2 + 2 * d] = mid
+                    kids += [tuple(l1), tuple(l2)]
+            if kids:
+                uk = self._bound_phys(kids, DXY)
+                for u, bx in zip(uk, kids):
+                    if u > max(best, lim):
+                        heapq.heappush(heap, (-u, bx))
+        ub_left = float(-heap[0][0]) if heap else (best if best > -1e9 else lim)
+        return (best if best > lim else None), best_h, ub_left, n_eval

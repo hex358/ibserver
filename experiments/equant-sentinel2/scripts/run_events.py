@@ -5,6 +5,7 @@
 Без --obj: все дневные события Starlink за окно, медленные первыми (--limit N).
 """
 import argparse
+import math
 import collections
 import datetime as dt
 import json
@@ -45,6 +46,7 @@ ap.add_argument("--orbit-rule", default="newest", choices=["newest", "fitspan"],
 ap.add_argument("--adaptive-window", action="store_true", help="окно = max(dm-floor, 1.5·расхождение источников орбиты), ≤ 45 км")
 ap.add_argument("--dm-floor", type=float, default=8.0)
 ap.add_argument("--dual-orbit", action="store_true", help="если не найден, а второй источник орбиты за краем окна — поиск вокруг него")
+ap.add_argument("--prior-window", action="store_true", help="окно = ±3σ_вдоль, σ из расхождения источников орбиты (§17)")
 ap.add_argument("--reverse", action="store_true", help="обработать список с конца (второй параллельный процесс)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=40.0)   # правило съёмки: THEORY §12
@@ -393,7 +395,12 @@ for e in day:
             if _o is not None:
                 orb = _o; e["orbit_src"] = _src; e["orbit_age"] = _age
                 _D = orbit_disagreement(e, _o, _src); e["orbit_disagree_km"] = _D
-                if a.adaptive_window and _D == _D:
+                if a.prior_window and _D == _D:
+                    # THEORY §17: σ_вдоль = √(0.85² + (0.78·D)²) км — по 17 эталонным пролётам; окно ±3σ
+                    _sa = math.sqrt(0.85 ** 2 + (0.78 * _D) ** 2); e["sigma_along"] = _sa
+                    if not e.get("boot"):
+                        e["dm_adaptive"] = min(60.0, max(3.0, 3.0 * _sa))
+                elif a.adaptive_window and _D == _D:
                     _w = min(45.0, max(a.dm_floor, 1.5 * _D)); _c = (e.get("boot") or {}).get("center", 0.0)
                     if not e.get("boot"):
                         e["dm_adaptive"] = _w

@@ -97,7 +97,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     # вдоль орбиты в разы больше, чем для встречных, поэтому шаг подбирается по фактическому
     # «усилению» (м на снимке / км фазы), чтобы сдвиг за шаг был не больше Rm.
     def roots_at_dm(dm):
-        tr = G.apparent_track(sen, obj, e["jd"], np.linspace(-alpha_span, alpha_span, n_alpha), dpos_km=float(dm))
+        dp = np.asarray(dm, float) if np.ndim(dm) > 0 else float(dm)
+        tr = G.apparent_track(sen, obj, e["jd"], np.linspace(-alpha_span, alpha_span, n_alpha), dpos_km=dp)
         ok = np.isfinite(tr["ground"][:, 0])
         if ok.sum() < 10:
             return {}, None
@@ -455,7 +456,40 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     if SEARCH == "bnb" and method == "glrt" and model == "occlusion":
         # перебор по схеме Equant (THEORY §14): точный максимум; нули — с отсечением по уровню решения «счёт − 4»
         from . import bnb as _bnb
-        srch = _bnb.Search(ROOTS, fine, STRETCH, kmdeg, tdir, R_al, Rc or 0.0, step or 30.0, mosU, mosS, mosG, tiles, bands, minb=minb)
+        if GEOM == "phys":
+            # THEORY §17: θ = (вдоль, поперёк, радиус); производные положений из точной геометрии
+            bl = list(bands); NBb = len(bl); dlt = 0.2
+            J = np.zeros((len(fine), NBb, 3, 2))
+            for n in range(len(fine)):
+                R0 = ROOTS[n]
+                if not R0:
+                    continue
+                Rc_, _ = roots_at_dm((float(fine[n]), dlt, 0.0)); Rr_, _ = roots_at_dm((float(fine[n]), 0.0, dlt))
+                Rp = ROOTS[min(n + 1, len(fine) - 1)]; Rm_ = ROOTS[max(n - 1, 0)]
+                dfa = float(fine[min(n + 1, len(fine) - 1)] - fine[max(n - 1, 0)]) or 1.0
+                for bi, b in enumerate(bl):
+                    if b not in R0:
+                        continue
+                    x0, y0 = R0[b][0][2], R0[b][0][3]
+                    def near(Rx):
+                        if not Rx or b not in Rx:
+                            return None
+                        q = min(Rx[b], key=lambda q: math.hypot(q[2] - x0, q[3] - y0)); return np.array([q[2] - x0, q[3] - y0])
+                    vc, vr = near(Rc_), near(Rr_)
+                    if vc is not None: J[n, bi, 1] = vc / dlt
+                    if vr is not None: J[n, bi, 2] = vr / dlt
+                    vp, vm = near(Rp), near(Rm_)
+                    if vp is not None and vm is not None: J[n, bi, 0] = (vp - vm) / dfa
+            sa = float(e.get("sigma_along") or (dM_max / 3.0)); sc = sr = SIG_CR
+            hstep = 0.5 * (float(np.median(np.diff(fine))) if len(fine) > 1 else 1.0)
+            ja = max(float(np.abs(J[:, :, 0, :]).max(initial=1.0)), 1.0); jc = max(float(np.abs(J[:, :, 1, :]).max(initial=1.0)), 1.0)
+            jr = max(float(np.abs(J[:, :, 2, :]).max(initial=1.0)), 1.0)
+            grids = [np.arange(-hstep, hstep + 1e-9, max(step or 30.0, 1.0) / ja), np.arange(-3 * sc, 3 * sc + 1e-9, (step or 30.0) / jc),
+                     np.arange(-3 * sr, 3 * sr + 1e-9, (step or 30.0) / jr)]
+            out["phys"] = dict(sigma=(sa, sc, sr), grid_sizes=[len(g) for g in grids], J_max=(ja, jc, jr))
+            srch = _bnb.SearchPhys(ROOTS, fine, J, (sa, sc, sr), grids, mosU, mosS, mosG, tiles, bl, minb=minb)
+        else:
+            srch = _bnb.Search(ROOTS, fine, STRETCH, kmdeg, tdir, R_al, Rc or 0.0, step or 30.0, mosU, mosS, mosG, tiles, bands, minb=minb)
         out["search_note"] = getattr(srch, "reason", "")
         if not srch.ok:
             srch = None
@@ -483,7 +517,16 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             if h0 is None:
                 srch = None
     if srch is not None:
-        res = srch.result_at(h0); res["score"] = float(b0)
+        if GEOM == "phys":
+            n_, C_ = h0[0], np.asarray(h0[1], float)
+            d2 = {b: tuple(C_ @ srch.J[n_, srch.BI[b]]) for b in srch.roots[n_]}
+            Rr = {b: [(0, al, x, y) for (al, x, y) in lst] for b, lst in srch.roots[n_].items()}
+            res = dict(detect.occlusion_search(Rr, mosU, mosS, mosG, list(srch.bands), 0.0, step=30.0, disp=d2, minb=minb),
+                       sx=0.0, sy=0.0, stretch=0.0, dM=float(fine[n_] + C_[0]), n=int(n_), theta=[float(fine[n_] + C_[0]), float(C_[1]), float(C_[2])])
+            res["pos_phys"] = {b: [Rr[b][0][2] + d2[b][0], Rr[b][0][3] + d2[b][1]] for b in Rr}
+        else:
+            res = srch.result_at(h0)
+        res["score"] = float(b0)
         floor = float(b0) - 4.0 - 1e-6
         if out.get("decision") == "not_detected_certified":
             outs_n = quick                                  # для «не найден» достаточно нижних оценок нулей
@@ -500,8 +543,11 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             else:
                 val = max(ubn, bn if bn is not None else -1e9)   # бюджет исчерпан: верхняя граница
             nulls.append(float(val))
-            nb_list.append(None if hn is None else {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v)
-                                                    for k, v in srch.result_at(hn, d).items() if k in ("score", "dM", "n", "sx", "sy", "stretch", "a_hat", "f_hat", "spectrum")})
+            if GEOM == "phys":
+                nb_list.append(None if hn is None else {"n": int(hn[0]), "theta": [float(fine[hn[0]] + hn[1][0]), float(hn[1][1]), float(hn[1][2])]})
+            else:
+                nb_list.append(None if hn is None else {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v)
+                                                        for k, v in srch.result_at(hn, d).items() if k in ("score", "dM", "n", "sx", "sy", "stretch", "a_hat", "f_hat", "spectrum")})
         out["null_best"] = nb_list
         out["null_below_floor"] = [bool(bn is None and ubn <= floor + 1e-9) for bn, hn, ubn, nen in outs_n]
         out["search"] = dict(method="bnb", eval_real=int(ne0), eval_null=[int(x[3]) for x in outs_n],
@@ -531,6 +577,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     _aref = min(_ab.values()) if _ab else 0.0; _sig = (res.get("stretch") or 0.0) * kmdeg * 1000.0
     pos_best = {b: [rootsb[b][0][2] + res["sx"] + _sig * (_ab[b] - _aref) * tdir[0],
                     rootsb[b][0][3] + res["sy"] + _sig * (_ab[b] - _aref) * tdir[1]] for b in _ab}
+    if "pos_phys" in res:
+        pos_best = res["pos_phys"]
     out["pos_best"] = pos_best
     # наблюдаемость (THEORY §13): доля окрестности 300 м вокруг точек полос у центра окна, закрытая маской облаков/теней
     _g = np.arange(-300.0, 301.0, 30.0); _GX, _GY = np.meshgrid(_g, _g); _mf = []
@@ -601,6 +649,8 @@ def _inject(ev, b, bb, inj, RF, k0, res=20):
 _FN = None
 BG_MODEL = os.environ.get("S2_BG", "loglocal")      # "loglocal" (THEORY §13) или "block" (прежняя)
 CLOUD_MASK = os.environ.get("S2_CLOUDMASK", "1") == "1"   # 0: облака не маскировать (спутник над ними)
+GEOM = os.environ.get("S2_GEOM", "grid")             # "phys": θ = (вдоль, поперёк, радиус) с априорным распределением (§17)
+SIG_CR = float(os.environ.get("S2_SIG_CR", "0.6"))   # σ поперёк/по радиусу, км (E1: < 1 км в 90 %)
 SEARCH = os.environ.get("S2_SEARCH", "bnb")          # "bnb" — перебор по схеме Equant (THEORY §14), "grid" — полный
 BNB_BUDGET = float(os.environ.get("S2_BNB_BUDGET", "3e6"))
 BNB_QUICK = float(os.environ.get("S2_BNB_QUICK", "2e4"))
