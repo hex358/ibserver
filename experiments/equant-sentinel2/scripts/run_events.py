@@ -49,6 +49,9 @@ ap.add_argument("--dual-orbit", action="store_true", help="если не най�
 ap.add_argument("--prior-window", action="store_true", help="окно = ±3σ_вдоль, σ из расхождения источников орбиты (§17)")
 ap.add_argument("--reverse", action="store_true", help="обработать список с конца (второй параллельный процесс)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
+ap.add_argument("--nnull", type=int, default=10, help="число нулевых прогонов (хвост распределения)")
+ap.add_argument("--source-windows", type=float, default=0.0,
+                help="THEORY §19: σ (км) окон вокруг каждого источника орбиты (GP/SupGP с |эпоха−снимок| ≤ 4 сут); 0 — выкл.")
 ap.add_argument("--min-sun", type=float, default=40.0)   # правило съёмки: THEORY §12
 ap.add_argument("--min-v", type=float, default=1.5)
 ap.add_argument("--method", default="glrt")
@@ -412,7 +415,27 @@ for e in day:
             _c, _w = dm_b, max(a.boot_min, a.boot_drift * abs(e["jd"] - jd_b))
             e["boot"] = dict(center=_c, half=_w, from_jd=jd_b)
             print(f"  bootstrap: window {_c:+.1f} ± {_w:.1f} km (from crossing {e['jd'] - jd_b:+.2f} d)", flush=True)
-        r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=_w, dM_center=_c, method=a.method, area_m2=area_m2(e), max_image_km=a.max_image_km, Rc=a.rc, tol_m=a.tol)
+        _cs = None
+        if a.source_windows > 0:
+            # смесь по источникам: истина у одного из источников с σ ≈ 0.85 км (все 17 эталонов — ≤ 1.5 км от
+            # ближайшего источника при разбросе источников 30–411 км); окна ±3σ вокруг смещения каждого источника
+            _rO, _vO = orb.ecef([e["jd"]]); _uv = _vO[0] / np.linalg.norm(_vO[0])
+            _offs = []
+            for _pat in ("gp_*.tle", "supgp_*.tle"):
+                for _sd in snap_list:
+                    for _fp in sorted(_glob.glob(str(_sd / _pat))):
+                        for _o in O.parse_tle(Path(_fp).read_text()):
+                            if _o.catnr == e["cat"] and abs(_o.epoch_jd - e["jd"]) <= 4.0:
+                                _r2, _ = _o.ecef([e["jd"]]); _offs.append(float((_r2[0] - _rO[0]) @ _uv))
+            _offs = sorted(set(round(v, 1) for v in _offs + [0.0]))
+            _cs = []
+            for v in _offs:
+                if not _cs or v - _cs[-1] > a.source_windows:
+                    _cs.append(v)
+            _w = 3.0 * a.source_windows; _c = 0.0
+            e["source_centers"] = _cs
+            print(f"  source windows: {len(_cs)} × ±{_w:.1f} км вокруг {_cs}", flush=True)
+        r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=_w, dM_center=_c, method=a.method, area_m2=area_m2(e), max_image_km=None if _cs else a.max_image_km, Rc=a.rc, tol_m=a.tol, n_null=a.nnull, dM_centers=_cs)
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)

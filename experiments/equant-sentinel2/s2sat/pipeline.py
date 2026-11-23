@@ -58,8 +58,10 @@ class CellRaster:
 
 def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_null=10,
               ref_ids: dict | None = None, alpha_span=2.6, n_alpha=2000, max_cloud=None,
-              dM_max=0.0, dM_step=0.5, workers=4, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion", area_m2=None, early_thr=6.0, stretch=True, max_image_km=None, Rc=None, dM_center=0.0):
-    """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты."""
+              dM_max=0.0, dM_step=0.5, workers=4, inject=None, n_refs=3, native=True, method="glrt", step=None, use_ref=False, tol_m=30.0, model="occlusion", area_m2=None, early_thr=6.0, stretch=True, max_image_km=None, Rc=None, dM_center=0.0, dM_centers=None):
+    """e: событие из crossings.event(). dM_max (км): диапазон перебора фазы вдоль орбиты.
+    dM_centers: несколько центров окон (THEORY §19: априорное — смесь по источникам орбиты, окно ±dM_max вокруг
+    смещения каждого источника); перебор и нулевые прогоны — по объединению окон."""
     t0 = time.time()
     out = dict(obj=e["obj"], sent=e["sent"], jd=e["jd"], v_al=e["v_al"], reasons=[])
     t = dt_from_jd(e["jd"])
@@ -117,6 +119,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         # окно вокруг dM_center: 0 — номинальная орбита; иначе поправка по найденному пролёту того же объекта
         fine = dM_center + np.arange(-dM_max, dM_max + 1e-9, dm_step)
         fine = np.unique(np.r_[fine, dM_center])
+        if dM_centers:
+            fine = np.unique(np.concatenate([c + np.arange(-dM_max, dM_max + 1e-9, dm_step) for c in dM_centers] + [[dM_center]]))
     else:
         fine = np.array([0.0])
     ROOTS = [roots0 if abs(dm - dM_center) < 1e-12 else roots_at_dm(dm)[0] for dm in fine]
