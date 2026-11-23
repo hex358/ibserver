@@ -63,12 +63,11 @@ def compact_plates(area, psi):
     return [(jnp.zeros(3), u, w, a, a, S_B, T_B)]
 
 
-def render_occ(plates, Jm, p, X, Y, var, var_al=0.0):
-    """Доля пикселя, закрытая объектом. Jm: (2,3) м/м; p: (2,) центр; X,Y: (H,W) центры пикселей; var: σ² (м²);
-    var_al: дополнительный смаз вдоль направления движения объекта на снимке (t = J·e_вдоль)."""
+def render_occ(plates, Jm, p, X, Y, C):
+    """Доля пикселя, закрытая объектом. Jm: (2,3) м/м; p: (2,) центр; X,Y: (H,W) центры пикселей;
+    C: (2,2) ковариация ядра точки на снимке = ФРТ + ящик пикселя поперёк строки + смаз push-broom (kernel_cov)."""
     occ = jnp.zeros(X.shape)
-    t = Jm[:, 0] / (jnp.linalg.norm(Jm[:, 0]) + 1e-9)
-    C = var * jnp.eye(2) + var_al * jnp.outer(t, t); det = C[0, 0] * C[1, 1] - C[0, 1] ** 2
+    det = C[0, 0] * C[1, 1] - C[0, 1] ** 2
     i00, i11, i01 = C[1, 1] / det, C[0, 0] / det, -C[0, 1] / det
     for c, a1, a2, L, W, S, T in plates:
         P3 = c[None, :] + (L * S)[:, None] * a1[None, :] + (W * T)[:, None] * a2[None, :]     # (K,3) м
@@ -79,6 +78,17 @@ def render_occ(plates, Jm, p, X, Y, var, var_al=0.0):
         q = i00 * dx ** 2 + 2 * i01 * dx * dy + i11 * dy ** 2
         occ = occ + (dA / (2 * jnp.pi * jnp.sqrt(det))) * jnp.exp(-0.5 * q).sum(-1)
     return occ
+
+
+def kernel_cov(d, sig_psf):
+    """Ядро точки на снимке push-broom. Строка снимка — момент времени; точка объекта видна строками, пока её проекция
+    на землю внутри полосы обзора строки. Относительное движение вдоль строки медленнее сканирования → точка
+    «тянется» отрезком вдоль своего видимого движения ŝ = J·e_вдоль/|…| длиной res/|ŝ·t̂| (t̂ — направление строк,
+    т.е. полёта Sentinel). Для неподвижной земли ŝ = t̂ и это обычный ящик пикселя. Поперёк строки — ящик res."""
+    res = d["res"]; t = d["row"]; n = jnp.array([-t[1], t[0]])
+    sv = d["J"][:, 0] / (jnp.linalg.norm(d["J"][:, 0]) + 1e-9)
+    Ls = jnp.minimum(res / jnp.maximum(jnp.abs(sv @ t), 0.05), 20.0 * res)
+    return sig_psf ** 2 * jnp.eye(2) + (res ** 2 / 12.0) * jnp.outer(n, n) + (Ls ** 2 / 12.0) * jnp.outer(sv, sv)
 
 
 def band_loss(occ, r, s, g, m, hub=3.0):
@@ -97,22 +107,22 @@ def pass_loss(shape, sig, pp, D, kind="starlink", phi=None):
     dth, psi = pp[:3] / 1000.0, pp[3]
     phi = pp[4] if phi is None else phi
     plates = starlink_plates(shape, psi, phi) if kind == "starlink" else compact_plates(shape[0], psi)
-    var_al = sig[2] ** 2 if sig.shape[0] > 2 else 0.0
     tot = 0.0
     for d in D:
         p = d["p0"] + d["J"] @ dth
-        var = sig[0] ** 2 + d["res"] ** 2 / 12.0 if d["res"] <= 10 else sig[1] ** 2 + d["res"] ** 2 / 12.0
-        occ = render_occ(plates, d["J"] / 1000.0, p, d["X"], d["Y"], var, var_al)
+        C = kernel_cov(d, sig[0] if d["res"] <= 10 else sig[1])
+        occ = render_occ(plates, d["J"] / 1000.0, p, d["X"], d["Y"], C)
         l, _, _ = band_loss(occ, d["r"], d["s"], d["g"], d["m"])
         tot = tot + l
     return tot
 
 
-def to_jax(bands):
+def to_jax(bands, row):
+    """row: единичный вектор направления строк снимка (полёта Sentinel) в UTM: (sin ψ, cos ψ), ψ — азимут трассы."""
     out = []
     for b, d in bands.items():
         m = np.isfinite(d["r"]).astype(float)
-        out.append(dict(b=b, res=float(d["res"]), p0=jnp.asarray(d["p0"], float), J=jnp.asarray(d["J"], float),
+        out.append(dict(b=b, res=float(d["res"]), p0=jnp.asarray(d["p0"], float), J=jnp.asarray(d["J"], float), row=jnp.asarray(row, float),
                         X=jnp.asarray(d["X"], float), Y=jnp.asarray(d["Y"], float), r=jnp.asarray(np.nan_to_num(d["r"]), float),
                         s=float(d["s"]), g=jnp.asarray(np.nan_to_num(d["g"]), float), m=jnp.asarray(m)))
     return out
@@ -146,10 +156,10 @@ def gauss_params(theta, K):
     return mu, Sig, jnp.exp(la)
 
 
-def render_gauss(theta, K, Jm, p, X, Y, var):
+def render_gauss(theta, K, Jm, p, X, Y, C):
     mu, Sig, a = gauss_params(theta, K)
     m2 = p[None, :] + mu @ Jm.T                                         # (K,2)
-    S2 = Jm[None] @ Sig @ Jm.T[None] + var * jnp.eye(2)[None]          # (K,2,2)
+    S2 = Jm[None] @ Sig @ Jm.T[None] + C[None]                         # (K,2,2): EWA — ковариации складываются
     det = S2[:, 0, 0] * S2[:, 1, 1] - S2[:, 0, 1] ** 2
     i00, i11, i01 = S2[:, 1, 1] / det, S2[:, 0, 0] / det, -S2[:, 0, 1] / det
     dx = X[..., None] - m2[:, 0]; dy = Y[..., None] - m2[:, 1]
@@ -163,9 +173,7 @@ def pass_loss_gauss(theta, K, sig, dth_m, D):
     tot = 0.0
     for d in D:
         p = d["p0"] + d["J"] @ dth
-        var = sig[0] ** 2 if d["res"] <= 10 else sig[1] ** 2
-        var = var + d["res"] ** 2 / 12.0
-        occ = render_gauss(theta, K, d["J"] / 1000.0, p, d["X"], d["Y"], var)
+        occ = render_gauss(theta, K, d["J"] / 1000.0, p, d["X"], d["Y"], kernel_cov(d, sig[0] if d["res"] <= 10 else sig[1]))
         l, _, _ = band_loss(occ, d["r"], d["s"], d["g"], d["m"])
         tot = tot + l
     return tot

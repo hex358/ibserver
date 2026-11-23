@@ -224,7 +224,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     else:
         ang_track = 0.0
     # форма изображения (THEORY.md §3, калибровка E3b): поперёк — отрезки; вдоль — штрих длины L_вдоль
-    geo = image_geometry(e, area_m2)
+    geo = image_geometry(e, area_m2, gain, math.degrees(psi), ang_track)
+    out["image_geometry"] = geo
     La = geo["along_px"]
     KBANK = [bgsub.KERNEL] + [bgsub.line_kernel(L, ang_track + math.pi / 2) for L in (3, 5, 7)]
     for L in sorted({max(3, int(round(La / 2))), max(3, int(round(La)))}):
@@ -338,7 +339,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
 
     # кэш обработанных ячеек на диске: смена параметров поиска/порога не требует повторной обработки снимков
     import pickle
-    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_{BG_MODEL}{"" if CLOUD_MASK else "_cedge"}_e{epsg}_v2"
+    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_{BG_MODEL}{"" if CLOUD_MASK else "_cedge"}_e{epsg}_v2{f"_La{La:.0f}" if PHYS_STREAK else ""}"
 
     def _tile_save(c, T):
         if inject:
@@ -385,7 +386,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     run_cells(probe)
     if method == "glrt" and area_m2 and tiles:
         _mS, _mG = CellRaster(tiles, bands, "S"), CellRaster(tiles, bands, "G")
-        fc0 = forecast(e, roots0, bands, _mS, _mG, area_m2)
+        fc0 = forecast(e, roots0, bands, _mS, _mG, area_m2, geo=geo)
         out["forecast"] = fc0
         # ранний выход только если и на соседних фазах (±3 км — реальная ошибка SupGP) видимость не лучше номинала
         nb0 = len(roots0)
@@ -619,7 +620,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     out.update(res, roots=rootsb, nulls=nulls, null_max=max(nulls), null_med=float(np.median(nulls)), per_band=per,
                seconds=time.time() - t0)
     if method == "glrt":
-        out["forecast"] = forecast(e, ROOTS[k0], bands, mosS, mosG, area_m2)
+        out["forecast"] = forecast(e, ROOTS[k0], bands, mosS, mosG, area_m2, geo=geo)
     out["roots_all"] = [{b: [list(q) for q in lst] for b, lst in rr.items()} for rr in ROOTS]
     out["_maps"] = dict(mos=mos, tiles=tiles)
     return out
@@ -663,7 +664,8 @@ def _inject(ev, b, bb, inj, RF, k0, res=20):
 
 
 _FN = None
-BG_MODEL = os.environ.get("S2_BG", "loglocal")      # "loglocal" (THEORY §13) или "block" (прежняя)
+BG_MODEL = os.environ.get("S2_BG", "loglocal")
+PHYS_STREAK = os.environ.get("S2_STREAK", "phys") == "phys"   # THEORY §18: длина штриха по точной камере      # "loglocal" (THEORY §13) или "block" (прежняя)
 CLOUD_MASK = os.environ.get("S2_CLOUDMASK", "1") == "1"   # 0: облака не маскировать (спутник над ними)
 GEOM = os.environ.get("S2_GEOM", "grid")             # "phys": θ = (вдоль, поперёк, радиус) с априорным распределением (§17)
 # σ поперёк / по радиусу, км — по подгонке трёх ошибок орбиты к измеренным положениям полос (fit3d.py, 4 объекта):
@@ -702,24 +704,32 @@ F_HI, F_LO = 0.7, 0.25  # доля закрытого пикселя: измер
 DIL20 = 0.5             # ослабление малого объекта в полосах 20 м
 
 
-def image_geometry(e, area_m2):
-    """Размер изображения (в пикселях 10 м): вдоль трассы — штрих push-broom, поперёк — проекция объекта."""
+def image_geometry(e, area_m2, gain=None, psi_deg=None, ang_track=None):
+    """Размер изображения (в пикселях 10 м): вдоль трассы — штрих push-broom, поперёк — проекция объекта.
+    THEORY §18: если известны усиление вдоль |J_вдоль| (gain, м снимка на км смещения объекта вдоль орбиты) и
+    направления строк (ψ трассы Sentinel) и видимого движения (ang_track), длина штриха — точная:
+    размах·|J_вдоль| ⊕ смаз push-broom, смаз = 10 м / |cos(видимое движение, строки)|. Прежняя эмпирическая
+    формула занижала штрих медленных пролётов в 2–2.5 раза (30580: 84 м против 160–175 м на снимке)."""
     k = e["lam"] / e["rng"]
     A = area_m2 or 4.0
     L = math.sqrt(A * 7.5)                       # длинный размер (Starlink 120 м² → 30 м)
     Wd = A / L                                   # ширина
     along = (L * k + 10.0) * V_G / max(abs(e["v_al"]) * k, 0.3) / 10.0
+    if gain and psi_deg is not None and ang_track is not None and PHYS_STREAK:
+        ps = math.radians(psi_deg); row = math.atan2(math.cos(ps), math.sin(ps))
+        c = abs(math.cos(ang_track - row)); smear = min(10.0 / max(c, 0.05), 400.0)
+        along = math.hypot(L * gain / 1000.0, smear) / 10.0
     across = max(1.0, Wd * k / 10.0)
     return dict(k=k, L=L, along_px=float(np.clip(along, 1, 40)), across_px=float(across),
                 n_px=float(np.clip(along, 1, 25) * min(across, 4)))
 
 
-def forecast(e, roots, bands, mosS, mosG, area_m2, eff=0.59):
+def forecast(e, roots, bands, mosS, mosG, area_m2, eff=0.59, geo=None):
     """Прогноз по калиброванной модели (THEORY.md, E3b): контраст пикселя c_b = f·(ρ_obj − ρ_фона,b)·ослабление_b,
     отклик фильтра ≈ eff·c_b·√N, u_b = отклик/σ_b. T при f = 0.7 и f = 0.25 в шкале статистики (вклад ≤ 8)."""
     if not area_m2:
         return None
-    geo = image_geometry(e, area_m2); sqN = math.sqrt(geo["n_px"])
+    geo = geo or image_geometry(e, area_m2); sqN = math.sqrt(geo["n_px"])
     fcap = min(1.0, area_m2 * geo["k"] ** 2 / 100.0)   # объект мельче пикселя не закроет больше своей площади
     us = {}
     for b in bands:

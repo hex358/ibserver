@@ -80,12 +80,23 @@ def prep(paths):
               f"Солнце·зенит {sun[2]:+.2f}, визир·зенит {los[2]:+.2f}, {time.time() - t0:.0f} с", flush=True)
 
 
+def row_dir(rc):
+    """Направление строк снимка (полёт Sentinel) в UTM по азимуту трассы из результата детекции."""
+    if "row" in rc:
+        return rc["row"]
+    for f in glob.glob(str(ROOT / "results/events_*" / f"{rc['name']}.json")):
+        r = json.loads(Path(f).read_text())["result"]
+        if "psi_deg" in r:
+            ps = math.radians(r["psi_deg"]); return [math.sin(ps), math.cos(ps)]
+    raise RuntimeError(f"нет psi_deg для {rc['name']}")
+
+
 def load():
     from s2sat import shape as SH
     recs = [pickle.loads(p.read_bytes()) for p in sorted(OUT.glob("*.pkl"))]
     recs = [rc for rc in recs if rc.get("fit_rms", 1e9) <= 80.0]       # пятно совпадает с геометрией пролёта
     for rc in recs:
-        rc["D"] = SH.to_jax(rc["bands"])
+        rc["D"] = SH.to_jax(rc["bands"], row_dir(rc))
     return recs
 
 
@@ -249,7 +260,7 @@ def joint(args):
 
     def unpack(z):
         lw = jnp.exp(z[0]); ww = jnp.asarray(NOMINAL[1]) if fixW else jnp.exp(z[1])
-        sig = jnp.exp(z[2:5])
+        sig = jnp.array([4.2, 8.4])            # ФРТ по паспорту MSI (MTF на Найквисте ≈ 0.27), не подгоняется: вырождена с размером
         return lw, ww, sig
 
     def total(z):
@@ -273,8 +284,14 @@ def joint(args):
     f = lambda z: tuple(np.asarray(v, float) for v in tvg(jnp.asarray(z)))
     t0 = time.time()
     res = minimize(f, z0, jac=True, method="L-BFGS-B", options=dict(maxiter=args.maxiter, maxfun=2 * args.maxiter))
-    H = np.asarray(jax.hessian(total)(jnp.asarray(res.x)))
-    act = [0] + ([] if fixW else [1]) + list(range(2, len(z0)))
+    np.save(OUT / f"joint_{args.phi}{'_fixW' if fixW else ''}.npy", res.x)
+    # гессиан по столбцам (вперёд-по-обратному, один касательный вектор за раз): полный jax.hessian не влезает в память
+    hvp = jax.jit(lambda x, v: jax.jvp(jax.grad(total), (x,), (v,))[1])
+    xj = jnp.asarray(res.x); H = np.zeros((len(z0), len(z0)))
+    for i in range(len(z0)):
+        H[:, i] = np.asarray(hvp(xj, jnp.zeros(len(z0)).at[i].set(1.0)))
+    H = 0.5 * (H + H.T)
+    act = [0] + ([] if fixW else [1]) + list(range(5, len(z0)))
     try:
         C = np.linalg.inv(H[np.ix_(act, act)] / 2.0); sd = dict(zip(act, np.sqrt(np.clip(np.diag(C), 0, None))))
     except np.linalg.LinAlgError:
@@ -282,7 +299,7 @@ def joint(args):
     lw, ww, sig = (np.asarray(v) for v in unpack(jnp.asarray(res.x)))
     print(f"[φ {args.phi}{', W=4.1' if fixW else ''}] крыло {float(lw):.1f} ± {float(lw) * sd.get(0, np.nan):.1f} м × "
           f"{float(ww):.1f}{'' if fixW else f' ± {float(ww) * sd.get(1, np.nan):.1f}'} м (известно 12.8 × 4.1); размах {2 * float(lw) + NOMINAL[2]:.1f} м (~30); "
-          f"ФРТ σ10 {sig[0]:.1f} σ20 {sig[1]:.1f}, смаз {sig[2]:.1f} м; χ² {res.fun:.1f}; {time.time() - t0:.0f} с; {res.message}", flush=True)
+          f"ФРТ σ10 {sig[0]:.1f} σ20 {sig[1]:.1f} (паспорт), смаз push-broom — по геометрии; χ² {res.fun:.1f}; {time.time() - t0:.0f} с; {res.message}", flush=True)
     for k, rc in enumerate(recs):
         pp = res.x[5 + 5 * k: 10 + 5 * k]
         print(f"   {rc['name']}: ψ {math.degrees(pp[3]) % 180:5.1f}°  φ {math.degrees(pp[4]):+5.1f}°", flush=True)
