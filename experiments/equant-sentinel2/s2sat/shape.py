@@ -81,14 +81,16 @@ def render_occ(plates, Jm, p, X, Y, C):
 
 
 def kernel_cov(d, sig_psf):
-    """Ядро точки на снимке push-broom. Строка снимка — момент времени; точка объекта видна строками, пока её проекция
-    на землю внутри полосы обзора строки. Относительное движение вдоль строки медленнее сканирования → точка
-    «тянется» отрезком вдоль своего видимого движения ŝ = J·e_вдоль/|…| длиной res/|ŝ·t̂| (t̂ — направление строк,
-    т.е. полёта Sentinel). Для неподвижной земли ŝ = t̂ и это обычный ящик пикселя. Поперёк строки — ящик res."""
-    res = d["res"]; t = d["row"]; n = jnp.array([-t[1], t[0]])
-    sv = d["J"][:, 0] / (jnp.linalg.norm(d["J"][:, 0]) + 1e-9)
-    Ls = jnp.minimum(res / jnp.maximum(jnp.abs(sv @ t), 0.05), 20.0 * res)
-    return sig_psf ** 2 * jnp.eye(2) + (res ** 2 / 12.0) * jnp.outer(n, n) + (Ls ** 2 / 12.0) * jnp.outer(sv, sv)
+    """Ядро точки на снимке push-broom (THEORY §18). Строка снимка — момент времени; полоса обзора строки бежит по
+    земле со скоростью v_скан·t̂, а проекция точки объекта на землю — со скоростью v_G (видимая трасса: положения
+    объекта по полосам во времени). Точка остаётся в полосе Δt = res/|v_скан − v_G·t̂| и записывается отрезком
+    s = v_G·Δt. Плюс ящик пикселя (res×res) и ФРТ оптики. Для неподвижной земли s = 0 — обычный пиксель."""
+    res = d["res"]; t = d["row"]; vg = d["vapp"]
+    sv = vg * res / jnp.maximum(jnp.abs(V_SCAN - vg @ t), 0.05 * V_SCAN)
+    return (sig_psf ** 2 + res ** 2 / 12.0) * jnp.eye(2) + jnp.outer(sv, sv) / 12.0
+
+
+V_SCAN = 6600.0     # скорость сканирования земли Sentinel-2, м/с
 
 
 def band_loss(occ, r, s, g, m, hub=3.0):
@@ -118,11 +120,18 @@ def pass_loss(shape, sig, pp, D, kind="starlink", phi=None):
 
 
 def to_jax(bands, row):
-    """row: единичный вектор направления строк снимка (полёта Sentinel) в UTM: (sin ψ, cos ψ), ψ — азимут трассы."""
+    """row: единичный вектор направления строк снимка (полёта Sentinel) в UTM: (sin ψ, cos ψ), ψ — азимут трассы.
+    vapp: видимая скорость объекта на снимке (м/с) — по положениям объекта в полосах и моментам их съёмки (геометрия)."""
+    P = np.array([d["p0"] for d in bands.values()]); T = np.array([d["jd"] for d in bands.values()]) * 86400.0
+    if len(P) >= 2 and np.ptp(T) > 0:
+        A = np.c_[T - T.mean(), np.ones_like(T)]
+        vapp = np.array([np.linalg.lstsq(A, P[:, 0], rcond=None)[0][0], np.linalg.lstsq(A, P[:, 1], rcond=None)[0][0]])
+    else:
+        vapp = np.array(row, float) * V_SCAN
     out = []
     for b, d in bands.items():
         m = np.isfinite(d["r"]).astype(float)
-        out.append(dict(b=b, res=float(d["res"]), p0=jnp.asarray(d["p0"], float), J=jnp.asarray(d["J"], float), row=jnp.asarray(row, float),
+        out.append(dict(b=b, res=float(d["res"]), p0=jnp.asarray(d["p0"], float), J=jnp.asarray(d["J"], float), row=jnp.asarray(row, float), vapp=jnp.asarray(vapp, float),
                         X=jnp.asarray(d["X"], float), Y=jnp.asarray(d["Y"], float), r=jnp.asarray(np.nan_to_num(d["r"]), float),
                         s=float(d["s"]), g=jnp.asarray(np.nan_to_num(d["g"]), float), m=jnp.asarray(m)))
     return out

@@ -18,6 +18,7 @@ from scipy.optimize import minimize
 from s2sat import shape as SH
 
 name = sys.argv[1]
+FIX_PSI = None if len(sys.argv) < 3 else float(sys.argv[2])     # градусы: ось крыльев задана (0 — вдоль полёта)
 rc = pickle.loads(Path(glob.glob(str(ROOT / f"results/shape/{name}*.pkl"))[0]).read_bytes())
 from shape_fit import row_dir
 D = SH.to_jax(rc["bands"], row_dir(rc))
@@ -26,6 +27,8 @@ SIG = (4.2, 8.4)
 
 def model_band(z, d):
     lw, ww, lb, wb = jnp.exp(z[0:4]); dth = z[4:7] / 1000.0; psi, phi = z[7], z[8]
+    if FIX_PSI is not None:
+        psi = math.radians(FIX_PSI)
     plates = SH.starlink_plates(jnp.array([lw, ww, lb, wb]), psi, phi)
     p = d["p0"] + d["J"] @ dth
     C = SH.kernel_cov(d, SIG[0] if d["res"] <= 10 else SIG[1])
@@ -51,7 +54,7 @@ def loss(z):
 vg = jax.jit(jax.value_and_grad(loss))
 f = lambda z: tuple(np.asarray(v, float) for v in vg(jnp.asarray(z)))
 best = None; t0 = time.time()
-for psi0 in np.radians([-30, -15, 0, 15, 30]):
+for psi0 in (np.radians([-30, -15, 0, 15, 30]) if FIX_PSI is None else [math.radians(FIX_PSI)]):
     for phi0 in np.radians([-60, -20, 20, 60]):
         for init in ((12.8, 4.1), (6.0, 2.0)):
             z0 = np.array([math.log(init[0]), math.log(init[1]), math.log(4.1), math.log(2.7), 0, 0, 0, psi0, phi0])
@@ -75,4 +78,4 @@ print(f"  ψ {math.degrees(best.x[7]):+.1f}° от направления пол
 for d in D:
     _, c = model_band(jnp.asarray(best.x), d)
     print(f"  {d['b']:9s} яркость крыльев {float(c[0]):6.0f}, шины {float(c[1]):6.0f}, земли {float(jnp.median(d['g'])):6.0f} (DN−1000)")
-np.save(ROOT / f"results/shape/single_{name}.npy", best.x)
+np.save(ROOT / f"results/shape/single_{name}{'' if FIX_PSI is None else f'_psi{FIX_PSI:g}'}.npy", best.x)

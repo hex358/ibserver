@@ -224,13 +224,26 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     else:
         ang_track = 0.0
     # форма изображения (THEORY.md §3, калибровка E3b): поперёк — отрезки; вдоль — штрих длины L_вдоль
-    geo = image_geometry(e, area_m2, gain, math.degrees(psi), ang_track)
-    out["image_geometry"] = geo
+    jbody = vG = None
+    if PHYS_STREAK and gain:
+        # J_вдоль (м снимка на м тела) и видимая скорость объекта на земле v_G — из точной геометрии
+        try:
+            _g = G.apparent_track(sen, obj, e["jd"], [-1.0, 0.0, 1.0])
+            _g1 = G.apparent_track(sen, obj, e["jd"], [0.0], dpos_km=0.1)["ground"]
+            _x, _y = G.ecef_to_utm(np.vstack([_g["ground"], _g1]), epsg)
+            jbody = np.array([_x[3] - _x[1], _y[3] - _y[1]]) / 100.0
+            _dt = (_g["jd"][2] - _g["jd"][0]) * 86400.0
+            vG = np.array([_x[2] - _x[0], _y[2] - _y[0]]) / _dt
+        except Exception:
+            jbody = vG = None
+    geo = image_geometry(e, area_m2, gain, math.degrees(psi), ang_track, jbody, vG)
+    out["image_geometry"] = {k_: v_ for k_, v_ in geo.items()}
     La = geo["along_px"]
-    KBANK = [bgsub.KERNEL] + [bgsub.line_kernel(L, ang_track + math.pi / 2) for L in (3, 5, 7)]
+    ang_k = geo["angle"] if geo.get("angle") is not None else ang_track    # ось штриха: тело ⊕ смаз
+    KBANK = [bgsub.KERNEL] + [bgsub.line_kernel(L, ang_k + math.pi / 2) for L in (3, 5, 7)]
     for L in sorted({max(3, int(round(La / 2))), max(3, int(round(La)))}):
         if L > 3:
-            KBANK.append(bgsub.line_kernel(min(L, 25), ang_track))
+            KBANK.append(bgsub.line_kernel(min(L, 25), ang_k))
     # допуск: вдоль трассы — половина штриха (+20 м), поперёк — ±tol_m
     # вдоль трассы ошибка угла полосы δα ≈ 0.002–0.003° (калибровка: 31550 ±20 м при 12 км/°, 30580 ±100 м при 33 км/°)
     # переходит в сдвиг kmdeg·δα — у медленных пролётов в разы больше
@@ -339,7 +352,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
 
     # кэш обработанных ячеек на диске: смена параметров поиска/порога не требует повторной обработки снимков
     import pickle
-    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_{BG_MODEL}{"" if CLOUD_MASK else "_cedge"}_e{epsg}_v2{f"_La{La:.0f}" if PHYS_STREAK else ""}"
+    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_{BG_MODEL}{"" if CLOUD_MASK else "_cedge"}_e{epsg}_v2{f"_La{La:.0f}a{math.degrees(ang_k) % 180:.0f}" if PHYS_STREAK else ""}"
 
     def _tile_save(c, T):
         if inject:
@@ -665,7 +678,7 @@ def _inject(ev, b, bb, inj, RF, k0, res=20):
 
 _FN = None
 BG_MODEL = os.environ.get("S2_BG", "loglocal")
-PHYS_STREAK = os.environ.get("S2_STREAK", "phys") == "phys"   # THEORY §18: длина штриха по точной камере      # "loglocal" (THEORY §13) или "block" (прежняя)
+PHYS_STREAK = os.environ.get("S2_STREAK", "emp") == "phys"    # THEORY §18: точная длина штриха — пока по выбору (порог на 30580 вырос 10.4 → 12.0)      # "loglocal" (THEORY §13) или "block" (прежняя)
 CLOUD_MASK = os.environ.get("S2_CLOUDMASK", "1") == "1"   # 0: облака не маскировать (спутник над ними)
 GEOM = os.environ.get("S2_GEOM", "grid")             # "phys": θ = (вдоль, поперёк, радиус) с априорным распределением (§17)
 # σ поперёк / по радиусу, км — по подгонке трёх ошибок орбиты к измеренным положениям полос (fit3d.py, 4 объекта):
@@ -704,7 +717,22 @@ F_HI, F_LO = 0.7, 0.25  # доля закрытого пикселя: измер
 DIL20 = 0.5             # ослабление малого объекта в полосах 20 м
 
 
-def image_geometry(e, area_m2, gain=None, psi_deg=None, ang_track=None):
+def streak_cov(L, jbody, vG, psi_deg, res=10.0):
+    """Ковариация изображения объекта длины L (м) с осью вдоль полёта (THEORY §18): тело L·J_вдоль ⊕ смаз
+    push-broom s = v_G·res/|v_скан − v_G·t̂| ⊕ пиксель. jbody — J_вдоль (м снимка на м тела, 2-вектор UTM),
+    vG — видимая скорость объекта на земле (м/с, UTM). Возвращает (длина главной оси, м; угол, рад)."""
+    ps = math.radians(psi_deg); t = np.array([math.sin(ps), math.cos(ps)])
+    s = np.asarray(vG, float) * res / max(abs(V_SCAN_G - float(np.asarray(vG) @ t)), 0.05 * V_SCAN_G)
+    b = L * np.asarray(jbody, float)
+    C = (np.outer(b, b) + np.outer(s, s)) / 12.0 + (res ** 2 / 12.0) * np.eye(2)
+    ev, V = np.linalg.eigh(C)
+    return math.sqrt(12.0 * ev[1]), math.atan2(V[1, 1], V[0, 1])
+
+
+V_SCAN_G = 6600.0
+
+
+def image_geometry(e, area_m2, gain=None, psi_deg=None, ang_track=None, jbody=None, vG=None):
     """Размер изображения (в пикселях 10 м): вдоль трассы — штрих push-broom, поперёк — проекция объекта.
     THEORY §18: если известны усиление вдоль |J_вдоль| (gain, м снимка на км смещения объекта вдоль орбиты) и
     направления строк (ψ трассы Sentinel) и видимого движения (ang_track), длина штриха — точная:
@@ -715,12 +743,12 @@ def image_geometry(e, area_m2, gain=None, psi_deg=None, ang_track=None):
     L = math.sqrt(A * 7.5)                       # длинный размер (Starlink 120 м² → 30 м)
     Wd = A / L                                   # ширина
     along = (L * k + 10.0) * V_G / max(abs(e["v_al"]) * k, 0.3) / 10.0
-    if gain and psi_deg is not None and ang_track is not None and PHYS_STREAK:
-        ps = math.radians(psi_deg); row = math.atan2(math.cos(ps), math.sin(ps))
-        c = abs(math.cos(ang_track - row)); smear = min(10.0 / max(c, 0.05), 400.0)
-        along = math.hypot(L * gain / 1000.0, smear) / 10.0
+    ang = None
+    if PHYS_STREAK and jbody is not None and vG is not None and psi_deg is not None:
+        Ls, ang = streak_cov(L, jbody, vG, psi_deg)
+        along = Ls / 10.0
     across = max(1.0, Wd * k / 10.0)
-    return dict(k=k, L=L, along_px=float(np.clip(along, 1, 40)), across_px=float(across),
+    return dict(k=k, L=L, along_px=float(np.clip(along, 1, 40)), across_px=float(across), angle=ang,
                 n_px=float(np.clip(along, 1, 25) * min(across, 4)))
 
 
