@@ -1,0 +1,28 @@
+name: fetch-tle-history
+# История орбит для experiments/equant-sentinel2 из веб-архива (web.archive.org закрыт из контейнера Claude).
+on:
+  push:
+    branches: [claude/experiments-repo-hze47d]
+    paths: [experiments/equant-sentinel2/data/tle_history_request.txt]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download archived TLE
+        run: python3 experiments/equant-sentinel2/scripts/fetch_wayback_tle.py
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add experiments/equant-sentinel2/data/tle_history
+          git commit -m "TLE history from Internet Archive" || { echo "nothing to commit"; exit 0; }
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push && exit 0
+            sleep 10
+          done
+          exit 1
