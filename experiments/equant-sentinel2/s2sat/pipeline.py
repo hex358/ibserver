@@ -480,7 +480,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                     if vr is not None: J[n, bi, 2] = vr / dlt
                     vp, vm = near(Rp), near(Rm_)
                     if vp is not None and vm is not None: J[n, bi, 0] = (vp - vm) / dfa
-            sa = float(e.get("sigma_along") or (dM_max / 3.0)); sc = sr = SIG_CR
+            sa = float(e.get("sigma_along") or (dM_max / 3.0)); sc, sr = SIG_C, SIG_R
             hstep = 0.5 * (float(np.median(np.diff(fine))) if len(fine) > 1 else 1.0)
             ja = max(float(np.abs(J[:, :, 0, :]).max(initial=1.0)), 1.0); jc = max(float(np.abs(J[:, :, 1, :]).max(initial=1.0)), 1.0)
             jr = max(float(np.abs(J[:, :, 2, :]).max(initial=1.0)), 1.0)
@@ -650,7 +650,10 @@ _FN = None
 BG_MODEL = os.environ.get("S2_BG", "loglocal")      # "loglocal" (THEORY §13) или "block" (прежняя)
 CLOUD_MASK = os.environ.get("S2_CLOUDMASK", "1") == "1"   # 0: облака не маскировать (спутник над ними)
 GEOM = os.environ.get("S2_GEOM", "grid")             # "phys": θ = (вдоль, поперёк, радиус) с априорным распределением (§17)
-SIG_CR = float(os.environ.get("S2_SIG_CR", "0.6"))   # σ поперёк/по радиусу, км (E1: < 1 км в 90 %)
+# σ поперёк / по радиусу, км — по подгонке трёх ошибок орбиты к измеренным положениям полос (fit3d.py, 4 объекта):
+# СКО поперёк 1.1 км, по радиусу 1.9 км (THEORY §17)
+SIG_C = float(os.environ.get("S2_SIG_C", "1.1"))
+SIG_R = float(os.environ.get("S2_SIG_R", "1.9"))
 SEARCH = os.environ.get("S2_SEARCH", "bnb")          # "bnb" — перебор по схеме Equant (THEORY §14), "grid" — полный
 BNB_BUDGET = float(os.environ.get("S2_BNB_BUDGET", "3e6"))
 BNB_QUICK = float(os.environ.get("S2_BNB_QUICK", "2e4"))
