@@ -48,7 +48,7 @@ class Orbits:
         gp = [o for o in self.GP.get(e["cat"], []) if o.epoch_jd > e["jd"] and o.epoch_jd - e["jd"] <= 2.0]
         if gp:
             return min(gp, key=lambda o: o.epoch_jd)
-        gp = [o for o in self.GP.get(e["cat"], []) if abs(o.epoch_jd - e["jd"]) <= 3.0]
+        gp = [o for o in self.GP.get(e["cat"], []) if abs(o.epoch_jd - e["jd"]) <= 5.0]
         return min(gp, key=lambda o: abs(o.epoch_jd - e["jd"])) if gp else None
 
 

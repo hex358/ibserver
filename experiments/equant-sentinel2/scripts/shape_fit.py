@@ -23,7 +23,8 @@ NOMINAL = (12.8, 4.1, 4.1, 2.7)
 
 def prep(paths):
     from s2sat import passgeom as PG
-    orbs = PG.Orbits()
+    import os
+    orbs = PG.Orbits(until=os.environ.get("PREP_UNTIL", "20261122T2348"))   # архивные даты: снимок каталога своей даты
     OUT.mkdir(parents=True, exist_ok=True)
     for path in paths:
         x = json.loads(Path(path).read_text()); e, r = x["event"], x["result"]
