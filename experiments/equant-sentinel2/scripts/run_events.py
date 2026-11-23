@@ -44,6 +44,7 @@ ap.add_argument("--orbit-rule", default="newest", choices=["newest", "fitspan"],
                 help="fitspan: SupGP с последней эпохой ДО снимка (прогноз оператора вперёд), иначе GP с первой эпохой ПОСЛЕ (подгонка по наблюдениям назад); THEORY §14")
 ap.add_argument("--adaptive-window", action="store_true", help="окно = max(dm-floor, 1.5·расхождение источников орбиты), ≤ 45 км")
 ap.add_argument("--dm-floor", type=float, default=8.0)
+ap.add_argument("--dual-orbit", action="store_true", help="если не найден, а второй источник орбиты за краем окна — поиск вокруг него")
 ap.add_argument("--reverse", action="store_true", help="обработать список с конца (второй параллельный процесс)")
 ap.add_argument("--resume", action="store_true", help="пропускать события, для которых уже есть JSON в --out")
 ap.add_argument("--min-sun", type=float, default=40.0)   # правило съёмки: THEORY §12
@@ -323,6 +324,18 @@ def orbit_disagreement(e, o, src):
     jd = _np.array([e["jd"]]); r1, v1 = o.ecef(jd); r2, _ = alt.ecef(jd)
     u = v1[0] / _np.linalg.norm(v1[0])
     return abs(float((r2[0] - r1[0]) @ u))
+def orbit_alt(e):
+    """Другой источник орбиты для снимка: к SupGP-до — GP-после (или ближайшая GP), к GP-после — ближайшая SupGP."""
+    if e.get("orbit_src") == "supgp_before":
+        gp = [o for o in ALL_GP.get(e["cat"], []) if o.epoch_jd > e["jd"] and o.epoch_jd - e["jd"] <= 2.0]
+        if gp:
+            return min(gp, key=lambda o: o.epoch_jd)
+        alts = ALL_GP.get(e["cat"], [])
+    else:
+        alts = ALL_SG.get(e["cat"], [])
+    return min(alts, key=lambda x: abs(x.epoch_jd - e["jd"])) if alts else None
+
+
 BOOT = {}   # catnr -> [(jd, dM)] найденных пролётов (по --bootstrap-from)
 if a.bootstrap_from:
     from s2sat.threshold import threshold as _thr_b
@@ -412,6 +425,24 @@ for e in day:
         np.savez_compressed(Path(a.save_maps) / f"{tag}.npz", meta=json.dumps(meta, default=float), **arr)
     print("item", r.get("item"), "cloud", r.get("cloud"), "bands", r.get("bands"), "reasons", r.get("reasons")[:5])
     r["status"] = status(r); r["dm_window"] = max((abs(x - (e.get("boot") or {}).get("center", 0.0)) for x in (r.get("profile_dm") or [])), default=dm_for(e))
+    # второй источник орбиты за краем окна (THEORY §16, 3358): отдельный поиск вокруг него
+    if (a.orbit_rule == "fitspan" and a.dual_orbit and "score" in r and r["status"] not in ("detected", "detected_edge")
+            and (e.get("orbit_disagree_km") or 0) + 8.0 > r["dm_window"]):
+        _alt = orbit_alt(e)
+        if _alt is not None:
+            try:
+                _e2 = dict(e); _e2["dm_adaptive"] = 10.0
+                r2 = P.run_event(SAT[e["sent"]], _alt, _e2, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=10.0, dM_center=0.0,
+                                 method=a.method, area_m2=area_m2(e), max_image_km=a.max_image_km, Rc=a.rc, tol_m=a.tol)
+                maps2 = r2.pop("_maps", None); r2["status"] = status(r2); r2["dm_window"] = 10.0
+                print(f"DUAL {tag}: alternative orbit ({'gp' if e.get('orbit_src') == 'supgp_before' else 'supgp'}) -> {r2['status']} "
+                      f"score {r2.get('score', float('nan')):.1f}", flush=True)
+                if r2["status"] in ("detected", "detected_edge"):
+                    r = r2; maps = maps2; r["dual_orbit"] = True; e["orbit_src"] = (e.get("orbit_src") or "") + "+alt"
+                else:
+                    r["dual_tried"] = dict(score=r2.get("score"), status=r2["status"])
+            except Exception as ex:
+                print("DUAL FAIL", repr(ex)[:150])
     fc_ = r.get("forecast") or {}
     strong = fc_.get("T_raw", 0) >= 2 * (r.get("null_max", 99) + 3)
     edge = abs(r.get("dM", 0) - (e.get("boot") or {}).get("center", 0.0)) > 0.9 * r["dm_window"] or max(abs(r.get("sx", 0)), abs(r.get("sy", 0))) >= a.rm - 1
