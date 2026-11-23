@@ -71,3 +71,8 @@ results/events_cov/
 results/events_cov.log
 results/events_cov2/
 results/events_cov2.log
+results/events_nocm/
+results/events_cov3/
+results/events_cov3.log
+results/events_cov4/
+results/events_cov4.log

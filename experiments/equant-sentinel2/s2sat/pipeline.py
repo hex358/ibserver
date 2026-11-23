@@ -274,8 +274,19 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         if "scl" in it.assets:  # маска облаков/теней/насыщения из L2A, с запасом на параллакс облаков
             from scipy.ndimage import binary_dilation
             scl = I.read_window(it.assets["scl"].href, epsg, bb, res=10, resampling="nearest")
-            bad = np.isin(scl.astype(int), (1, 3, 8, 9, 10))
-            valid &= ~binary_dilation(bad, iterations=20)
+            if CLOUD_MASK:
+                bad = np.isin(scl.astype(int), (1, 3, 8, 9, 10))
+                valid &= ~binary_dilation(bad, iterations=20)
+            else:
+                # THEORY §16: спутник (~480 км) выше облаков — он заслоняет облако, а не наоборот; внутренность облака —
+                # ровный яркий фон. Ложный сигнал дают только КРАЯ облаков: облако на высоте 5–10 км в разных полосах
+                # смещено на ~100–200 м (разные углы визирования) → «диполи». Маска — полоса 200 м вокруг краёв облаков
+                # (тени лежат на земле и смещения не дают) плюс насыщенные пиксели
+                from scipy.ndimage import binary_erosion
+                cl = np.isin(scl.astype(int), (8, 9, 10))
+                edge = cl & ~binary_erosion(cl, iterations=1)
+                valid &= ~binary_dilation(edge, iterations=20)
+                valid &= ~binary_dilation(np.isin(scl.astype(int), (1,)), iterations=2)
         Y, S = {}, {}
         if BG_MODEL == "loglocal":
             # THEORY §13: тень рельефа множит все полосы одинаково → в логарифмах она общее слагаемое;
@@ -321,7 +332,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
 
     # кэш обработанных ячеек на диске: смена параметров поиска/порога не требует повторной обработки снимков
     import pickle
-    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_{BG_MODEL}_v1"
+    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_{BG_MODEL}{"" if CLOUD_MASK else "_cedge"}_v1"
 
     def _tile_save(c, T):
         if inject:
@@ -584,6 +595,7 @@ def _inject(ev, b, bb, inj, RF, k0, res=20):
 
 _FN = None
 BG_MODEL = os.environ.get("S2_BG", "loglocal")      # "loglocal" (THEORY §13) или "block" (прежняя)
+CLOUD_MASK = os.environ.get("S2_CLOUDMASK", "1") == "1"   # 0: облака не маскировать (спутник над ними)
 SEARCH = os.environ.get("S2_SEARCH", "bnb")          # "bnb" — перебор по схеме Equant (THEORY §14), "grid" — полный
 BNB_BUDGET = float(os.environ.get("S2_BNB_BUDGET", "3e6"))
 BNB_QUICK = float(os.environ.get("S2_BNB_QUICK", "2e4"))
