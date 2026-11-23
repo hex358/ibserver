@@ -28,8 +28,10 @@ def _gauss_kernel(sigma_px=0.8, r=2):
 KERNEL = _gauss_kernel()
 
 
-def predict_band(target, regs, valid, block=50, win=100, iters=1):
-    """Робастная блочная регрессия target ~ [1, regs...]. Возвращает остаток (NaN вне valid)."""
+def predict_band(target, regs, valid, block=50, win=100, iters=1, out_mask=None, min_n=200):
+    """Робастная блочная регрессия target ~ [1, regs...]. Возвращает остаток (NaN вне valid).
+    out_mask: где выдавать остаток (по умолчанию valid) — подгонка по valid, прогноз и в исключённых пикселях."""
+    om = valid if out_mask is None else out_mask
     H, W = target.shape
     X = np.stack([np.ones_like(target)] + regs, -1)  # (H, W, p)
     R = np.full((H, W), np.nan, np.float32)
@@ -39,7 +41,7 @@ def predict_band(target, regs, valid, block=50, win=100, iters=1):
             ra, rb = max(0, r0 - half), min(H, r0 + block + half)
             ca, cb = max(0, c0 - half), min(W, c0 + block + half)
             m = valid[ra:rb, ca:cb]
-            if m.sum() < 200:
+            if m.sum() < min_n:
                 continue
             y = target[ra:rb, ca:cb][m].astype(np.float64)
             A = X[ra:rb, ca:cb][m].astype(np.float64)
@@ -55,7 +57,7 @@ def predict_band(target, regs, valid, block=50, win=100, iters=1):
             Xi = X[ia:ib, ja:jb].astype(np.float64)
             pred = Xi @ beta
             out = (target[ia:ib, ja:jb] - pred).astype(np.float32)
-            out[~valid[ia:ib, ja:jb]] = np.nan
+            out[~om[ia:ib, ja:jb]] = np.nan
             R[ia:ib, ja:jb] = out
     return R
 

@@ -458,36 +458,51 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         from . import bnb as _bnb
         if GEOM == "phys":
             # THEORY §17: θ = (вдоль, поперёк, радиус); производные положений из точной геометрии
-            bl = list(bands); NBb = len(bl); dlt = 0.2
-            J = np.zeros((len(fine), NBb, 3, 2))
+            bl = list(bands); NBb = len(bl); dlt = 0.1
+            J = np.zeros((len(fine), NBb, 3, 2)); Jok = np.zeros((len(fine), NBb, 3), bool)
             for n in range(len(fine)):
                 R0 = ROOTS[n]
                 if not R0:
                     continue
-                Rc_, _ = roots_at_dm((float(fine[n]), dlt, 0.0)); Rr_, _ = roots_at_dm((float(fine[n]), 0.0, dlt))
-                Rp = ROOTS[min(n + 1, len(fine) - 1)]; Rm_ = ROOTS[max(n - 1, 0)]
-                dfa = float(fine[min(n + 1, len(fine) - 1)] - fine[max(n - 1, 0)]) or 1.0
+                Rd = [roots_at_dm((float(fine[n]) + dlt, 0.0, 0.0))[0], roots_at_dm((float(fine[n]), dlt, 0.0))[0],
+                      roots_at_dm((float(fine[n]), 0.0, dlt))[0]]
                 for bi, b in enumerate(bl):
                     if b not in R0:
                         continue
                     x0, y0 = R0[b][0][2], R0[b][0][3]
-                    def near(Rx):
+                    for d in range(3):
+                        Rx = Rd[d]
                         if not Rx or b not in Rx:
-                            return None
-                        q = min(Rx[b], key=lambda q: math.hypot(q[2] - x0, q[3] - y0)); return np.array([q[2] - x0, q[3] - y0])
-                    vc, vr = near(Rc_), near(Rr_)
-                    if vc is not None: J[n, bi, 1] = vc / dlt
-                    if vr is not None: J[n, bi, 2] = vr / dlt
-                    vp, vm = near(Rp), near(Rm_)
-                    if vp is not None and vm is not None: J[n, bi, 0] = (vp - vm) / dfa
+                            continue
+                        q = min(Rx[b], key=lambda q: math.hypot(q[2] - x0, q[3] - y0))
+                        v = np.array([q[2] - x0, q[3] - y0]) / dlt
+                        if np.hypot(*v) < 2.0e4:          # > 20 км на км — перескок на другой корень (стык детекторов)
+                            J[n, bi, d] = v; Jok[n, bi, d] = True
+            # перескоки и пропуски: медиана по полосам (J гладкий по полосам — они различаются лишь временем съёмки)
+            for n in range(len(fine)):
+                for d in range(3):
+                    ok = Jok[n, :, d]
+                    if ok.sum() >= 2:
+                        med = np.median(J[n, ok, d], axis=0); sc_ = max(float(np.hypot(*med)), 1.0)
+                        bad = ~ok | (np.hypot(*(J[n, :, d] - med).T) > 0.5 * sc_)
+                        J[n, bad, d] = med
             sa = float(e.get("sigma_along") or (dM_max / 3.0)); sc, sr = SIG_C, SIG_R
             hstep = 0.5 * (float(np.median(np.diff(fine))) if len(fine) > 1 else 1.0)
-            ja = max(float(np.abs(J[:, :, 0, :]).max(initial=1.0)), 1.0); jc = max(float(np.abs(J[:, :, 1, :]).max(initial=1.0)), 1.0)
-            jr = max(float(np.abs(J[:, :, 2, :]).max(initial=1.0)), 1.0)
-            grids = [np.arange(-hstep, hstep + 1e-9, max(step or 30.0, 1.0) / ja), np.arange(-3 * sc, 3 * sc + 1e-9, (step or 30.0) / jc),
-                     np.arange(-3 * sr, 3 * sr + 1e-9, (step or 30.0) / jr)]
-            out["phys"] = dict(sigma=(sa, sc, sr), grid_sizes=[len(g) for g in grids], J_max=(ja, jc, jr))
-            srch = _bnb.SearchPhys(ROOTS, fine, J, (sa, sc, sr), grids, mosU, mosS, mosG, tiles, bl, minb=minb)
+            # поперёк и радиус на снимке почти вырождены (оба сдвигают пятно в одну сторону; различает их только
+            # параллакс между полосами): переходим к нормированным (θ/σ) и повёрнутым по главным осям координатам.
+            # Штраф ||w||² при повороте не меняется, а шаг сетки по «слабой» оси — крупный (снимок по ней почти не меняется).
+            Jw = J[:, :, 1:, :] * np.array([sc, sr])[None, None, :, None]          # (N, NB, 2, 2): на единицу σ
+            Gm = np.einsum("nbdk,nbek->de", Jw, Jw); _ev, V = np.linalg.eigh(Gm)
+            Mrot = np.diag([sc, sr]) @ V                                            # (c, r) = Mrot @ w
+            J = np.concatenate([J[:, :, :1, :], np.einsum("nbdk,de->nbek", J[:, :, 1:, :], Mrot)], axis=2)
+            ja = max(float(np.abs(J[:, :, 0, :]).max(initial=1.0)), 1.0)
+            jw = [max(float(np.abs(J[:, :, d, :]).max(initial=1.0)), 1e-3) for d in (1, 2)]
+            grids = [np.arange(-hstep, hstep + 1e-9, max(step or 30.0, 1.0) / ja)] + \
+                    [np.arange(-3.0, 3.0 + 1e-9, min((step or 30.0) / j, 1.0)) for j in jw]
+            out["phys"] = dict(sigma=(sa, sc, sr), grid_sizes=[len(g) for g in grids], J_max=[ja] + jw, Mrot=Mrot.tolist())
+            srch = _bnb.SearchPhys(ROOTS, fine, J, (sa, 1.0, 1.0), grids, mosU, mosS, mosG, tiles, bl, minb=minb)
+            srch.Mrot = Mrot
+            print(f"  phys: grid {[len(g) for g in grids]} N {len(fine)}  J_max {ja:.0f} {jw[0]:.0f} {jw[1]:.0f} m/unit", flush=True)
         else:
             srch = _bnb.Search(ROOTS, fine, STRETCH, kmdeg, tdir, R_al, Rc or 0.0, step or 30.0, mosU, mosS, mosG, tiles, bands, minb=minb)
         out["search_note"] = getattr(srch, "reason", "")
@@ -522,7 +537,8 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
             d2 = {b: tuple(C_ @ srch.J[n_, srch.BI[b]]) for b in srch.roots[n_]}
             Rr = {b: [(0, al, x, y) for (al, x, y) in lst] for b, lst in srch.roots[n_].items()}
             res = dict(detect.occlusion_search(Rr, mosU, mosS, mosG, list(srch.bands), 0.0, step=30.0, disp=d2, minb=minb),
-                       sx=0.0, sy=0.0, stretch=0.0, dM=float(fine[n_] + C_[0]), n=int(n_), theta=[float(fine[n_] + C_[0]), float(C_[1]), float(C_[2])])
+                       sx=0.0, sy=0.0, stretch=0.0, dM=float(fine[n_] + C_[0]), n=int(n_),
+                       theta=[float(fine[n_] + C_[0])] + [float(v) for v in srch.Mrot @ C_[1:]], w=[float(v) for v in C_[1:]])
             res["pos_phys"] = {b: [Rr[b][0][2] + d2[b][0], Rr[b][0][3] + d2[b][1]] for b in Rr}
         else:
             res = srch.result_at(h0)
@@ -544,7 +560,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
                 val = max(ubn, bn if bn is not None else -1e9)   # бюджет исчерпан: верхняя граница
             nulls.append(float(val))
             if GEOM == "phys":
-                nb_list.append(None if hn is None else {"n": int(hn[0]), "theta": [float(fine[hn[0]] + hn[1][0]), float(hn[1][1]), float(hn[1][2])]})
+                nb_list.append(None if hn is None else {"n": int(hn[0]), "theta": [float(fine[hn[0]] + hn[1][0])] + [float(v) for v in srch.Mrot @ np.asarray(hn[1][1:], float)]})
             else:
                 nb_list.append(None if hn is None else {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v)
                                                         for k, v in srch.result_at(hn, d).items() if k in ("score", "dM", "n", "sx", "sy", "stretch", "a_hat", "f_hat", "spectrum")})

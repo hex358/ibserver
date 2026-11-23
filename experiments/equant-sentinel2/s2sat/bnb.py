@@ -6,6 +6,7 @@
 блоки с UB ≤ max(лучший, уровень) отбрасываются. Возвращает точный максимум (или доказательство «≤ уровня»).
 """
 from __future__ import annotations
+import os
 
 import heapq
 import math
@@ -257,27 +258,29 @@ class SearchPhys(Search):
         return p
 
     def _bound_phys(self, boxes, DXY):
-        nb = len(boxes); NB = len(self.bands); K = self.K
+        """Векторно по блокам: прямоугольники полос по θ-блоку → max|U| по пирамиде → UB с минимальным штрафом."""
+        B = np.array(boxes); nb = len(B); NB = len(self.bands); K = self.K; D = self.Dn
+        n0, n1 = B[:, 0], B[:, 1]
+        lo = np.stack([self.G[d][B[:, 2 + 2 * d]] for d in range(D)], 1); hi = np.stack([self.G[d][B[:, 3 + 2 * d] - 1] for d in range(D)], 1)
+        a_lo = self.fine[n0] + lo[:, 0]; a_hi = self.fine[n1 - 1] + hi[:, 0]
+        pmin = np.where((a_lo <= 0) & (a_hi >= 0), 0.0, np.minimum(a_lo ** 2, a_hi ** 2)) / self.sig[0] ** 2
+        for d in range(1, D):
+            pmin = pmin + np.where((lo[:, d] <= 0) & (hi[:, d] >= 0), 0.0, np.minimum(lo[:, d] ** 2, hi[:, d] ** 2)) / self.sig[d] ** 2
+        span = int((n1 - n0).max())
         INF = np.inf
         xmin = np.full((nb, NB, K), INF); xmax = np.full((nb, NB, K), -INF); ymin = np.full((nb, NB, K), INF); ymax = np.full((nb, NB, K), -INF)
-        anyv = np.zeros((nb, NB, K), bool); nav = np.zeros(nb, int); pmin = np.zeros(nb)
-        for i, bx in enumerate(boxes):
-            n0, n1 = bx[0], bx[1]
-            lo = [self.G[d][bx[2 + 2 * d]] for d in range(self.Dn)]; hi = [self.G[d][bx[3 + 2 * d] - 1] for d in range(self.Dn)]
-            pmin[i] = self._pen_min(n0, n1, lo, hi)
-            for n in range(n0, n1):
-                v = self.VAL[n]
-                if not v.any():
-                    continue
-                Jn = self.J[n]                                   # (NB, D, 2)
-                dxl = sum(np.minimum(lo[d] * Jn[:, d, 0], hi[d] * Jn[:, d, 0]) for d in range(self.Dn))
-                dxh = sum(np.maximum(lo[d] * Jn[:, d, 0], hi[d] * Jn[:, d, 0]) for d in range(self.Dn))
-                dyl = sum(np.minimum(lo[d] * Jn[:, d, 1], hi[d] * Jn[:, d, 1]) for d in range(self.Dn))
-                dyh = sum(np.maximum(lo[d] * Jn[:, d, 1], hi[d] * Jn[:, d, 1]) for d in range(self.Dn))
-                X = self.RX[n] + DXY[:, 0:1]; Y = self.RY[n] + DXY[:, 1:2]
-                xmin[i] = np.where(v, np.minimum(xmin[i], X + dxl[:, None]), xmin[i]); xmax[i] = np.where(v, np.maximum(xmax[i], X + dxh[:, None]), xmax[i])
-                ymin[i] = np.where(v, np.minimum(ymin[i], Y + dyl[:, None]), ymin[i]); ymax[i] = np.where(v, np.maximum(ymax[i], Y + dyh[:, None]), ymax[i])
-                anyv[i] |= v; nav[i] = max(nav[i], int(v.any(-1).sum()))
+        anyv = np.zeros((nb, NB, K), bool); nav = np.zeros((nb, span), int)
+        for jj in range(span):
+            n = n0 + jj; okn = n < n1; n = np.minimum(n, self.N - 1)
+            Jn = self.J[n]                                            # (nb, NB, D, 2)
+            l = lo[:, None, :]; h = hi[:, None, :]
+            ax = l * Jn[..., 0]; bx_ = h * Jn[..., 0]; ay = l * Jn[..., 1]; by = h * Jn[..., 1]
+            dxl = np.minimum(ax, bx_).sum(-1); dxh = np.maximum(ax, bx_).sum(-1); dyl = np.minimum(ay, by).sum(-1); dyh = np.maximum(ay, by).sum(-1)
+            v = self.VAL[n] & okn[:, None, None]
+            X = self.RX[n] + DXY[None, :, 0:1]; Y = self.RY[n] + DXY[None, :, 1:2]
+            xmin = np.where(v, np.minimum(xmin, X + dxl[..., None]), xmin); xmax = np.where(v, np.maximum(xmax, X + dxh[..., None]), xmax)
+            ymin = np.where(v, np.minimum(ymin, Y + dyl[..., None]), ymin); ymax = np.where(v, np.maximum(ymax, Y + dyh[..., None]), ymax)
+            anyv |= v; nav[:, jj] = np.where(okn, v.any(-1).sum(-1), 0)
         M = np.zeros((nb, NB))
         for bi, b in enumerate(self.bands):
             for k in range(K):
@@ -288,7 +291,7 @@ class SearchPhys(Search):
         if self.cap and NB >= self.cap:
             Ms = np.minimum(Ms, np.sort(Ms, axis=0)[-self.cap])
         ub2 = (Ms ** 2).sum(0) - pmin
-        return np.where(nav >= self.minb, np.sqrt(np.maximum(ub2, 0.0)), 0.0)
+        return np.where(nav.max(1) >= self.minb, np.sqrt(np.maximum(ub2, 0.0)), 0.0)
 
     def _score_phys(self, n, coef_sets, disp):
         """Точный счёт с штрафом для набора θ (coef_sets: (M, D)) при фазе n."""
@@ -324,7 +327,7 @@ class SearchPhys(Search):
             with np.errstate(invalid="ignore", divide="ignore"):
                 ah = (A22 * B1 - A12 * B2) / (det + 1e-12 * (A11 * A22 + 1e-30)); fh = (A11 * B2 - A12 * B1) / (det + 1e-12 * (A11 * A22 + 1e-30))
                 T2 = np.where(fh >= 0, ah * B1 + fh * B2, B1 * B1 / A11)
-            pen = np.array([self._pen(n, c) for c in C])
+            pen = ((self.fine[n] + C[:, 0]) / self.sig[0]) ** 2 + sum((C[:, d] / self.sig[d]) ** 2 for d in range(1, self.Dn))
             Tm = np.where(cnt >= self.minb, np.sqrt(np.maximum(np.nan_to_num(T2, nan=0.0) - pen, 0)), -1e9)
             best = np.maximum(best, Tm)
         return best
@@ -336,10 +339,13 @@ class SearchPhys(Search):
         ub0 = self._bound_phys(init, DXY)
         lim = -1e9 if floor is None else floor
         heap = [(-u, bx) for u, bx in zip(ub0, init) if u > lim]; heapq.heapify(heap)
-        best, best_h, n_eval = -1e9, None, 0
+        best, best_h, n_eval = -1e9, None, 0; _it = 0; _dbg = os.environ.get("S2_BNB_DEBUG") == "1" and disp is None
         while heap and -heap[0][0] > max(best, lim):
             if budget and n_eval > budget:
                 break
+            _it += 1
+            if _dbg and _it % 200 == 0:
+                print(f"    bnb it {_it} eval {n_eval} heap {len(heap)} top {-heap[0][0]:.2f} best {best:.2f} lim {lim:.2f}", flush=True)
             batch = []
             while heap and len(batch) < 256 and -heap[0][0] > max(best, lim):
                 batch.append(heapq.heappop(heap)[1])
