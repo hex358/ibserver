@@ -432,7 +432,10 @@ for e in day:
             for v in _offs:
                 if not _cs or v - _cs[-1] > a.source_windows:
                     _cs.append(v)
-            _w = 3.0 * a.source_windows; _c = 0.0
+            # ≥ 3 источников — истина у одного из них с σ ≈ 0.85 км (17/17 эталонов ≤ 1.5 км); 1–2 источника
+            # (архивные снимки каталога) — ошибка одиночной GP до 20 км (fit-span: GP после — медиана 1.5, макс 20.4 км;
+            # находки по архиву: 31702 +15.5 км, 34093 −11 км) → окно ±20 км
+            _w = 3.0 * a.source_windows if len(_cs) >= 3 else 20.0; _c = 0.0
             e["source_centers"] = _cs
             print(f"  source windows: {len(_cs)} × ±{_w:.1f} км вокруг {_cs}", flush=True)
         r = P.run_event(SAT[e["sent"]], orb, e, Rm=a.rm, minb=a.minb, max_cloud=a.max_cloud, dM_max=_w, dM_center=_c, method=a.method, area_m2=area_m2(e), max_image_km=None if _cs else a.max_image_km, Rc=a.rc, tol_m=a.tol, n_null=a.nnull, dM_centers=_cs)
