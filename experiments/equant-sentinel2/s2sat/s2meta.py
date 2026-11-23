@@ -59,13 +59,35 @@ def gval(dd, X, Y):
     return out
 
 
-def band_roots(A, X, Y, DG, bands, min_sep_m=200.0):
-    """Точки трека (A=α°, X, Y в UTM), где α трека = α сетки полосы. → {band: [(det, α, x, y)]}."""
+_TR = {}
+
+
+def _to_epsg(X, Y, src, dst):
+    if src == dst or not src or not dst:
+        return X, Y
+    from pyproj import Transformer
+    k = (src, dst)
+    if k not in _TR:
+        _TR[k] = Transformer.from_crs(src, dst, always_xy=True)
+    return _TR[k].transform(X, Y)
+
+
+def band_roots(A, X, Y, DG, bands, min_sep_m=200.0, epsg_main=None):
+    """Точки трека (A=α°, X, Y в UTM главной гранулы), где α трека = α сетки полосы. → {band: [(det, α, x, y)]}.
+    Сетки гранул другой зоны UTM вычисляются в своих координатах (точки трека пересчитываются), корни — в главной."""
     R = {}
+    _cache = {}
     for b in bands:
         lst = []
         for dd in DG.get(b, []):
-            f = A - gval(dd, X, Y)
+            ep = dd.get("epsg")
+            if epsg_main and ep and ep != epsg_main:
+                if ep not in _cache:
+                    _cache[ep] = _to_epsg(np.asarray(X), np.asarray(Y), epsg_main, ep)
+                Xg, Yg = _cache[ep]
+            else:
+                Xg, Yg = X, Y
+            f = A - gval(dd, np.asarray(Xg), np.asarray(Yg))
             ok = np.isfinite(f[:-1]) & np.isfinite(f[1:]) & (np.sign(f[:-1]) != np.sign(f[1:]))
             for i in np.where(ok)[0]:
                 w = f[i] / (f[i] - f[i + 1])

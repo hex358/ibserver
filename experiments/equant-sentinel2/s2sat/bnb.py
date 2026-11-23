@@ -17,7 +17,7 @@ from . import detect
 
 class Search:
     def __init__(self, ROOTS, fine, stretch, kmdeg, tdir, R_al, Rc, step, mosU, mosS, mosG, tiles, bands,
-                 minb=3, cap_rank=None, cell=5000.0, margin=4500.0, max_px=6e8):
+                 minb=3, cap_rank=None, cell=5000.0, margin=4500.0, max_px=float(__import__("os").environ.get("S2_BNB_MAXPX", "6e8"))):
         self.fine = np.asarray(fine, float); self.N = len(fine)
         self.ST = np.asarray(stretch if len(stretch) else [0.0], float)
         self.KST = kmdeg * 1000.0

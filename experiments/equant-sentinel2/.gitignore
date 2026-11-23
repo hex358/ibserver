@@ -77,3 +77,5 @@ results/events_cov3.log
 results/events_cov4/
 results/events_cov4.log
 results/events_dual/
+results/events_wide/
+results/events_wide.log

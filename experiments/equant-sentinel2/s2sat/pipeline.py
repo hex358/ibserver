@@ -67,7 +67,10 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     if not its:
         out["reasons"].append("no granules"); return out
     inside = [i for i in its if i.bbox[0] <= e["lon"] <= i.bbox[2] and i.bbox[1] <= e["lat"] <= i.bbox[3]] or its
-    main = min(inside, key=lambda i: i.properties.get("eo:cloud_cover", 100))
+    # главная гранула — в зоне UTM самой точки (THEORY §16: сетки соседней зоны давали ложные «слепые зоны»)
+    _zone = int((e["lon"] + 180.0) // 6) + 1
+    _own = [i for i in inside if I.epsg_of(i) % 100 == _zone] or inside
+    main = min(_own, key=lambda i: i.properties.get("eo:cloud_cover", 100))
     epsg = I.epsg_of(main)
     out.update(item=main.id, epsg=epsg, cloud=main.properties.get("eo:cloud_cover"), granules=[i.id for i in its])
     if max_cloud is not None and (out["cloud"] or 0) > max_cloud:
@@ -78,13 +81,15 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
     H = float(np.linalg.norm(sen.ecef([e["jd"]])[0][0])) - G.R_LOC
     DG = {}
     for it in its:
-        if I.epsg_of(it) != epsg:
-            continue
+        # сетки углов из ВСЕХ гранул пролёта; для чужой зоны UTM точки трека пересчитываются в её координаты
         try:
             g = M.parse_grids(I.get_text(it.assets["granule_metadata"].href), psi, H, it.id)
         except Exception as ex:
             out["reasons"].append(f"meta {it.id}: {ex!r}"[:120]); continue
+        _ep = I.epsg_of(it)
         for b, lst in g.items():
+            for dd in lst:
+                dd["epsg"] = _ep
             DG.setdefault(b, []).extend(lst)
     bands = [b for b in (bands or M.BID) if b in DG and b in main.assets]
 
@@ -97,7 +102,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
         if ok.sum() < 10:
             return {}, None
         X, Y = G.ecef_to_utm(tr["ground"][ok], epsg); A = tr["alpha"][ok]
-        return M.band_roots(A, X, Y, DG, bands), (A, X, Y)
+        return M.band_roots(A, X, Y, DG, bands, epsg_main=epsg), (A, X, Y)
 
     roots0, track0 = roots_at_dm(float(dM_center))
     gain = None
@@ -332,7 +337,7 @@ def run_event(sen: Orbit, obj: Orbit, e: dict, Rm=4000.0, minb=3, bands=None, n_
 
     # кэш обработанных ячеек на диске: смена параметров поиска/порога не требует повторной обработки снимков
     import pickle
-    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_{BG_MODEL}{"" if CLOUD_MASK else "_cedge"}_v1"
+    _tc = I.CACHE / "tiles" / f"{e['obj'].split()[0]}_{e['sent'][-2:]}_{round(e['jd'] * 86400)}_{method}_z{bgsub.ZCLIP:g}_t{tol_m:g}_{BG_MODEL}{"" if CLOUD_MASK else "_cedge"}_e{epsg}_v2"
 
     def _tile_save(c, T):
         if inject:
