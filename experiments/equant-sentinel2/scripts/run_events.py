@@ -150,6 +150,8 @@ def area_m2(e):
     if t == "DEB": return 0.5
     if "R/B" in n: return 36.0
     if n.startswith("STARLINK"):
+        if "DTC" in n:
+            return 120.0     # Direct-to-Cell: шина V2 mini (docs/3d_models.md); номера 11xxx
         try: return 120.0 if int(n.split("-")[1].split()[0]) >= 30000 else 30.0
         except Exception: return 30.0
     if "DEB" in n: return 0.5
