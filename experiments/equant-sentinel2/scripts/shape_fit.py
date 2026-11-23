@@ -231,9 +231,67 @@ def gauss(args):
               open(OUT / f"gauss_{args.objs.split(',')[0]}_K{K}.json", "w"), indent=1)
 
 
+def joint(args):
+    """Совместная форма по пролётам; начальные (dθ, ψ, φ) — из пофазной подгонки (fit.log).
+    --phi free|flat|sun: угол крыла свободный / плашмя (φ=0) / слежение за Солнцем; --fixW: ширина крыла известна."""
+    import re, jax, jax.numpy as jnp
+    from scipy.optimize import minimize
+    from s2sat import shape as SH
+    recs = load()
+    pp0 = {}
+    for ln in (OUT / "fit.log").read_text().splitlines():
+        m = re.match(r"(STARLINK-\S+): .*ψ\s+([\d.]+)°, φ\s+([+-][\d.]+)° .*dθ \[([^\]]+)\]", ln)
+        if m:
+            pp0[m.group(1)] = [float(v) for v in m.group(4).split(",")] + [math.radians(float(m.group(2))), math.radians(float(m.group(3)))]
+    recs = [rc for rc in recs if rc["name"] in pp0]
+    n = len(recs); fixW = args.fixW
+    phis = [jnp.asarray(0.0) if args.phi == "flat" else None for rc in recs]
+
+    def unpack(z):
+        lw = jnp.exp(z[0]); ww = jnp.asarray(NOMINAL[1]) if fixW else jnp.exp(z[1])
+        sig = jnp.exp(z[2:5])
+        return lw, ww, sig
+
+    def total(z):
+        lw, ww, sig = unpack(z)
+        shape = jnp.array([lw, ww, NOMINAL[2], NOMINAL[3]]); tot = 0.0
+        for k, rc in enumerate(recs):
+            pp = z[5 + 5 * k: 10 + 5 * k]
+            if args.phi == "sun":
+                psi = pp[3]; u = jnp.array([jnp.cos(psi), jnp.sin(psi), 0.0]); w = jnp.cross(jnp.array([0.0, 0, 1]), u); su = jnp.asarray(rc["sun"])
+                ph = jnp.arctan2(su @ w, su[2])
+            else:
+                ph = phis[k]
+            tot = tot + SH.pass_loss(shape, sig, pp, rc["D"], phi=ph)
+        return tot
+    tvg = jax.jit(jax.value_and_grad(total))
+    init = [float(v) for v in args.init.split(",")]
+    z0 = [math.log(init[0]), math.log(init[1]), math.log(4.8), math.log(8.8), math.log(3.0)]
+    for rc in recs:
+        z0 += pp0[rc["name"]]
+    z0 = np.array(z0)
+    f = lambda z: tuple(np.asarray(v, float) for v in tvg(jnp.asarray(z)))
+    t0 = time.time()
+    res = minimize(f, z0, jac=True, method="L-BFGS-B", options=dict(maxiter=args.maxiter, maxfun=2 * args.maxiter))
+    H = np.asarray(jax.hessian(total)(jnp.asarray(res.x)))
+    act = [0] + ([] if fixW else [1]) + list(range(2, len(z0)))
+    try:
+        C = np.linalg.inv(H[np.ix_(act, act)] / 2.0); sd = dict(zip(act, np.sqrt(np.clip(np.diag(C), 0, None))))
+    except np.linalg.LinAlgError:
+        sd = {}
+    lw, ww, sig = (np.asarray(v) for v in unpack(jnp.asarray(res.x)))
+    print(f"[φ {args.phi}{', W=4.1' if fixW else ''}] крыло {float(lw):.1f} ± {float(lw) * sd.get(0, np.nan):.1f} м × "
+          f"{float(ww):.1f}{'' if fixW else f' ± {float(ww) * sd.get(1, np.nan):.1f}'} м (известно 12.8 × 4.1); размах {2 * float(lw) + NOMINAL[2]:.1f} м (~30); "
+          f"ФРТ σ10 {sig[0]:.1f} σ20 {sig[1]:.1f}, смаз {sig[2]:.1f} м; χ² {res.fun:.1f}; {time.time() - t0:.0f} с; {res.message}", flush=True)
+    for k, rc in enumerate(recs):
+        pp = res.x[5 + 5 * k: 10 + 5 * k]
+        print(f"   {rc['name']}: ψ {math.degrees(pp[3]) % 180:5.1f}°  φ {math.degrees(pp[4]):+5.1f}°", flush=True)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd"); ap.add_argument("paths", nargs="*"); ap.add_argument("--init", default="6,2")
+    ap.add_argument("--phi", default="free"); ap.add_argument("--fixW", action="store_true"); ap.add_argument("--maxiter", type=int, default=600)
     ap.add_argument("--objs", default="STARLINK"); ap.add_argument("--K", type=int, default=6); ap.add_argument("--restarts", type=int, default=3)
     a = ap.parse_args()
-    {"prep": lambda: prep(a.paths), "fit": lambda: fit(a), "gauss": lambda: gauss(a)}[a.cmd]()
+    {"prep": lambda: prep(a.paths), "fit": lambda: fit(a), "gauss": lambda: gauss(a), "joint": lambda: joint(a)}[a.cmd]()

@@ -39,3 +39,17 @@ print(f"пересечений {len(ev)}, днём {len(day)}")
 for e in day[:40]:
     print(f"{e['obj']:<24} {e['cat']:>6} RCS {rcs.get(e['cat'], float('nan')):6.2f} м²  {e['sent']}  {O.dt_from_jd(e['jd']):%Y-%m-%dT%H:%M:%S}  "
           f"солнце {e['sun_el']:4.0f}°  высота {e['alt']:4.0f} км  дальность {e['rng']:4.0f} км  lat {e['lat']:6.1f} lon {e['lon']:7.1f}")
+if "--land" in sys.argv or True:
+    from s2sat import imagery as I
+    land = []
+    for e in day:
+        try:
+            its = I.items_around(e["lon"], e["lat"], O.dt_from_jd(e["jd"]), e["sent"][-1], d=1.0)
+        except Exception:
+            its = []
+        if its:
+            land.append(e)
+    print(f"над сушей (есть гранулы S2): {len(land)}")
+    for e in land:
+        print(f"LAND {e['obj']:<24} {e['cat']:>6} RCS {rcs.get(e['cat'], float('nan')):6.2f}  {e['sent']}  {O.dt_from_jd(e['jd']):%Y-%m-%dT%H:%M:%S}  солнце {e['sun_el']:3.0f}°  дальность {e['rng']:4.0f} км  lat {e['lat']:6.1f} lon {e['lon']:7.1f}")
+    print("CATS", ",".join(sorted({e["cat"] for e in land})))

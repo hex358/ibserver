@@ -63,16 +63,21 @@ def compact_plates(area, psi):
     return [(jnp.zeros(3), u, w, a, a, S_B, T_B)]
 
 
-def render_occ(plates, Jm, p, X, Y, var):
-    """Доля пикселя, закрытая объектом. Jm: (2,3) м/м; p: (2,) центр; X,Y: (H,W) центры пикселей; var: σ² (м²)."""
+def render_occ(plates, Jm, p, X, Y, var, var_al=0.0):
+    """Доля пикселя, закрытая объектом. Jm: (2,3) м/м; p: (2,) центр; X,Y: (H,W) центры пикселей; var: σ² (м²);
+    var_al: дополнительный смаз вдоль направления движения объекта на снимке (t = J·e_вдоль)."""
     occ = jnp.zeros(X.shape)
+    t = Jm[:, 0] / (jnp.linalg.norm(Jm[:, 0]) + 1e-9)
+    C = var * jnp.eye(2) + var_al * jnp.outer(t, t); det = C[0, 0] * C[1, 1] - C[0, 1] ** 2
+    i00, i11, i01 = C[1, 1] / det, C[0, 0] / det, -C[0, 1] / det
     for c, a1, a2, L, W, S, T in plates:
         P3 = c[None, :] + (L * S)[:, None] * a1[None, :] + (W * T)[:, None] * a2[None, :]     # (K,3) м
         P2 = p[None, :] + P3 @ Jm.T                                                              # (K,2) м
         j1 = Jm @ a1; j2 = Jm @ a2
         dA = jnp.abs(j1[0] * j2[1] - j1[1] * j2[0]) * L * W / S.shape[0]                         # площадь точки на снимке
-        d2 = (X[..., None] - P2[:, 0]) ** 2 + (Y[..., None] - P2[:, 1]) ** 2
-        occ = occ + (dA / (2 * jnp.pi * var)) * jnp.exp(-0.5 * d2 / var).sum(-1)
+        dx = X[..., None] - P2[:, 0]; dy = Y[..., None] - P2[:, 1]
+        q = i00 * dx ** 2 + 2 * i01 * dx * dy + i11 * dy ** 2
+        occ = occ + (dA / (2 * jnp.pi * jnp.sqrt(det))) * jnp.exp(-0.5 * q).sum(-1)
     return occ
 
 
@@ -86,15 +91,18 @@ def band_loss(occ, r, s, g, m, hub=3.0):
     return jnp.sum(m * 2 * hub ** 2 * (jnp.sqrt(1 + (z / hub) ** 2) - 1)), c, model
 
 
-def pass_loss(shape, sig, pp, D, kind="starlink"):
-    """pp = (dθ_x1000 (3,), ψ, φ) — dθ в метрах; D — данные пролёта (список полос)."""
-    dth, psi, phi = pp[:3] / 1000.0, pp[3], pp[4]
+def pass_loss(shape, sig, pp, D, kind="starlink", phi=None):
+    """pp = (dθ_x1000 (3,), ψ, φ) — dθ в метрах; D — данные пролёта (список полос). sig = (σ10, σ20[, σ_смаз]).
+    phi: если задан — угол крыла фиксирован (плашмя / по Солнцу), pp[4] не используется."""
+    dth, psi = pp[:3] / 1000.0, pp[3]
+    phi = pp[4] if phi is None else phi
     plates = starlink_plates(shape, psi, phi) if kind == "starlink" else compact_plates(shape[0], psi)
+    var_al = sig[2] ** 2 if sig.shape[0] > 2 else 0.0
     tot = 0.0
     for d in D:
         p = d["p0"] + d["J"] @ dth
         var = sig[0] ** 2 + d["res"] ** 2 / 12.0 if d["res"] <= 10 else sig[1] ** 2 + d["res"] ** 2 / 12.0
-        occ = render_occ(plates, d["J"] / 1000.0, p, d["X"], d["Y"], var)
+        occ = render_occ(plates, d["J"] / 1000.0, p, d["X"], d["Y"], var, var_al)
         l, _, _ = band_loss(occ, d["r"], d["s"], d["g"], d["m"])
         tot = tot + l
     return tot

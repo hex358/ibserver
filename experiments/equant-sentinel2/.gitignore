@@ -82,3 +82,5 @@ results/events_wide.log
 results/events_zfix/
 results/events_phys/
 results/events_phys.log
+results/shape/*.pkl
+results/shape/*.log
