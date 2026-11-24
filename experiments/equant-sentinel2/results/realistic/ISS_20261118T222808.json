@@ -1,6 +1,6 @@
 {
  "name": "ISS_20261118T222808",
- "pose": "штатная ориентация +XVV, панели на Солнце (SARJ -57°)",
+ "pose": "штатная ориентация +XVV, крылья на Солнце (SARJ S -28°, P -26° от положения модели)",
  "rng_km": 374.5586069566657,
  "k": 2.1697897714639414,
  "vG_ms": [
@@ -44,16 +44,16 @@
   },
   {
    "file": "ISS_20261118T222808_mid.png",
-   "m_per_px_ground": 1.05,
-   "m_per_px_object": 0.483917849465929,
+   "m_per_px_ground": 1.04,
+   "m_per_px_object": 0.479309108042444,
    "mode": "track",
    "exposure_s": 0.00025,
    "smear_m": 5.804431995819981
   },
   {
    "file": "ISS_20261118T222808_tele.png",
-   "m_per_px_ground": 0.35,
-   "m_per_px_object": 0.16130594982197632,
+   "m_per_px_ground": 0.346,
+   "m_per_px_object": 0.1594624532525823,
    "mode": "track",
    "exposure_s": 0.001,
    "smear_m": 23.217727983279925

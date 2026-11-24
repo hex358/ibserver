@@ -41,6 +41,7 @@ ap.add_argument("--tau-ground", type=float, default=1 / 4000); ap.add_argument("
 ap.add_argument("--spp", type=int, default=256)
 ap.add_argument("--psi", type=float, default=None); ap.add_argument("--phi", type=float, default=None)
 ap.add_argument("--out", default=str(ROOT / "results/realistic"))
+ap.add_argument("--lowpoly", action="store_true", help="старые сетки KeepTrack вместо детальных")
 ap.add_argument("--work", default="/tmp/realistic_work")
 a = ap.parse_args()
 
@@ -155,7 +156,7 @@ def camera_basis(Jf, los):
 
 
 # ---------------------------------------------------------------- рендер объекта (Mitsuba 3)
-def render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth_rgb, alt_km, spp, work):
+def render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth_rgb, alt_km, spp, work, shapes=None):
     import mitsuba as mi
     try:
         mi.set_variant("llvm_ad_rgb")
@@ -163,8 +164,9 @@ def render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth_rgb, alt_km, 
         mi.set_variant("scalar_rgb")
     T = mi.ScalarTransform4f
     work.mkdir(parents=True, exist_ok=True)
-    shapes = {}
-    for i, m in enumerate(sorted(set(MAT))):
+    pre = shapes
+    shapes = dict(pre) if pre is not None else {}
+    for i, m in enumerate([] if pre is not None else sorted(set(MAT))):
         sel = F[MAT == m]; u, inv = np.unique(sel, return_inverse=True)
         p = work / f"m{i}.obj"
         with open(p, "w") as fh:
@@ -286,6 +288,16 @@ def main():
                 MAT += [mat] * (len(ln.split()) - 3)
         MAT = np.array(MAT)
         pose_note = f"поза из реконструкции: рысканье {psi:+.0f}°, крылья {phi:+.0f}°"
+    hd_shapes = None
+    if not a.lowpoly:
+        import hd_models as HDM
+        if is_iss:
+            parts, angs = HDM.iss_parts(sun)
+            pose_note = f"штатная ориентация +XVV, крылья на Солнце (SARJ S {angs['S']:+.0f}°, P {angs['P']:+.0f}° от положения модели)"
+        else:
+            parts = HDM.starlink_parts(math.radians(psi), math.radians(phi))
+        Vb = HDM.all_vertices(parts); F = MAT = None
+        hd_shapes = HDM.mitsuba_shapes(parts, Path(a.work) / a.name / "hd", smooth=is_iss)
     right, up, A2, S = camera_basis(geo["Jf"], los)
     k_scale = float(S.mean())
     print(f"{a.name}: дальность {geo['rng']:.0f} км, λ/R≈{k_scale:.2f} (σ {S.round(3)}), видимая скорость на земле "
@@ -341,7 +353,7 @@ def main():
         tau_sh = float(sh[3]) if len(sh) > 3 else (a.tau_track if mode == "track" else a.tau_ground)
         pix = rg / k_scale                                     # м на объекте на пиксель кадра
         npx = int(math.ceil(2 * ext / pix)) + 8
-        obj = render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth, geo["alt"], a.spp, Path(a.work) / a.name)
+        obj = render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth, geo["alt"], a.spp, Path(a.work) / a.name, shapes=hd_shapes)
         # кадр: центр — якорь, север вверх
         jj, ii = np.meshgrid(np.arange(a.W), np.arange(a.H))
         gE = (jj + 0.5 - a.W / 2) * rg; gN = (a.H / 2 - ii - 0.5) * rg

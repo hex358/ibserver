@@ -93,3 +93,4 @@ results/recon_iss2/
 results/realistic/*.png
 results/close_search/*.npy
 data/models/sr/
+data/models/hd/ISS_stationary.glb

@@ -52,8 +52,8 @@
   },
   {
    "file": "STARLINK-30409_20261119T215020_tele.png",
-   "m_per_px_ground": 0.081,
-   "m_per_px_object": 0.031316169817161406,
+   "m_per_px_ground": 0.092,
+   "m_per_px_object": 0.03556898300220802,
    "mode": "track",
    "exposure_s": 0.001,
    "smear_m": 29.23355216763343

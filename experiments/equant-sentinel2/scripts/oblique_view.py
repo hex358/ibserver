@@ -15,7 +15,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("name"); ap.add_argument("--zen", type=float, default=50.0, help="угол камеры от зенита объекта")
 ap.add_argument("--az", type=float, default=90.0, help="азимут камеры от азимута Солнца, °")
 ap.add_argument("--W", type=int, default=1920); ap.add_argument("--H", type=int, default=1080); ap.add_argument("--spp", type=int, default=256)
-ap.add_argument("--work", default="/tmp/realistic_work"); ap.add_argument("--out", default=str(ROOT / "results/realistic"))
+ap.add_argument("--work", default="/tmp/realistic_work"); ap.add_argument("--lowpoly", action="store_true"); ap.add_argument("--out", default=str(ROOT / "results/realistic"))
 a = ap.parse_args()
 sys.argv = [sys.argv[0], a.name]
 import realistic_view as RV
@@ -45,6 +45,15 @@ def main():
             elif ln.startswith("f "):
                 MAT += [mat] * (len(ln.split()) - 3)
         MAT = np.array(MAT); alt = 786.0 - rc["rng"]
+    shapes = None
+    if not a.lowpoly:
+        import hd_models as HDM
+        if a.name.startswith("ISS"):
+            parts, _ = HDM.iss_parts(sun)
+        else:
+            parts = HDM.starlink_parts(math.radians(r["psi_deg"]), math.radians(r["phi_deg"]))
+        Vb = HDM.all_vertices(parts); F = MAT = None
+        shapes = HDM.mitsuba_shapes(parts, Path(a.work) / (a.name + "_obl") / "hd", smooth=a.name.startswith("ISS"))
     # камера: от зенита на zen, по азимуту (Солнце + az) в горизонтальной плоскости (вдоль, поперёк)
     saz = math.atan2(sun[1], sun[0]) + math.radians(a.az)
     h = np.array([math.cos(saz), math.sin(saz), 0.0]); zr = np.array([0.0, 0.0, 1.0])
@@ -54,7 +63,7 @@ def main():
     ext = float(np.max(np.abs(np.c_[proj @ right, proj @ up]))) * 1.25 + 1.0
     pix = 2 * ext / a.H
     import mitsuba as mi
-    obj = RV.render_object(Vb, F, MAT, sun, c, right, up, pix, a.W, earth, alt, a.spp, Path(a.work) / (a.name + "_obl"))
+    obj = RV.render_object(Vb, F, MAT, sun, c, right, up, pix, a.W, earth, alt, a.spp, Path(a.work) / (a.name + "_obl"), shapes=shapes)
     # render_object делает квадратный кадр W×W — берём центральную полосу H
     i0 = (a.W - a.H) // 2; obj = obj[i0:i0 + a.H]
     cache = sorted(glob.glob(str(Path(a.work) / f"sr_{a.name}_*.npy")))
