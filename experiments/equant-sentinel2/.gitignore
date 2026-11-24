@@ -90,3 +90,6 @@ results/recon_c/
 results/recon_figs/
 results/recon_iss/
 results/recon_iss2/
+results/realistic/*.png
+results/close_search/*.npy
+data/models/sr/
