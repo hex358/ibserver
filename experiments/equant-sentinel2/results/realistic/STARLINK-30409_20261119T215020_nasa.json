@@ -1,0 +1,12 @@
+{
+ "name": "STARLINK-30409_20261119T215020",
+ "note": "Starlink V2 mini, поза из реконструкции (ψ +180°, φ +142°)",
+ "dist_m": 135.46157829534428,
+ "fov_deg": 22.79752613751586,
+ "az_deg": 20,
+ "el_deg": 60.0,
+ "coverage": 1.0,
+ "earth_res_m": 110.0,
+ "lens_mm_fullframe": 89,
+ "file": "STARLINK-30409_20261119T215020_nasa.jpg"
+}

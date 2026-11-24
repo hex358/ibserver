@@ -1,0 +1,12 @@
+{
+ "name": "STARLINK-36503_20261120T012243",
+ "note": "Starlink V2 mini, крылья на Солнце (снимок их не отвергает: Δχ² -17)",
+ "dist_m": 136.28083047691777,
+ "fov_deg": 22.797526137515863,
+ "az_deg": 20,
+ "el_deg": 60.0,
+ "coverage": 0.9938271604938271,
+ "earth_res_m": 110.0,
+ "lens_mm_fullframe": 89,
+ "file": "STARLINK-36503_20261120T012243_nasa.jpg"
+}

@@ -177,3 +177,16 @@ def mitsuba_shapes(parts, work, smooth=True):
 
 def all_vertices(parts):
     return np.vstack([p["V"][np.unique(p["F"])] for p in parts])
+
+
+def starlink_pose(name, psi_fit, phi_fit):
+    """Единое правило позы крыльев: по умолчанию крылья на Солнце (так Starlink получает питание); подобранный по снимку
+    угол — только если снимок заметно его предпочитает: Δχ²(Солнце − подгонка) > 25 (results/recon_out/wing_check.json).
+    Возвращает (ψ°, φ°, подпись)."""
+    import json
+    f = ROOT / "results/recon_out/wing_check.json"
+    w = json.loads(f.read_text()).get(name) if f.exists() else None
+    if w and w["use"] == "sun":
+        return w["psi_sun"], w["phi_sun"], f"крылья на Солнце (снимок их не отвергает: Δχ² {w['dchi2_sun_minus_fit']:+.0f})"
+    d = f", снимок предпочитает его на Δχ² {w['dchi2_sun_minus_fit']:.0f}" if w else ""
+    return psi_fit, phi_fit, f"поза из реконструкции (ψ {psi_fit:+.0f}°, φ {phi_fit:+.0f}°{d})"

@@ -295,7 +295,8 @@ def main():
             parts, angs = HDM.iss_parts(sun)
             pose_note = f"штатная ориентация +XVV, крылья на Солнце (SARJ S {angs['S']:+.0f}°, P {angs['P']:+.0f}° от положения модели)"
         else:
-            parts = HDM.starlink_parts(math.radians(psi), math.radians(phi))
+            psi2, phi2, pose_note = HDM.starlink_pose(a.name, psi, phi)
+            parts = HDM.starlink_parts(math.radians(psi2), math.radians(phi2))
         Vb = HDM.all_vertices(parts); F = MAT = None
         hd_shapes = HDM.mitsuba_shapes(parts, Path(a.work) / a.name / "hd", smooth=is_iss)
     right, up, A2, S = camera_basis(geo["Jf"], los)

@@ -51,7 +51,8 @@ def main():
         if a.name.startswith("ISS"):
             parts, _ = HDM.iss_parts(sun)
         else:
-            parts = HDM.starlink_parts(math.radians(r["psi_deg"]), math.radians(r["phi_deg"]))
+            psi2, phi2, _ = HDM.starlink_pose(a.name, r["psi_deg"], r["phi_deg"])
+            parts = HDM.starlink_parts(math.radians(psi2), math.radians(phi2))
         Vb = HDM.all_vertices(parts); F = MAT = None
         shapes = HDM.mitsuba_shapes(parts, Path(a.work) / (a.name + "_obl") / "hd", smooth=a.name.startswith("ISS"))
     # камера: от зенита на zen, по азимуту (Солнце + az) в горизонтальной плоскости (вдоль, поперёк)

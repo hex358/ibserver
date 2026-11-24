@@ -94,3 +94,4 @@ results/realistic/*.png
 results/close_search/*.npy
 data/models/sr/
 data/models/hd/ISS_stationary.glb
+results/realistic/*_nasa.jpg
