@@ -28,6 +28,8 @@ jobs:
           get gp_visual.tle      "$CT/gp.php?GROUP=visual&FORMAT=tle"
           get gp_stations.tle    "$CT/gp.php?GROUP=stations&FORMAT=tle"
           get gp_last30.tle      "$CT/gp.php?GROUP=last-30-days&FORMAT=tle"
+          get gp_rb.tle          "$CT/gp.php?NAME=R%2FB&FORMAT=tle"
+          get gp_deb.tle         "$CT/gp.php?NAME=DEB&FORMAT=tle"
           for g in cosmos-1408-debris fengyun-1c-debris iridium-33-debris cosmos-2251-debris; do
             get "debris_$g.tle" "$CT/gp.php?GROUP=$g&FORMAT=tle"
           done
