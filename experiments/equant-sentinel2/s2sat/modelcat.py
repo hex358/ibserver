@@ -629,8 +629,10 @@ def laws_for(kind, has_arrays, frame_ok, year, active=True):
         return [dict(name="кувыркание: ось по сфере", tumble=True)]
     if not frame_ok:
         return [dict(name="поворот оценивается (оси модели не выверены)", free3=True)]
-    modes = ARRAY_MODES if has_arrays else (("fixed", "без приводов панелей"),)
-    laws = [dict(name=f"на Землю, рысканье {y}°, {an}", yaw=y, arrays=ar) for y in YAWS for ar, an in modes]
+    if has_arrays:                                         # углы приводов панелей — по снимку (режим — вывод)
+        laws = [dict(name=f"на Землю, рысканье {y}°, углы панелей по снимку", yaw=y, arrays="est") for y in YAWS]
+    else:
+        laws = [dict(name=f"на Землю, рысканье {y}°", yaw=y, arrays="fixed") for y in YAWS]
     if not active:
         laws += [dict(name="гравитационная стабилизация: продольная ось к Земле", gg=True),
                  dict(name="кувыркание: ось по сфере", tumble=True)]

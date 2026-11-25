@@ -88,15 +88,61 @@ def pose_body(spec, h, x, sun_b):
             _turn(V, ar["mask"], ar["axis"], ar["point"], x[3]); angs.append(float(x[3]))
         return V @ R.T, R, angs
     R = law_attitude(h) @ spec["M2B"]
-    V = spec["V"].copy(); angs = []
     mode = h.get("arrays", "fixed")
-    t_m = R.T @ sun_b                                      # Солнце в осях сетки
+    if mode == "est":                                      # углы приводов — по снимку (x[7:]), режима нет
+        ang = np.asarray(x[7:7 + n_drives(spec)], float)
+    else:
+        ang = mode_angles(spec, R, mode, sun_b, x)
+    V = apply_drives(spec, ang)
+    L = drive_layout(spec)
+    return V @ R.T, R, [float(ang[L["prim"][k]]) for k in range(len(spec["arrays"]))]
+
+
+def drive_layout(spec):
+    """Приводы панелей модели: первые оси (общие для крыльев на одном приводе — например, SARJ у МКС) и вторые
+    (у каждого крыла своя — BGA). prim[i] — номер первого привода крыла i, sub[i] — номера его вторых приводов."""
+    if "_drives" in spec:
+        return spec["_drives"]
+    keys, prim, sub, n = {}, [], [], 0
     for ar in spec["arrays"]:
+        k = tuple(np.round(np.r_[np.asarray(ar["axis"], float), np.asarray(ar["point"], float) / 2.0], 2))
+        if k not in keys:
+            keys[k] = len(keys)
+        prim.append(keys[k])
+    n = len(keys)
+    for ar in spec["arrays"]:
+        sub.append(list(range(n, n + len(ar.get("sub") or [])))); n += len(ar.get("sub") or [])
+    spec["_drives"] = dict(prim=prim, sub=sub, n=n, n_prim=len(keys))
+    return spec["_drives"]
+
+
+def n_drives(spec):
+    return drive_layout(spec)["n"]
+
+
+def apply_drives(spec, ang):
+    """Повернуть крылья: сначала вторые приводы (вокруг длины крыла), затем первые (вокруг оси от корпуса)."""
+    L = drive_layout(spec); V = spec["V"].copy()
+    for i, ar in enumerate(spec["arrays"]):
+        for k, sw in zip(L["sub"][i], ar.get("sub") or []):
+            _turn(V, sw["mask"], sw["axis"], sw["point"], float(ang[k]))
+        _turn(V, ar["mask"], ar["axis"], ar["point"], float(ang[L["prim"][i]]))
+    return V
+
+
+def mode_angles(spec, R, mode, sun_b, x=None):
+    """Углы приводов, которые дал бы режим: «на Солнце» (всеми приводами, элементами к Солнцу), «ребром», «плашмя»,
+    «перпендикулярно корпусу», «неподвижны», «под углом x[3]». Используются как старты подгонки углов по снимку и для
+    сравнения: насколько найденные углы отличаются от слежения за Солнцем."""
+    L = drive_layout(spec); ang = np.zeros(L["n"]); done = set()
+    sun_b = np.asarray(sun_b, float); t_m = R.T @ sun_b
+    for i, ar in enumerate(spec["arrays"]):
+        g = L["prim"][i]
         a, n0 = np.asarray(ar["axis"], float), np.asarray(ar["normal0"], float)
         if mode == "fixed":
-            angs.append(0.0); continue
-        if mode == "angle":                                # приводы стоят под углом x[3] (не следят за Солнцем)
-            _turn(V, ar["mask"], a, ar["point"], float(x[3])); angs.append(float(x[3])); continue
+            continue
+        if mode == "angle":
+            ang[g] = float(x[3]) if x is not None else 0.0; continue
         if mode == "flat":
             tgt = R.T @ np.array([0.0, 0, 1])
         elif mode == "vertical":
@@ -105,27 +151,28 @@ def pose_body(spec, h, x, sun_b):
         else:
             tgt = t_m
         alpha = array_angle(n0, a, tgt) + (math.pi / 2 if mode == "edge" else 0.0)
-        cell = ar.get("cell")                              # сторона с элементами (если определена по модели)
-        face = tgt if mode in ("sun", "flat", "vertical") else None   # к чему обращены элементы
-        if mode == "sun" and ar.get("sub"):                # два привода: первый ставит длину крыла ⟂ Солнцу,
-            a2 = np.asarray(ar["sub"][0]["axis"], float)    # второй поворачивает крыло вокруг длины нормалью на Солнце
-            d = np.cross(a, t_m)
+        cell = ar.get("cell"); face = tgt if mode in ("sun", "flat", "vertical") else None
+        if mode == "sun" and ar.get("sub"):
+            a2 = np.asarray(ar["sub"][0]["axis"], float); d = np.cross(a, t_m)
             if np.linalg.norm(d) > 1e-6:
                 alpha = array_angle(a2, a, d / np.linalg.norm(d))
-            t1 = rot_axis(a, alpha).T @ t_m                # Солнце в осях крыла до поворота первым приводом
-            for sw in ar["sub"]:
+            if g in done:                                  # общий привод: тот же угол (или +180°), что у первого крыла
+                alpha = ang[g] if math.cos(alpha - ang[g]) > 0 else ang[g]
+            t1 = rot_axis(a, alpha).T @ t_m
+            for k, sw in zip(L["sub"][i], ar["sub"]):
                 b = array_angle(np.asarray(sw["normal0"], float), np.asarray(sw["axis"], float), t1)
-                if cell is not None:                       # элементами к Солнцу, а не подложкой
+                if cell is not None:
                     if (rot_axis(sw["axis"], b) @ np.asarray(cell, float)) @ t1 < 0:
                         b += math.pi
                 else:
-                    b = (b + math.pi / 2) % math.pi - math.pi / 2   # сторона не известна — ближайший поворот
-                _turn(V, sw["mask"], sw["axis"], sw["point"], b)
-        elif cell is not None and face is not None:        # один привод: элементами к цели
+                    b = (b + math.pi / 2) % math.pi - math.pi / 2
+                ang[k] = b
+        elif cell is not None and face is not None:
             if (rot_axis(a, alpha) @ np.asarray(cell, float)) @ face < 0:
                 alpha += math.pi
-        _turn(V, ar["mask"], a, ar["point"], alpha); angs.append(alpha)
-    return V @ R.T, R, angs
+        if g not in done:
+            ang[g] = alpha; done.add(g)
+    return ang
 
 
 def raster(Vb, F, G, ng, los, J, p, x0, y1, W, H):
@@ -210,6 +257,8 @@ class Problem:
             return [0, 1, 4, 5]
         if h.get("arrays") == "angle":
             return [3, 4, 5]
+        if h.get("arrays") == "est":                       # углы приводов + положение
+            return [4, 5] + list(range(7, 7 + n_drives(self.spec)))
         return [4, 5]
 
     def body(self, h, x):
@@ -219,14 +268,14 @@ class Problem:
     def loss(self, h, x, bands, prior=True):
         Vb = self.body(h, x)
         L = 0.0
-        rot_free = h.get("free3") or h.get("gg") or h.get("tumble") or h.get("arrays") == "angle"
-        ak = (h["name"],) + (tuple(np.round(np.asarray(x[:4], float), 7)) if rot_free else ())
+        rot_free = h.get("free3") or h.get("gg") or h.get("tumble") or h.get("arrays") in ("angle", "est")
+        ak = (h["name"],) + (tuple(np.round(np.asarray(x[:4], float), 7)) + tuple(np.round(np.asarray(x[7:], float), 7)) if rot_free else ())
         for b in bands:
             d = self.rc["bands"][b]
-            L += band_loss(d, regress(d, Vb, self.spec["F"], self.spec["G"], self.ng, self.los, x[-3:], self.cache, ak + (b,)))[0]
+            L += band_loss(d, regress(d, Vb, self.spec["F"], self.spec["G"], self.ng, self.los, x[4:7], self.cache, ak + (b,)))[0]
         L /= self.kappa                                    # данные в единицах эффективного χ² — сопоставимы с априорными
         if prior:
-            L += float(np.sum((np.asarray(x[-3:]) / SIG_POS) ** 2))                         # ошибка орбиты
+            L += float(np.sum((np.asarray(x[4:7]) / SIG_POS) ** 2))                         # ошибка орбиты
             if h.get("gg"):
                 L += (x[1] / SIG_LIB) ** 2 + (x[2] / SIG_LIB) ** 2                          # либрации
         return L
@@ -252,6 +301,10 @@ class Problem:
             return [np.array([0, 0, math.radians(y), math.radians(a_), 0, 0, 0]) for y in (0, 90, 180, 270) for a_ in (0, 90)]
         if h.get("gg"):
             return [np.array([math.radians(y), 0, 0, 0, 0, 0, 0]) for y in (0, 45, 90, 135)]
+        if h.get("arrays") == "est":                       # старты — углы, которые дали бы режимы; лучший по невязке
+            R = law_attitude(h) @ self.spec["M2B"]
+            cand = [np.r_[np.zeros(7), mode_angles(self.spec, R, m, self.sun_l)] for m in ("sun", "edge", "flat", "vertical", "fixed")]
+            return [min(cand, key=lambda c: self.loss(h, c, bands))]
         if h.get("arrays") == "angle":                     # угол панелей: перебор 0…150° через 30°, лучший — старт
             cand = [np.array([0, 0, 0, math.radians(t), 0, 0, 0]) for t in range(0, 180, 30)]
             return [min(cand, key=lambda c: self.loss(h, c, bands))]
@@ -273,7 +326,7 @@ class Problem:
             g = np.arange(-half, half + 1e-9, step)
             for dx in g:
                 for dy in g:
-                    x = np.array(best, float); x[-3] = cx + dx; x[-2] = cy + dy
+                    x = np.array(best, float); x[4] = cx + dx; x[5] = cy + dy
                     L = self.loss(h, x, bands)
                     if L < bl:
                         best, bl = x, L
@@ -347,10 +400,32 @@ def decide(out, spec, sun_l, res, free, thr):
     return out
 
 
+def drive_report(P, r, step=math.radians(2.0)):
+    """Углы приводов, найденные по снимку: значение, погрешность 1σ (по кривизне невязки в эффективном χ²: Δχ² = 1),
+    и отличие от углов слежения за Солнцем — режим получается выводом, а не допущением."""
+    h, x = r["law"], np.asarray(r["x"], float)
+    n = n_drives(P.spec); L0 = P.loss(h, x, P.bands)
+    sig = []
+    for k in range(n):
+        xp = x.copy(); xm = x.copy(); xp[7 + k] += step; xm[7 + k] -= step
+        H = (P.loss(h, xp, P.bands) - 2 * L0 + P.loss(h, xm, P.bands)) / step ** 2
+        sig.append(math.degrees(math.sqrt(2.0 / H)) if H > 1e-9 else float("inf"))
+    R = law_attitude(h) @ P.spec["M2B"]
+    sun = mode_angles(P.spec, R, "sun", P.sun_l)
+    dev = [math.degrees((a - b + math.pi) % (2 * math.pi) - math.pi) for a, b in zip(x[7:7 + n], sun)]
+    dev2 = [((d + 90) % 180) - 90 for d in dev]           # с точностью до стороны пластины
+    r.update(drive_angles_deg=[math.degrees(v) for v in x[7:7 + n]], drive_sigma_deg=sig, sun_dev_deg=dev, sun_dev_plate_deg=dev2)
+    tracked = [abs(d) < max(10.0, 2 * sg) for d, sg in zip(dev2, sig) if math.isfinite(sg)]
+    undet = sum(1 for sg in sig if not math.isfinite(sg) or sg > 45)
+    r["drives_summary"] = (f"{sum(tracked)}/{len(tracked)} приводов следят за Солнцем (в пределах ошибки), "
+                           f"{undet} не определены снимком (σ > 45°)")
+    return r
+
+
 def solve(rc, spec, log=print, maxfev=160, C=None):
     P = Problem(rc, spec, C)
     npix = sum(int(np.isfinite(P.rc["bands"][b]["r"]).sum()) for b in P.bands)
-    exact = [h for h in spec["laws"] if not (h.get("gg") or h.get("tumble") or h.get("free3") or h.get("arrays") == "angle")]
+    exact = [h for h in spec["laws"] if not (h.get("gg") or h.get("tumble") or h.get("free3"))]   # без оценки поворота корпуса
     est = [h for h in spec["laws"] if h not in exact]
     res = []
     for h in exact:                                        # проход 1: точные законы (подбираются только положение и яркость)
@@ -361,6 +436,9 @@ def solve(rc, spec, log=print, maxfev=160, C=None):
         P.cache.clear()
         for r in res:
             r["cv"] /= P.kappa; r["L"] /= P.kappa; r["null"] /= P.kappa
+    for r in res:                                          # углы приводов по снимку: значения, погрешность, сравнение с Солнцем
+        if r["law"].get("arrays") == "est":
+            drive_report(P, r)
     for h in est:                                          # проход 2: оценки поворота (кувыркание, либрации, свободный)
         r = P.evaluate(h, maxfev); r["law"] = h; res.append(r)
         log(f"   {h['name']:52s} невязка на отложенных {r['cv']:10.1f}   по всем {r['L']:10.1f}   (эфф. χ²)")

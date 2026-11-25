@@ -35,7 +35,7 @@ def synth(rc, spec, h, x, rng, C):
         F, G = F[keep], (G * 4 + sub)[keep]; ng = ng * 4
         base = np.repeat(base, 4) * np.exp(0.35 * rng.standard_normal(ng))
     for b, d in rc2["bands"].items():
-        R = AP.regress(d, Vb, F, G, ng, P.los, x[-3:])
+        R = AP.regress(d, Vb, F, G, ng, P.los, x[4:7])
         gm = float(np.nanmedian(d["g"]))
         c = base * gm * (1 + 0.15 * rng.standard_normal(ng))
         occ = np.stack(R, -1)
@@ -58,6 +58,10 @@ def main():
         if kind == "law":                                   # штатный объект: точно по закону, сдвиг — ошибка орбиты
             h = spec["laws"][int(rng.integers(len(spec["laws"])))]
             x = np.r_[np.zeros(4), rng.normal(0, sp, 2), 0.0]
+            if h.get("arrays") == "est":                    # истинные углы приводов: случайный режим ± 5°
+                Rl = AP.law_attitude(h) @ spec["M2B"]
+                m = ["sun", "edge", "flat", "vertical", "fixed"][int(rng.integers(5))]
+                x = np.r_[x, AP.mode_angles(spec, Rl, m, sun_l) + np.radians(rng.normal(0, 5, AP.n_drives(spec)))]
         else:                                               # нештатный: случайный поворот (вектор поворота) и угол панелей
             h = dict(name="нештатная", free3=True)
             w = rng.normal(size=3); w = w / np.linalg.norm(w) * rng.uniform(math.radians(30), math.pi)
