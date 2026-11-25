@@ -1,0 +1,101 @@
+name: fetch-reference-photos
+# Настоящие фотографии спутников (NASA Image and Video Library, Wikimedia Commons) — эталон для проверки рендеров.
+# Хосты закрыты из контейнера Claude, поэтому качает раннер GitHub. Список запросов — data/reference_request.txt:
+#   nasa:<поисковый запрос>|<сколько>   — первые N снимков из images-api.nasa.gov
+#   id:<nasa_id>                       — конкретный снимок NASA
+#   commons:<имя файла на Commons>      — снимок Wikimedia Commons
+on:
+  push:
+    branches: [claude/experiments-repo-hze47d]
+    paths: [experiments/equant-sentinel2/data/reference_request.txt]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download photos
+        run: |
+          D=experiments/equant-sentinel2/data/reference/photos; mkdir -p $D
+          python3 - <<'PY'
+          import json, os, re, subprocess, time, urllib.parse, urllib.request
+          D = "experiments/equant-sentinel2/data/reference/photos"
+          UA = {"User-Agent": "research-script/1.0 (satellite render validation)"}
+          def get(url, tries=4):
+              for i in range(tries):
+                  try:
+                      with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60) as r:
+                          return r.read()
+                  except Exception as e:
+                      print("retry", url, e); time.sleep(5 * (i + 1))
+              return None
+          meta = {}
+          mf = os.path.join(D, "photos.json")
+          if os.path.exists(mf):
+              meta = json.load(open(mf))
+          def save(key, url, info):
+              if key in meta:
+                  return
+              b = get(url)
+              if not b:
+                  print("FAILED", key, url); return
+              fn = os.path.join(D, re.sub(r"[^A-Za-z0-9._-]", "_", key)[:80] + ".jpg")
+              open(fn, "wb").write(b)
+              subprocess.run(["convert", fn, "-resize", "2000x2000>", "-quality", "88", fn])
+              meta[key] = dict(info, file=os.path.basename(fn), source_url=url)
+              print("ok", key, len(b))
+          def nasa_item(nid):
+              j = get("https://images-api.nasa.gov/search?nasa_id=" + urllib.parse.quote(nid))
+              if not j: return
+              items = json.loads(j)["collection"]["items"]
+              if not items: print("no item", nid); return
+              it = items[0]; d = it["data"][0]
+              assets = json.loads(get(it["href"]) or b"[]")
+              jpg = [a for a in assets if a.lower().endswith(".jpg")]
+              pick = next((a for a in jpg if "~large" in a), None) or next((a for a in jpg if "~orig" in a), None) or (jpg[0] if jpg else None)
+              if pick:
+                  save("nasa_" + nid, pick.replace("http://", "https://"), dict(title=d.get("title"), date=d.get("date_created"),
+                       description=(d.get("description") or "")[:600], photographer=d.get("photographer"), center=d.get("center"),
+                       license="NASA (public domain, no endorsement)"))
+          for line in open("experiments/equant-sentinel2/data/reference_request.txt"):
+              line = line.strip()
+              if not line or line.startswith("#"): continue
+              kind, _, arg = line.partition(":")
+              if kind == "nasa":
+                  q, _, n = arg.partition("|"); n = int(n or 6)
+                  j = get("https://images-api.nasa.gov/search?media_type=image&q=" + urllib.parse.quote(q))
+                  if not j: continue
+                  for it in json.loads(j)["collection"]["items"][:n]:
+                      nasa_item(it["data"][0]["nasa_id"])
+              elif kind == "id":
+                  nasa_item(arg)
+              elif kind == "commons":
+                  api = ("https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|extmetadata"
+                         "&iiurlwidth=2000&titles=" + urllib.parse.quote("File:" + arg))
+                  j = get(api)
+                  if not j: continue
+                  for p in json.loads(j)["query"]["pages"].values():
+                      ii = (p.get("imageinfo") or [{}])[0]; em = ii.get("extmetadata", {})
+                      url = ii.get("thumburl") or ii.get("url")
+                      if url:
+                          save("commons_" + arg, url, dict(title=arg, date=(em.get("DateTimeOriginal") or {}).get("value"),
+                               description=re.sub("<[^>]+>", "", (em.get("ImageDescription") or {}).get("value", ""))[:600],
+                               license=(em.get("LicenseShortName") or {}).get("value"), page="https://commons.wikimedia.org/wiki/File:" + arg))
+          json.dump(meta, open(mf, "w"), ensure_ascii=False, indent=1)
+          print(len(meta), "photos")
+          PY
+          ls -la $D | head -60; du -sh $D
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add experiments/equant-sentinel2/data/reference
+          git commit -m "Reference photos: NASA Image Library, Wikimedia Commons" || { echo "nothing to commit"; exit 0; }
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push && exit 0
+            sleep 10
+          done
+          exit 1

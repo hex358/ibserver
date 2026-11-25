@@ -1,0 +1,17 @@
+# Настоящие фотографии МКС (и других станций) — эталон для проверки рендеров
+nasa:International Space Station fly-around Soyuz|8
+nasa:International Space Station as of Oct. 4, 2018|6
+nasa:International Space Station photographed from Crew Dragon fly-around|8
+nasa:space station backdropped Earth undocking Atlantis|4
+nasa:Tiangong space station|3
+id:iss056e201046
+id:iss056e201174
+id:iss056e201352
+id:iss056e201382
+id:iss056e201388
+id:iss056e201395
+id:iss056e201248
+commons:International_Space_Station_after_undocking_of_STS-132.jpg
+commons:ISS-56_International_Space_Station_fly-around_(01).jpg
+commons:STS-134_International_Space_Station_after_undocking.jpg
+commons:ISS_March_2009.jpg
