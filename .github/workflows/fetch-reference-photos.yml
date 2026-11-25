@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Pillow
+        run: python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow
       - name: Download photos
         run: |
           D=experiments/equant-sentinel2/data/reference/photos; mkdir -p $D
@@ -44,7 +46,11 @@ jobs:
                   print("FAILED", key, url); return
               fn = os.path.join(D, re.sub(r"[^A-Za-z0-9._-]", "_", key)[:80] + ".jpg")
               open(fn, "wb").write(b)
-              subprocess.run(["convert", fn, "-resize", "2000x2000>", "-quality", "88", fn])
+              try:
+                  from PIL import Image
+                  im = Image.open(fn).convert("RGB"); im.thumbnail((2000, 2000)); im.save(fn, quality=88)
+              except Exception as e:
+                  print("resize skipped", fn, e)
               meta[key] = dict(info, file=os.path.basename(fn), source_url=url)
               print("ok", key, len(b))
           def nasa_item(nid):
