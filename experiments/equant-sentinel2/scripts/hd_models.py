@@ -33,12 +33,17 @@ EXTRA = {  # материалы, которых нет в glTF: (цвет, ме�
 def mitsuba_shapes(parts, work, smooth=True):
     """OBJ по материалам (v, vt) + principled BSDF; текстуры glTF — PNG рядом."""
     work = Path(work); work.mkdir(parents=True, exist_ok=True)
+    import sys as _s
+    _s.path.insert(0, str(ROOT))
+    from s2sat.modelcat import _is_solar
     groups = {}
     for p in parts:
         if "mname" in p and p.get("mat") is None:
             key = p["mname"]
         else:
             key = _mat_props(p["mat"])[0]
+        if p.get("node") and _is_solar(dict(node=p["node"], mname=p.get("mname") or "")):
+            key = key + "|cells"                           # панели — свой материал (стекло поверх элементов)
         groups.setdefault(key, []).append(p)
     shapes = {}
     for i, (key, ps) in enumerate(sorted(groups.items())):
@@ -55,8 +60,9 @@ def mitsuba_shapes(parts, work, smooth=True):
             off += len(V)
         fn = work / f"p{i}.obj"
         fn.write_text("".join(lines_v) + "".join(lines_t) + "".join(lines_f))
-        if key in EXTRA:
-            col, met, rough, tex = EXTRA[key]
+        base = key.split("|")[0]
+        if base in EXTRA:
+            col, met, rough, tex = EXTRA[base]
         else:
             _, col, texi, met, rough = _mat_props(ps[0]["mat"])
             tex = None
@@ -65,9 +71,13 @@ def mitsuba_shapes(parts, work, smooth=True):
                 im = np.asarray(texi.convert("RGB"), np.float32) / 255.0 * np.asarray(col, np.float32)
                 Image.fromarray((np.clip(im, 0, 1) * 255).astype(np.uint8)).save(tex)
         bc = {"type": "bitmap", "filename": str(tex)} if tex is not None else {"type": "rgb", "value": list(map(float, col))}
-        shapes[f"hd{i}"] = {"type": "obj", "filename": str(fn), "face_normals": not smooth,
-                            "bsdf": {"type": "twosided", "bsdf": {"type": "principled", "base_color": bc,
-                                                                   "metallic": float(met), "roughness": float(max(rough, 0.05))}}}
+        if key.endswith("|cells"):
+            # солнечные элементы: диффузная подложка (цвет/текстура модели) под покровным стеклом n = 1.5 с почти
+            # зеркальным отражением — на снимках панели отражают Землю и дают блики
+            bsdf = {"type": "roughplastic", "distribution": "ggx", "alpha": 0.04, "int_ior": 1.5, "diffuse_reflectance": bc}
+        else:
+            bsdf = {"type": "principled", "base_color": bc, "metallic": float(met), "roughness": float(max(rough, 0.05))}
+        shapes[f"hd{i}"] = {"type": "obj", "filename": str(fn), "face_normals": not smooth, "bsdf": {"type": "twosided", "bsdf": bsdf}}
     return shapes
 
 

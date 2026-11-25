@@ -47,8 +47,8 @@ def main():
         crop = G[hh // 2 - 270:hh // 2 + 270, ww // 2 - 480:ww // 2 + 480]
         bg = zoom(crop, (a.H / crop.shape[0], a.W / crop.shape[1], 1), order=1)
         bg = np.stack([gaussian_filter(bg[..., k], 6) for k in range(3)], -1)
-    else:
-        bg = np.ones((a.H, a.W, 3)) * np.asarray(earth)
+    else:                                                  # снимка Земли нет — чёрный космос (а не ровная «земля»)
+        bg = np.zeros((a.H, a.W, 3))
     comp = obj[..., :3] + bg * (1 - obj[..., 3:4])
     img = RV.srgb(RV.aces(comp * expo))
     from PIL import Image

@@ -428,6 +428,33 @@ def _joint_wings(parts, solar, c0):
     return wings
 
 
+def _cell_normal(parts, w):
+    """Нормаль стороны крыла с солнечными элементами (оси каталога). Элементы темнее подложки: грани крыла взвешиваются
+    (медианная яркость − яркость грани) — у двух совпадающих листов (элементы / подложка) с противоположным обходом
+    вклады складываются в сторону элементов. None — сторону не определить (лист одинаков с обеих сторон)."""
+    acc = np.zeros(3); tot = 0.0; recs = []
+    for i, p in enumerate(parts):
+        if w.get("joint"):
+            if not any(n == w["joint"] for n, _ in p.get("joints") or []):
+                continue
+        else:
+            ix = np.unique(p["F"]); inb = np.all((p["V"][ix] >= w["lo"]) & (p["V"][ix] <= w["hi"]), axis=1)
+            if inb.mean() < 0.9:
+                continue
+        V, F = p["V"], p["F"]
+        c = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+        lum = p["flum"] if p.get("flum") is not None and len(p["flum"]) == len(F) else np.full(len(F), p.get("lum", 0.5))
+        recs.append((c, lum))
+    if not recs:
+        return None
+    allc = np.vstack([c for c, _ in recs]); alll = np.concatenate([l for _, l in recs])
+    area = np.linalg.norm(allc, axis=1); med = float(np.median(np.repeat(alll, 1)))
+    acc = ((med - alll)[:, None] * allc).sum(0); tot = float((np.abs(med - alll) * area).sum())
+    if tot <= 0 or np.linalg.norm(acc) < 0.2 * tot:
+        return None
+    return acc / np.linalg.norm(acc)
+
+
 def load_catalog_model(e, g=None, measure_only=False, fit=True):
     """Модель каталога в осях каталога (satvis, метры). Возвращает dict: V, F, G, arrays (для подгонки — упрощённая сетка),
     parts (полная детализация для рендера), M2B, tri, dims_m (вдоль, поперёк, радиус), n_arrays, n_fixed."""
@@ -476,6 +503,8 @@ def load_catalog_model(e, g=None, measure_only=False, fit=True):
         if wings is None:
             wings, nfixed = _wings(dp, dsol, ext)                  # иначе — по геометрии
     wings = wings or []
+    for w in wings:                                                # сторона с элементами — по полной сетке и текстуре
+        w["cell_normal"] = _cell_normal(parts, w)
     fp = dp if fit else parts
     solar = [_is_solar(p) for p in fp]
     if not fit:                                                    # перенести крылья на полную сетку
@@ -515,7 +544,7 @@ def load_catalog_model(e, g=None, measure_only=False, fit=True):
         for k, ix in w["members"]:
             u, off = gidx[k]; mask[off + np.searchsorted(u, ix)] = True
         sub = [] if w.get("axis2") is None else [dict(mask=mask, point=w["point2"], axis=w["axis2"], normal0=w["normal0"])]
-        arrays.append(dict(mask=mask, point=w["point"], axis=w["axis"], normal0=w["normal0"], sub=sub))
+        arrays.append(dict(mask=mask, point=w["point"], axis=w["axis"], normal0=w["normal0"], sub=sub, cell=w.get("cell_normal")))
     out.update(V=V, F=F, G=G, arrays=arrays, parts=fp, wings=wings, gidx=gidx)
     return out
 

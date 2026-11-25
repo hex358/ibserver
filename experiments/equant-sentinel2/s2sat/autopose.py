@@ -105,6 +105,8 @@ def pose_body(spec, h, x, sun_b):
         else:
             tgt = t_m
         alpha = array_angle(n0, a, tgt) + (math.pi / 2 if mode == "edge" else 0.0)
+        cell = ar.get("cell")                              # сторона с элементами (если определена по модели)
+        face = tgt if mode in ("sun", "flat", "vertical") else None   # к чему обращены элементы
         if mode == "sun" and ar.get("sub"):                # два привода: первый ставит длину крыла ⟂ Солнцу,
             a2 = np.asarray(ar["sub"][0]["axis"], float)    # второй поворачивает крыло вокруг длины нормалью на Солнце
             d = np.cross(a, t_m)
@@ -113,8 +115,15 @@ def pose_body(spec, h, x, sun_b):
             t1 = rot_axis(a, alpha).T @ t_m                # Солнце в осях крыла до поворота первым приводом
             for sw in ar["sub"]:
                 b = array_angle(np.asarray(sw["normal0"], float), np.asarray(sw["axis"], float), t1)
-                b = (b + math.pi / 2) % math.pi - math.pi / 2   # ближайшая из двух сторон
+                if cell is not None:                       # элементами к Солнцу, а не подложкой
+                    if (rot_axis(sw["axis"], b) @ np.asarray(cell, float)) @ t1 < 0:
+                        b += math.pi
+                else:
+                    b = (b + math.pi / 2) % math.pi - math.pi / 2   # сторона не известна — ближайший поворот
                 _turn(V, sw["mask"], sw["axis"], sw["point"], b)
+        elif cell is not None and face is not None:        # один привод: элементами к цели
+            if (rot_axis(a, alpha) @ np.asarray(cell, float)) @ face < 0:
+                alpha += math.pi
         _turn(V, ar["mask"], a, ar["point"], alpha); angs.append(alpha)
     return V @ R.T, R, angs
 
