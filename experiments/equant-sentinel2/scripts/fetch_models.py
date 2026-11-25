@@ -84,6 +84,14 @@ EXTRA_GLTF = {
                     license="CC-BY-4.0"),
 }
 
+# Сетки KeepTrack для классов без детальных моделей (data/models/*.obj, метры; оси не выверены — поворот оценивается)
+KT_EXTRA = {
+    "KT-ORBCOMM": ("orbcomm.obj", dict(bus=["Microstar"]), "payload"),                 # Orbcomm OG1/OG2 (Microstar)
+    "KT-TORUS-TANK": ("deb-torus-01.obj", dict(bus=["Briz tank"]), "debris"),          # тороидальный бак «Бриз-М»
+}
+# Шины, которые по открытым данным построены на шине другого класса: назначается модель этого класса
+BUS_ALIASES = {"STARLINK-V2-MINI": ["Starshield"]}                                    # Starshield — производная Starlink
+
 # Ступени KeepTrack (data/models/rb-*.obj): ось ступени — Y сетки, метры. Правила — как в resolver KeepTrack:
 # силуэт по форме GCAT, затем семейство ракеты по имени, затем размер.
 RB_SHAPES = {"cyl+cone": "rb-cylcone-soviet", "stepcyl": "rb-stepcyl-soviet", "cyl+cyl": "rb-stepcyl-soviet",
@@ -231,6 +239,13 @@ def manifest():
         if f.exists():
             ent.append(dict(key=k, file=str(f.relative_to(CAT)), source=d["source"], license=d["license"], frame="unverified",
                             rotate=[], mirror=None, scale="gcat", match=d["match"], kind=d["kind"]))
+    for k, (fn, match, kind) in KT_EXTRA.items():
+        if (ROOT / "data/models" / fn).exists():
+            ent.append(dict(key=k, file="../" + fn, source=f"KeepTrack (keeptrack.space) {fn}", license="AGPL-3.0 (KeepTrack)",
+                            frame="unverified", rotate=[], mirror=None, scale="gcat", match=match, kind=kind))
+    for e in ent:
+        for b in BUS_ALIASES.get(e["key"], []):
+            e["match"].setdefault("bus", []).append(b)
     for f in sorted((ROOT / "data/models").glob("rb-*.obj")):
         ent.append(dict(key=f.stem, file="../" + f.name, source="KeepTrack (keeptrack.space) scripts/mesh-gen", license="AGPL-3.0 (KeepTrack)",
                         frame="rb", rotate=[], mirror=None, scale="gcat", match=dict(rb=True), kind="rocketbody"))
