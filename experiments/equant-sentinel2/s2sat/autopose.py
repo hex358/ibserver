@@ -245,8 +245,7 @@ class Problem:
         self.bands = sorted(rc["bands"], key=lambda b: rc["bands"][b]["jd"])
         self.cache = {}
 
-    @staticmethod
-    def free_idx(h):
+    def free_idx(self, h):
         """Какие компоненты x подбираются: у закона — только положение; у оценки поворота — поворот и положение."""
         # положение — только вдоль следа и поперёк: сдвиг по радиусу идёт почти вдоль визира и снимком не определяется
         if h.get("free3"):
