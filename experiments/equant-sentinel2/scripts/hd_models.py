@@ -400,3 +400,78 @@ def starlink_parts(psi, phi, seed=7):
     if (MAL_DIR / "scene.gltf").exists():
         return starlink_parts_mal(psi, phi)
     return _starlink_parts_satvis(psi, phi, seed)
+
+
+def _rot_all(parts, M):
+    for p in parts:
+        p["V"] = p["V"] @ M.T
+    return parts
+
+
+def parts_for(name, sun_b, norad=None):
+    """Детальная модель объекта в позе из автоматической реконструкции (results/auto/<имя>.json, THEORY §24).
+    Возвращает (части, подпись, гладкие ли нормали). Если автоматической позы нет — закон класса по умолчанию."""
+    import json
+    import sys as _s
+    _s.path.insert(0, str(ROOT))
+    from s2sat import modelcat as MC
+    f = ROOT / "results/auto" / f"{name}.json"
+    au = json.loads(f.read_text()) if f.exists() else None
+    sun_b = np.asarray(sun_b, float)
+    spec = MC.spec_for(norad or 0, name)
+    if au:
+        R = np.asarray(au["R"]); M2B = np.asarray(spec["M2B"]); E = R @ M2B.T            # поворот от штатной позы
+        note = f"поза автоматически: {au['chosen']}" + (" — НЕШТАТНАЯ" if au.get("anomalous") else "")
+    else:
+        E = np.eye(3); note = "поза по закону класса (автоматической реконструкции нет)"
+    sun_n = E.T @ sun_b                                                                   # Солнце в осях штатной позы
+    if spec["kind"] == "station":
+        parts, _ = iss_parts(sun_n)
+        return _rot_all(parts, E), note, True
+    if spec["kind"] == "starlink" and spec.get("catalog") and "V2" in spec["catalog"]["key"] and (MAL_DIR / "scene.gltf").exists():
+        # детальная текстурированная V2 mini (Malacodart): её штатная поза — крылья вдоль X; в каталоге (satvis)
+        # штатно крылья поперёк полёта. Угол крыльев — по нормали крыла позы, подобранной на модели каталога.
+        from s2sat import autopose as AP
+        law = au["law"] if au else dict(name="закон", yaw=0, arrays="sun"); x = np.asarray(au["x"]) if au else np.zeros(7)
+        Vb, _, _ = AP.pose_body(spec, law, x, sun_b)
+        W = Vb[spec["arrays"][0]["mask"]] if spec["arrays"] else Vb
+        n_b = np.linalg.svd(W - W.mean(0), full_matrices=False)[2][-1]
+        Rz = np.array([[0, -1.0, 0], [1.0, 0, 0], [0, 0, 1.0]])                       # x → y
+        n_old = Rz.T @ (E.T @ n_b)
+        parts = starlink_parts(0.0, array_sun_phi(n_old))
+        return _rot_all(parts, E @ Rz), note + f"; модель: {spec['catalog']['key']} (рендер — Malacodart)", False
+    if spec["kind"] == "starlink" and not spec.get("catalog"):
+        phi = math.radians(au["array_angles_deg"][0]) if au else array_sun_phi(sun_n)
+        parts = starlink_parts(0.0, phi)
+        return _rot_all(parts, E), note, False
+    if spec.get("catalog"):                                     # любая модель каталога в полной детализации
+        from s2sat import autopose as AP
+        M = MC.load_catalog_model(spec["catalog"], spec.get("gcat"), fit=False)
+        full = dict(V=M["V"], F=M["F"], G=M["G"], M2B=M["M2B"], arrays=M["arrays"])
+        law = au["law"] if au else (spec["laws"][0] if spec["laws"] else dict(name="закон", yaw=0, arrays="sun"))
+        x = np.asarray(au["x"]) if au else np.zeros(7)
+        if not au and law.get("tumble"):
+            x = np.array([0.6, 0.4, 0, 0, 0, 0, 0])
+        Vb, _, _ = AP.pose_body(full, law, x, sun_b)
+        parts = []
+        for k, p in enumerate(M["parts"]):
+            u, off = M["gidx"][k]
+            V = np.array(p["V"], float); V[u] = Vb[off:off + len(u)]
+            parts.append(dict(p, V=V))
+        return parts, note + f"; модель: {spec['catalog']['key']} ({M['tri']} тр.)", True
+    # параметрическая модель из GCAT: группы 0 — панели (тёмные), 1 — корпус
+    V, F, G = spec["V"], spec["F"], spec["G"]
+    if au:
+        from s2sat import autopose as AP
+        Vb, _, _ = AP.pose_body(spec, au["law"], np.asarray(au["x"]), sun_b)
+    else:
+        Vb = V @ spec["M2B"].T
+    parts = [dict(node=f"g{g}", V=Vb, F=F[G == g], UV=None, mat=None, mname="backsheet" if g == 0 else "frame") for g in np.unique(G)]
+    return parts, note + f"; модель: {spec['source']}", False
+
+
+def array_sun_phi(sun_n):
+    """Угол крыльев Starlink (ось крыльев вдоль полёта) на Солнце, в штатных осях."""
+    u = np.array([1.0, 0, 0]); n0 = np.array([0.0, 0, 1]); a = u
+    t = sun_n - (sun_n @ a) * a
+    return math.atan2(float(t @ np.cross(a, n0)), float(t @ n0))

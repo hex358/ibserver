@@ -1,0 +1,3882 @@
+{
+ "frame": "satvis/Cesium: +Z вдоль скорости, +Y в зенит, +X к левому борту; метры",
+ "sources": {
+  "nasa": "nasa/NASA-3D-Resources@11ebb4ee043715aefbba6aeec8a61746fad67fa7",
+  "satvis": "https://github.com/Flowm/satvis-3d-models@31ca896dcd278f4778ff8e06f0948834bcac2c58"
+ },
+ "rb_shapes": {
+  "cyl+cone": "rb-cylcone-soviet",
+  "stepcyl": "rb-stepcyl-soviet",
+  "cyl+cyl": "rb-stepcyl-soviet",
+  "cyl+2nozzle": "rb-cyl2n-legacy",
+  "sphere+cone": "rb-sphercone-kick",
+  "trunccone": "rb-trunccone-gray",
+  "truncatedcone": "rb-trunccone-gray"
+ },
+ "rb_families": [
+  [
+   "falcon",
+   "rb-cyl-kerolox"
+  ],
+  [
+   "electron",
+   "rb-cyl-electron"
+  ],
+  [
+   "ariane|vega",
+   "rb-cyl-euro"
+  ],
+  [
+   "chang zheng|long march|^cz[\\s-]",
+   "rb-cyl-china"
+  ],
+  [
+   "atlas|centaur|titan",
+   "rb-cyl-centaur"
+  ],
+  [
+   "delta (?:iv|4)",
+   null
+  ],
+  [
+   "delta",
+   "rb-cyl-delta"
+  ],
+  [
+   "proton|briz|breeze|fregat",
+   "rb-cyl-proton"
+  ],
+  [
+   "kosmos|cosmos|tsiklon|tsyklon|cyclone|vostok|voskhod|molniya|soyuz|rokot|dnepr|zenit|shtil|angara|sputnik|strela",
+   "soviet"
+  ]
+ ],
+ "models": [
+  {
+   "key": "ISS-(ZARYA)",
+   "file": "nasa/ISS-(ZARYA).glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/International Space Station (ISS) (D) (IGOAL)/International Space Station (ISS).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "zenith",
+     "degrees": -90
+    }
+   ],
+   "mirror": "port",
+   "scale": 9.8386,
+   "match": {
+    "norad": [
+     25544
+    ],
+    "bus": []
+   },
+   "kind": "station",
+   "matched_gcat": 1,
+   "tri": 2707621,
+   "dims_m": [
+    73.42,
+    99.3,
+    30.63
+   ],
+   "arrays": 8,
+   "fixed_panels": 0,
+   "solar_faces": 1864
+  },
+  {
+   "key": "LANDSAT-8",
+   "file": "nasa/LANDSAT-8.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Landsat 8/Landsat 8.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "zenith",
+     "degrees": -90
+    },
+    {
+     "axis": "velocity",
+     "degrees": 180
+    }
+   ],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     39084,
+     49260
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 2,
+   "tri": 85364,
+   "dims_m": [
+    4.97,
+    12.26,
+    10.04
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 545
+  },
+  {
+   "key": "CLOUDSAT",
+   "file": "nasa/CLOUDSAT.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/CloudSat (C)/CloudSat (C).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "zenith",
+     "degrees": 180
+    }
+   ],
+   "mirror": null,
+   "scale": 0.919,
+   "match": {
+    "norad": [
+     29107
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 11204,
+   "dims_m": [
+    5.08,
+    2.21,
+    2.94
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "ICESAT-2",
+   "file": "nasa/ICESAT-2.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Ice, Clouds, and Land Elevation Satellite-2 (ICESat-2) (B)/Ice, Clouds, and Land Elevation Satellite-2 (ICESat-2) (B).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "velocity",
+     "degrees": 180
+    },
+    {
+     "axis": "zenith",
+     "degrees": 90
+    }
+   ],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     43613
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 23662,
+   "dims_m": [
+    3.63,
+    7.34,
+    2.31
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 41
+  },
+  {
+   "key": "GRACE-FO-1",
+   "file": "nasa/GRACE-FO-1.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Gravity Recovery and Climate Experiment (GRACE) (B)/Gravity Recovery and Climate Experiment (GRACE) (B).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "zenith",
+     "degrees": 180
+    }
+   ],
+   "mirror": null,
+   "scale": 0.404,
+   "match": {
+    "norad": [
+     43476
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 3961,
+   "dims_m": [
+    3.18,
+    1.94,
+    1.29
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "GRACE-FO-2",
+   "file": "nasa/GRACE-FO-2.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Gravity Recovery and Climate Experiment (GRACE) (B)/Gravity Recovery and Climate Experiment (GRACE) (B).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 0.404,
+   "match": {
+    "norad": [
+     43477
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 3961,
+   "dims_m": [
+    3.18,
+    1.94,
+    1.29
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "SUOMI-NPP",
+   "file": "nasa/SUOMI-NPP.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Suomi National Polar-orbiting Partnership (Suomi NPP)/Suomi National Polar-orbiting Partnership (Suomi NPP).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "velocity",
+     "degrees": 90
+    },
+    {
+     "axis": "zenith",
+     "degrees": -90
+    }
+   ],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     37849,
+     43013,
+     54234
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 3,
+   "tri": 4024,
+   "dims_m": [
+    4.18,
+    8.96,
+    2.57
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "GOES-16",
+   "file": "nasa/GOES-16.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Geostationary Operational Environmental Satellites/Geostationary Operational Environmental Satellites.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "velocity",
+     "degrees": 180
+    }
+   ],
+   "mirror": null,
+   "scale": 83,
+   "match": {
+    "norad": [
+     41866,
+     43226,
+     51850,
+     60133
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 4,
+   "tri": 40935,
+   "dims_m": [
+    9.24,
+    11.16,
+    10.12
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 723
+  },
+  {
+   "key": "CYGFM01",
+   "file": "nasa/CYGFM01.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Cyclone Global Navigation Satellite System (CYGNSS)/Cyclone Global Navigation Satellite System (CYGNSS).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "port",
+     "degrees": 90
+    }
+   ],
+   "mirror": null,
+   "scale": 1.05,
+   "match": {
+    "norad": [
+     41887,
+     41886,
+     41891,
+     41885,
+     41884,
+     41890,
+     41888
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 7,
+   "tri": 7338,
+   "dims_m": [
+    0.54,
+    1.67,
+    0.26
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 512
+  },
+  {
+   "key": "TDRS-3",
+   "file": "nasa/TDRS-3.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Tracking and Data Relay Satellites (TDRS) (B)/Tracking and Data Relay Satellites (TDRS) (B).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "velocity",
+     "degrees": 180
+    }
+   ],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     19548,
+     21639,
+     22314,
+     23613
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 4,
+   "tri": 20014,
+   "dims_m": [
+    13.11,
+    21.12,
+    5.76
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "TDRS-8",
+   "file": "nasa/TDRS-8.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Tracking and Data Relay Satellites (TRDS) (E)/Tracking and Data Relay Satellites (TRDS) (E).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "velocity",
+     "degrees": 180
+    }
+   ],
+   "mirror": null,
+   "scale": 0.2234,
+   "match": {
+    "norad": [
+     26388,
+     39070,
+     39504,
+     42915
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 4,
+   "tri": 66962,
+   "dims_m": [
+    16.86,
+    21.1,
+    4.75
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 2929
+  },
+  {
+   "key": "TERRA",
+   "file": "nasa/TERRA.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Terra/Terra.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "zenith",
+     "degrees": 90
+    }
+   ],
+   "mirror": null,
+   "scale": 0.0005,
+   "match": {
+    "norad": [
+     25994
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 117120,
+   "dims_m": [
+    6.81,
+    13.03,
+    5.14
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 4
+  },
+  {
+   "key": "AURA",
+   "file": "nasa/AURA.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Aura (B)/Aura (B).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "zenith",
+     "degrees": -90
+    },
+    {
+     "axis": "velocity",
+     "degrees": 90
+    }
+   ],
+   "mirror": null,
+   "scale": 0.911,
+   "match": {
+    "norad": [
+     28376
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 86821,
+   "dims_m": [
+    7.96,
+    17.04,
+    3.13
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "CXO",
+   "file": "nasa/CXO.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Chandra X-ray Observatory/Chandra X-ray Observatory.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "zenith",
+     "degrees": 90
+    }
+   ],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     25867
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 30132,
+   "dims_m": [
+    13.78,
+    19.51,
+    5.14
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "FGRST-(GLAST)",
+   "file": "nasa/FGRST-(GLAST).glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Fermi Gamma-ray Large Area Space Telescope/Fermi Gamma-ray Large Area Space Telescope.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 0.24,
+   "match": {
+    "norad": [
+     33053
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 172788,
+   "dims_m": [
+    14.95,
+    2.05,
+    2.9
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 606
+  },
+  {
+   "key": "TESS",
+   "file": "nasa/TESS.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Transiting Exoplanet Survey Satellite (TESS) (B)/Transiting Exoplanet Survey Satellite (TESS) (B).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 0.527,
+   "match": {
+    "norad": [
+     43435
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 16161,
+   "dims_m": [
+    1.61,
+    3.9,
+    1.63
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "SWIFT",
+   "file": "nasa/SWIFT.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Swift/Swift.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 0.1355,
+   "match": {
+    "norad": [
+     28485
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 38032,
+   "dims_m": [
+    3.83,
+    5.41,
+    3.99
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 4193
+  },
+  {
+   "key": "GPM-CORE",
+   "file": "nasa/GPM-CORE.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Global Precipitation Measurement/Global Precipitation Measurement.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "zenith",
+     "degrees": -90
+    }
+   ],
+   "mirror": null,
+   "scale": 0.026,
+   "match": {
+    "norad": [
+     39574
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 282774,
+   "dims_m": [
+    4.93,
+    11.23,
+    6.98
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 307
+  },
+  {
+   "key": "OCO-2",
+   "file": "nasa/OCO-2.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Orbiting Carbon Observatory (OCO) 2/Orbiting Carbon Observatory (OCO) 2.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "velocity",
+     "degrees": 180
+    },
+    {
+     "axis": "zenith",
+     "degrees": 90
+    },
+    {
+     "axis": "port",
+     "degrees": 90
+    }
+   ],
+   "mirror": null,
+   "scale": 0.163,
+   "match": {
+    "norad": [
+     40059
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 41004,
+   "dims_m": [
+    2.51,
+    6.5,
+    1.24
+   ],
+   "arrays": 0,
+   "fixed_panels": 3,
+   "solar_faces": 4450
+  },
+  {
+   "key": "SDO",
+   "file": "nasa/SDO.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Solar Dynamics Observatory/Solar Dynamics Observatory.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 0.169,
+   "match": {
+    "norad": [
+     36395
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 272770,
+   "dims_m": [
+    6.26,
+    6.26,
+    5.2
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 193
+  },
+  {
+   "key": "SENTINEL-6A",
+   "file": "nasa/SENTINEL-6A.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Jason Continuity of Service (Sentinel-6)/Jason Continuity of Service (Sentinel-6).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "zenith",
+     "degrees": -90
+    }
+   ],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     46984,
+     66514
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 2,
+   "tri": 22866,
+   "dims_m": [
+    5.13,
+    4.37,
+    2.32
+   ],
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 545
+  },
+  {
+   "key": "JASON-3",
+   "file": "nasa/JASON-3.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Ocean Surface Topography Mission (OSTM Jason-2)/Ocean Surface Topography Mission (OSTM Jason-2).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "velocity",
+     "degrees": 180
+    },
+    {
+     "axis": "zenith",
+     "degrees": 90
+    }
+   ],
+   "mirror": null,
+   "scale": 3.75,
+   "match": {
+    "norad": [
+     41240
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 65314,
+   "dims_m": [
+    3.7,
+    8.43,
+    2.01
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 482
+  },
+  {
+   "key": "MMS-1",
+   "file": "nasa/MMS-1.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Magnetospheric Multiscale (MMS) (B)/Magnetospheric Multiscale (MMS) (B).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.99,
+   "match": {
+    "norad": [
+     40482,
+     40483,
+     40484,
+     40485
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 4,
+   "tri": 157842,
+   "dims_m": [
+    28.88,
+    28.88,
+    16.93
+   ],
+   "arrays": 0,
+   "fixed_panels": 2,
+   "solar_faces": 149
+  },
+  {
+   "key": "THEMIS-A",
+   "file": "nasa/THEMIS-A.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Time History of Events and Macroscale Interactions During Substorms (THEMIS)/Time History of Events and Macroscale Interactions During Substorms (THEMIS).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     30580,
+     30797,
+     30798
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 3,
+   "tri": 11424,
+   "dims_m": [
+    6.09,
+    6.09,
+    7.21
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "HINODE-(SOLAR-B)",
+   "file": "nasa/HINODE-(SOLAR-B).glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Hinode (Solar-B)/Hinode (Solar-B).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "satvis",
+   "rotate": [
+    {
+     "axis": "velocity",
+     "degrees": -90
+    },
+    {
+     "axis": "port",
+     "degrees": -90
+    }
+   ],
+   "mirror": null,
+   "scale": 0.0436,
+   "match": {
+    "norad": [
+     29479
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 125548,
+   "dims_m": [
+    10.01,
+    2.29,
+    2.09
+   ],
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 26627
+  },
+  {
+   "key": "CSS-(TIANHE)",
+   "file": "satvis/css-(tianhe).glb",
+   "source": "satvis-3d-models@31ca896 генератор css-(tianhe)",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     48274
+    ],
+    "bus": []
+   },
+   "kind": "station",
+   "matched_gcat": 1,
+   "tri": 3312,
+   "dims_m": [
+    55.6,
+    44.3,
+    4.6
+   ],
+   "arrays": 4,
+   "fixed_panels": 2,
+   "solar_faces": 1248
+  },
+  {
+   "key": "STARLINK-V1",
+   "file": "satvis/starlink-v1.glb",
+   "source": "satvis-3d-models@31ca896 генератор starlink-v1",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Starlink"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 4680,
+   "tri": 680,
+   "dims_m": [
+    3.7,
+    1.3,
+    8.56
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 288
+  },
+  {
+   "key": "STARLINK-V2-MINI",
+   "file": "satvis/starlink-v2-mini.glb",
+   "source": "satvis-3d-models@31ca896 генератор starlink-v2-mini",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Starlink V2M",
+     "Starlink V2MO"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 7101,
+   "tri": 1560,
+   "dims_m": [
+    4.92,
+    33.86,
+    0.54
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 768
+  },
+  {
+   "key": "STARLINK-V2-MINI-DTC",
+   "file": "satvis/starlink-v2-mini-direct-to-cell.glb",
+   "source": "satvis-3d-models@31ca896 генератор starlink-v2-mini-direct-to-cell",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Starlink V2MD"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 663,
+   "tri": 1572,
+   "dims_m": [
+    4.92,
+    33.86,
+    0.54
+   ],
+   "arrays": 2,
+   "fixed_panels": 1,
+   "solar_faces": 780
+  },
+  {
+   "key": "STARLINK-V3",
+   "file": "satvis/starlink-v3.glb",
+   "source": "satvis-3d-models@31ca896 генератор starlink-v3",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     100855,
+     100856,
+     100857,
+     100858,
+     100859,
+     100860,
+     100861,
+     100862,
+     100863,
+     100864,
+     100865,
+     100866,
+     100867,
+     100868,
+     100869,
+     100870,
+     100871,
+     100872,
+     100873,
+     100874,
+     100875,
+     100876,
+     100877,
+     100878,
+     100879,
+     100880
+    ],
+    "bus": [
+     "Starlink V3"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 26,
+   "tri": 4252,
+   "dims_m": [
+    7.22,
+    48.06,
+    0.62
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 3072
+  },
+  {
+   "key": "ONEWEB",
+   "file": "satvis/oneweb.glb",
+   "source": "satvis-3d-models@31ca896 генератор oneweb",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "ARROW"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 666,
+   "tri": 584,
+   "dims_m": [
+    1.42,
+    4.91,
+    1.19
+   ],
+   "arrays": 4,
+   "fixed_panels": 0,
+   "solar_faces": 24
+  },
+  {
+   "key": "KUIPER",
+   "file": "satvis/kuiper.glb",
+   "source": "satvis-3d-models@31ca896 генератор kuiper",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Kuiper"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 398,
+   "tri": 792,
+   "dims_m": [
+    3.92,
+    9.96,
+    1.08
+   ],
+   "arrays": 0,
+   "fixed_panels": 5,
+   "solar_faces": 300
+  },
+  {
+   "key": "QIANFAN",
+   "file": "satvis/qianfan.glb",
+   "source": "satvis-3d-models@31ca896 генератор qianfan",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Qianfan"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 239,
+   "tri": 532,
+   "dims_m": [
+    2.73,
+    4.48,
+    0.54
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 56
+  },
+  {
+   "key": "GUOWANG",
+   "file": "satvis/guowang.glb",
+   "source": "satvis-3d-models@31ca896 генератор guowang",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Xingwang C",
+     "Xingwang CL",
+     "Xingwang S",
+     "Xingwang Y"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 177,
+   "tri": 180,
+   "dims_m": [
+    3.0,
+    9.76,
+    1.04
+   ],
+   "arrays": 4,
+   "fixed_panels": 0,
+   "solar_faces": 96
+  },
+  {
+   "key": "GLONASS-M",
+   "file": "satvis/glonass-m.glb",
+   "source": "satvis-3d-models@31ca896 генератор glonass-m",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     32275,
+     32393,
+     32395,
+     36111,
+     36112,
+     36402,
+     37869,
+     37867,
+     37868,
+     39155,
+     39620,
+     40001,
+     41330,
+     42939,
+     43508,
+     43687,
+     44299,
+     44850,
+     45358,
+     54377
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 20,
+   "tri": 660,
+   "dims_m": [
+    3.4,
+    12.79,
+    3.04
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 96
+  },
+  {
+   "key": "BEIDOU-3-CAST",
+   "file": "satvis/beidou-3-cast.glb",
+   "source": "satvis-3d-models@31ca896 генератор beidou-3-cast",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     43001,
+     43002,
+     43208,
+     43207,
+     43581,
+     43582,
+     43622,
+     43623,
+     43706,
+     43707,
+     44864,
+     44865,
+     44543,
+     44542,
+     58655,
+     58654
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 16,
+   "tri": 516,
+   "dims_m": [
+    1.7,
+    15.26,
+    2.56
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "BEIDOU-3-SECM",
+   "file": "satvis/beidou-3-secm.glb",
+   "source": "satvis-3d-models@31ca896 генератор beidou-3-secm",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     43107,
+     43108,
+     43245,
+     43246,
+     43603,
+     43602,
+     43648,
+     43647,
+     44794,
+     44793,
+     61186,
+     61187
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 12,
+   "tri": 468,
+   "dims_m": [
+    2.55,
+    10.58,
+    1.96
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "GPS-IIR",
+   "file": "satvis/gps-iir.glb",
+   "source": "satvis-3d-models@31ca896 генератор gps-iir",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "GPS IIR",
+     "Series 4000"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 20,
+   "tri": 852,
+   "dims_m": [
+    6.31,
+    11.33,
+    3.51
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 48
+  },
+  {
+   "key": "GPS-IIF",
+   "file": "satvis/gps-iif.glb",
+   "source": "satvis-3d-models@31ca896 генератор gps-iif",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "GPS IIF"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 12,
+   "tri": 540,
+   "dims_m": [
+    2.5,
+    17.42,
+    2.82
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "GPS-III",
+   "file": "satvis/gps-iii.glb",
+   "source": "satvis-3d-models@31ca896 генератор gps-iii",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     43873,
+     44506,
+     45854,
+     46826,
+     48859,
+     55268,
+     62339,
+     64202,
+     67588,
+     68791
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 10,
+   "tri": 648,
+   "dims_m": [
+    3.0,
+    14.96,
+    4.3
+   ],
+   "arrays": 4,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "GALILEO-FOC",
+   "file": "satvis/galileo-foc.glb",
+   "source": "satvis-3d-models@31ca896 генератор galileo-foc",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "GalileoSat",
+     "Galileo"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 35,
+   "tri": 288,
+   "dims_m": [
+    2.55,
+    14.63,
+    1.32
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 48
+  },
+  {
+   "key": "IRIDIUM-NEXT",
+   "file": "satvis/iridium-next.glb",
+   "source": "satvis-3d-models@31ca896 генератор iridium-next",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "EliteBus"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 80,
+   "tri": 864,
+   "dims_m": [
+    3.24,
+    9.36,
+    2.18
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 48
+  },
+  {
+   "key": "ICEYE",
+   "file": "satvis/iceye.glb",
+   "source": "satvis-3d-models@31ca896 генератор iceye",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "ICEYE"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 75,
+   "tri": 192,
+   "dims_m": [
+    3.18,
+    0.77,
+    1.33
+   ],
+   "arrays": 0,
+   "fixed_panels": 2,
+   "solar_faces": 120
+  },
+  {
+   "key": "GLOBALSTAR-2",
+   "file": "satvis/globalstar-2.glb",
+   "source": "satvis-3d-models@31ca896 генератор globalstar-2",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     37193,
+     37189,
+     37192,
+     37190,
+     37191,
+     39076,
+     37188,
+     38041,
+     37743,
+     38042,
+     37739,
+     38040,
+     37742,
+     38045,
+     52888,
+     37740,
+     37744,
+     38044,
+     37741,
+     38043,
+     39073,
+     39074,
+     39077,
+     39075,
+     39072
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 25,
+   "tri": 240,
+   "dims_m": [
+    11.96,
+    2.0,
+    1.42
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "O3B",
+   "file": "satvis/o3b.glb",
+   "source": "satvis-3d-models@31ca896 генератор o3b",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     39190,
+     40079,
+     39189,
+     39188,
+     40081,
+     40080,
+     40082,
+     40351,
+     40348,
+     40349,
+     40350,
+     43234,
+     43233,
+     43231,
+     43232,
+     44114,
+     44115,
+     44113,
+     44112,
+     39191
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 20,
+   "tri": 1620,
+   "dims_m": [
+    3.2,
+    7.66,
+    1.52
+   ],
+   "arrays": 4,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "O3B-MPOWER",
+   "file": "satvis/o3b-mpower.glb",
+   "source": "satvis-3d-models@31ca896 генератор o3b-mpower",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     54755,
+     54756,
+     56368,
+     56367,
+     58346,
+     58347,
+     62362,
+     62363,
+     64866,
+     64867,
+     100686,
+     100687,
+     100688
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 13,
+   "tri": 244,
+   "dims_m": [
+    2.8,
+    27.06,
+    2.6
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 96
+  },
+  {
+   "key": "SUPERDOVE",
+   "file": "satvis/superdove.glb",
+   "source": "satvis-3d-models@31ca896 генератор superdove",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     60518,
+     60561,
+     60559,
+     60516,
+     60481,
+     60514,
+     60501,
+     60512,
+     60517,
+     60492,
+     60480,
+     60563,
+     60489,
+     60494,
+     60490,
+     60505,
+     60487,
+     60513,
+     60519,
+     60509,
+     60488,
+     60497,
+     60495,
+     60486,
+     62666,
+     62661,
+     62639,
+     62659,
+     62663,
+     62660,
+     62624,
+     62613,
+     62622,
+     62670,
+     62629,
+     62625,
+     62667,
+     62678,
+     62681,
+     62680,
+     62651,
+     62645,
+     62647,
+     62637,
+     62646,
+     62633,
+     62641,
+     62634,
+     62642,
+     62679,
+     62652,
+     62685,
+     62675,
+     66704,
+     66705,
+     66706,
+     66707,
+     66708,
+     66709,
+     66710,
+     66711,
+     66712,
+     66713,
+     66715,
+     66716,
+     66717,
+     66718,
+     66719,
+     66721,
+     66722,
+     66723,
+     66724,
+     66725,
+     66726,
+     66727,
+     66728,
+     66729,
+     66730,
+     66732,
+     66733,
+     66734,
+     66735,
+     66736,
+     66737,
+     66738,
+     66739,
+     58320,
+     58327,
+     58322,
+     58328,
+     58271,
+     100970,
+     101071,
+     101072,
+     101073,
+     101074
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 96,
+   "tri": 112,
+   "dims_m": [
+    0.7,
+    0.11,
+    0.36
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 36
+  },
+  {
+   "key": "SKYSAT",
+   "file": "satvis/skysat.glb",
+   "source": "satvis-3d-models@31ca896 генератор skysat",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     39418,
+     40072
+    ],
+    "bus": [
+     "SkySat-Gen2"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 21,
+   "tri": 252,
+   "dims_m": [
+    0.64,
+    0.82,
+    1.47
+   ],
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 12
+  },
+  {
+   "key": "PELICAN",
+   "file": "satvis/pelican.glb",
+   "source": "satvis-3d-models@31ca896 генератор pelican",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Pelican"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 10,
+   "tri": 156,
+   "dims_m": [
+    0.95,
+    2.74,
+    0.71
+   ],
+   "arrays": 4,
+   "fixed_panels": 0,
+   "solar_faces": 48
+  },
+  {
+   "key": "KEPLER-TRANCHE-1",
+   "file": "satvis/kepler-tranche-1.glb",
+   "source": "satvis-3d-models@31ca896 генератор kepler-tranche-1",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     67374,
+     67375,
+     67376,
+     67377,
+     67378,
+     67379,
+     67380,
+     67381,
+     67382,
+     67383
+    ],
+    "bus": [
+     "Kepler Gen2B"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 20,
+   "tri": 816,
+   "dims_m": [
+    2.03,
+    5.49,
+    2.6
+   ],
+   "arrays": 4,
+   "fixed_panels": 0,
+   "solar_faces": 96
+  },
+  {
+   "key": "KEPLER-TRANCHE-1-SAFIRE",
+   "file": "satvis/kepler-tranche-1-safire.glb",
+   "source": "satvis-3d-models@31ca896 генератор kepler-tranche-1-safire",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 0,
+   "tri": 1132,
+   "dims_m": [
+    2.03,
+    5.49,
+    2.6
+   ],
+   "arrays": 4,
+   "fixed_panels": 0,
+   "solar_faces": 96
+  },
+  {
+   "key": "CUBESAT-1U",
+   "file": "satvis/cubesat-1u.glb",
+   "source": "satvis-3d-models@31ca896 генератор cubesat-1u",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Cubesat 1U",
+     "Cubesat 1U"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 303,
+   "tri": 108,
+   "dims_m": [
+    0.11,
+    0.1,
+    0.1
+   ],
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 48
+  },
+  {
+   "key": "CUBESAT-1.5U",
+   "file": "satvis/cubesat-1.5u.glb",
+   "source": "satvis-3d-models@31ca896 генератор cubesat-1.5u",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Cubesat 1.5U"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 62,
+   "tri": 108,
+   "dims_m": [
+    0.17,
+    0.1,
+    0.1
+   ],
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 48
+  },
+  {
+   "key": "CUBESAT-2U",
+   "file": "satvis/cubesat-2u.glb",
+   "source": "satvis-3d-models@31ca896 генератор cubesat-2u",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Cubesat 2U"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 122,
+   "tri": 108,
+   "dims_m": [
+    0.23,
+    0.1,
+    0.1
+   ],
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 48
+  },
+  {
+   "key": "CUBESAT-3U",
+   "file": "satvis/cubesat-3u.glb",
+   "source": "satvis-3d-models@31ca896 генератор cubesat-3u",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Cubesat 3U",
+     "Cubesat 3U"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1345,
+   "tri": 132,
+   "dims_m": [
+    0.34,
+    0.3,
+    0.1
+   ],
+   "arrays": 6,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "CUBESAT-4U",
+   "file": "satvis/cubesat-4u.glb",
+   "source": "satvis-3d-models@31ca896 генератор cubesat-4u",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Cubesat 4U"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 10,
+   "tri": 108,
+   "dims_m": [
+    0.45,
+    0.1,
+    0.1
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 48
+  },
+  {
+   "key": "CUBESAT-6U",
+   "file": "satvis/cubesat-6u.glb",
+   "source": "satvis-3d-models@31ca896 генератор cubesat-6u",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Cubesat 6U",
+     "Cubesat 6U",
+     "Cubesat 6UXL"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 382,
+   "tri": 132,
+   "dims_m": [
+    0.34,
+    0.67,
+    0.1
+   ],
+   "arrays": 0,
+   "fixed_panels": 2,
+   "solar_faces": 72
+  },
+  {
+   "key": "CUBESAT-8U",
+   "file": "satvis/cubesat-8u.glb",
+   "source": "satvis-3d-models@31ca896 генератор cubesat-8u",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Cubesat 8U"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 46,
+   "tri": 108,
+   "dims_m": [
+    0.45,
+    0.23,
+    0.1
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 48
+  },
+  {
+   "key": "CUBESAT-12U",
+   "file": "satvis/cubesat-12u.glb",
+   "source": "satvis-3d-models@31ca896 генератор cubesat-12u",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Cubesat 12U",
+     "Cubesat 12U",
+     "Cubesat 12UXL"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 64,
+   "tri": 180,
+   "dims_m": [
+    0.34,
+    1.58,
+    0.23
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 120
+  },
+  {
+   "key": "CUBESAT-16U",
+   "file": "satvis/cubesat-16u.glb",
+   "source": "satvis-3d-models@31ca896 генератор cubesat-16u",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Cubesat 16U",
+     "Cubesat 16U EPIC",
+     "Cubesat 16U M16P"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 65,
+   "tri": 180,
+   "dims_m": [
+    0.45,
+    1.58,
+    0.23
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 120
+  },
+  {
+   "key": "EUROSTAR-3000",
+   "file": "satvis/eurostar-3000.glb",
+   "source": "satvis-3d-models@31ca896 генератор eurostar-3000",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Eurostar 3000",
+     "Eurostar 3000e",
+     "Eurostar 3000EOR",
+     "Eurostar 3000GM",
+     "Eurostar 3000LS",
+     "Eurostar 3000LX",
+     "Eurostar 3000LXH",
+     "Eurostar 3000M",
+     "Eurostar 3000S",
+     "Eurostar 3000X"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 59,
+   "tri": 860,
+   "dims_m": [
+    6.44,
+    38.96,
+    6.93
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 96
+  },
+  {
+   "key": "BSS-702HP",
+   "file": "satvis/bss-702hp.glb",
+   "source": "satvis-3d-models@31ca896 генератор bss-702hp",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "BSS-702HP",
+     "BSS-702MP"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 41,
+   "tri": 884,
+   "dims_m": [
+    7.19,
+    40.86,
+    7.45
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 120
+  },
+  {
+   "key": "DFH-4",
+   "file": "satvis/dfh-4.glb",
+   "source": "satvis-3d-models@31ca896 генератор dfh-4",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     41034,
+     42662
+    ],
+    "bus": [
+     "DFH-4",
+     "DFH-4"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 26,
+   "tri": 836,
+   "dims_m": [
+    5.65,
+    29.96,
+    5.01
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "A2100",
+   "file": "satvis/a2100.glb",
+   "source": "satvis-3d-models@31ca896 генератор a2100",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "A2100",
+     "A2100A",
+     "A2100AX",
+     "A2100AXS",
+     "A2100M"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 75,
+   "tri": 860,
+   "dims_m": [
+    6.09,
+    26.86,
+    7.42
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 96
+  },
+  {
+   "key": "DFH-3",
+   "file": "satvis/dfh-3.glb",
+   "source": "satvis-3d-models@31ca896 генератор dfh-3",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "DFH-3",
+     "DFH-3B"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 52,
+   "tri": 836,
+   "dims_m": [
+    4.59,
+    17.96,
+    3.36
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "DFH-3-NAVIGATION",
+   "file": "satvis/dfh-3-navigation.glb",
+   "source": "satvis-3d-models@31ca896 генератор dfh-3-navigation",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     37256,
+     37384,
+     37763,
+     37948,
+     38250,
+     38251,
+     38775,
+     41434,
+     43539,
+     44204,
+     44337,
+     44709
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 12,
+   "tri": 232,
+   "dims_m": [
+    2.2,
+    17.96,
+    2.64
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "SPACEBUS-4000",
+   "file": "satvis/spacebus-4000.glb",
+   "source": "satvis-3d-models@31ca896 генератор spacebus-4000",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Spacebus 4000B2",
+     "Spacebus 4000B3",
+     "Spacebus 4000C1",
+     "Spacebus 4000C2",
+     "Spacebus 4000C3",
+     "Spacebus 4000C4"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 39,
+   "tri": 860,
+   "dims_m": [
+    5.59,
+    29.96,
+    6.41
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 96
+  },
+  {
+   "key": "SPACEBUS-NEO",
+   "file": "satvis/spacebus-neo.glb",
+   "source": "satvis-3d-models@31ca896 генератор spacebus-neo",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Spacebus NEO100",
+     "Spacebus NEO200"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 8,
+   "tri": 884,
+   "dims_m": [
+    7.69,
+    44.96,
+    9.85
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 120
+  },
+  {
+   "key": "EUROSTAR-NEO",
+   "file": "satvis/eurostar-neo.glb",
+   "source": "satvis-3d-models@31ca896 генератор eurostar-neo",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Eurostar NEO",
+     "Eurostar Neo"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 7,
+   "tri": 980,
+   "dims_m": [
+    7.76,
+    39.96,
+    8.44
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 216
+  },
+  {
+   "key": "BSS-702SP",
+   "file": "satvis/bss-702sp.glb",
+   "source": "satvis-3d-models@31ca896 генератор bss-702sp",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "BSS-702SP"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 7,
+   "tri": 884,
+   "dims_m": [
+    5.09,
+    39.96,
+    6.19
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 120
+  },
+  {
+   "key": "I-2K",
+   "file": "satvis/i-2k.glb",
+   "source": "satvis-3d-models@31ca896 генератор i-2k",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "I2K"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 26,
+   "tri": 812,
+   "dims_m": [
+    3.69,
+    9.46,
+    3.75
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 48
+  },
+  {
+   "key": "I-1K",
+   "file": "satvis/i-1k.glb",
+   "source": "satvis-3d-models@31ca896 генератор i-1k",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "I1K"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 11,
+   "tri": 184,
+   "dims_m": [
+    1.9,
+    6.06,
+    2.22
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 24
+  },
+  {
+   "key": "INSAT-3D",
+   "file": "satvis/insat-3d.glb",
+   "source": "satvis-3d-models@31ca896 генератор insat-3d",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     39216,
+     41752,
+     58990
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 3,
+   "tri": 160,
+   "dims_m": [
+    3.0,
+    5.5,
+    1.64
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 24
+  },
+  {
+   "key": "I-3K",
+   "file": "satvis/i-3k.glb",
+   "source": "satvis-3d-models@31ca896 генератор i-3k",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [
+     37605,
+     38779,
+     40332,
+     41028,
+     41793,
+     42747,
+     42815,
+     43698,
+     45026,
+     52903
+    ],
+    "bus": []
+   },
+   "kind": "payload",
+   "matched_gcat": 10,
+   "tri": 836,
+   "dims_m": [
+    4.79,
+    19.96,
+    4.49
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "EKSPRESS-1000",
+   "file": "satvis/ekspress-1000.glb",
+   "source": "satvis-3d-models@31ca896 генератор ekspress-1000",
+   "license": "MIT (satvis-3d-models)",
+   "frame": "satvis",
+   "rotate": [],
+   "mirror": null,
+   "scale": 1.0,
+   "match": {
+    "norad": [],
+    "bus": [
+     "Ekspress-1000H",
+     "Ekspress-1000HTB",
+     "Ekspress-1000K",
+     "Ekspress-1000N"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 12,
+   "tri": 836,
+   "dims_m": [
+    4.69,
+    14.96,
+    5.38
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "TSELINA-2",
+   "file": "nasa_extra/TSELINA-2.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Tselina-2/Tselina-2.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "bus": [
+     "Tselina-2"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 21,
+   "tri": 97052,
+   "dims_m": [
+    22.7,
+    22.7,
+    16.21
+   ],
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 3040
+  },
+  {
+   "key": "HST",
+   "file": "nasa_extra/HST.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Hubble Space Telescope (B)/Hubble Space Telescope (B).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     20580
+    ],
+    "bus": [
+     "HST"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 2,
+   "tri": 818972,
+   "dims_m": [
+    9.66,
+    13.1,
+    13.04
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 72
+  },
+  {
+   "key": "AQUA",
+   "file": "nasa_extra/AQUA.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Aqua (C)/Aqua (C).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     27424
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 114369,
+   "dims_m": [
+    4.68,
+    9.01,
+    17.0
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 2974
+  },
+  {
+   "key": "LANDSAT-7",
+   "file": "nasa_extra/LANDSAT-7.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Landsat 7/Landsat 7.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     25682
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 40592,
+   "dims_m": [
+    2.62,
+    8.0,
+    4.43
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 394
+  },
+  {
+   "key": "LANDSAT-5",
+   "file": "nasa_extra/LANDSAT-5.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Landsat 4 and 5/Landsat 4 and 5.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     13367,
+     14780
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 2,
+   "tri": 34169,
+   "dims_m": [
+    6.0,
+    3.01,
+    3.39
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 143
+  },
+  {
+   "key": "LANDSAT-1",
+   "file": "nasa_extra/LANDSAT-1.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Landsat 1, 2, and 3/Landsat 1, 2, and 3.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     6126,
+     7615,
+     10702
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 3,
+   "tri": 26738,
+   "dims_m": [
+    3.07,
+    1.63,
+    3.7
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "CALIPSO",
+   "file": "nasa_extra/CALIPSO.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Cloud-Aerosol Lidar and Infrared Pathfinder Satellite (CALIPSO)/Cloud-Aerosol Lidar and Infrared Pathfinder Satellite (CALIPSO).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     29108
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 101051,
+   "dims_m": [
+    1.94,
+    9.7,
+    2.47
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 1214
+  },
+  {
+   "key": "NOAA-POES",
+   "file": "nasa_extra/NOAA-POES.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Polar Operational Environmental Satellite (POES)/Polar Operational Environmental Satellite (POES).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "bus": [
+     "ATN",
+     "TIROS-N"
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 11,
+   "tri": 122917,
+   "dims_m": [
+    8.0,
+    7.8,
+    5.27
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 33
+  },
+  {
+   "key": "QUIKSCAT",
+   "file": "nasa_extra/QUIKSCAT.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Quick Scatterometer (QuikSCAT)/Quick Scatterometer (QuikSCAT).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     25789
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 67793,
+   "dims_m": [
+    1.46,
+    3.8,
+    2.57
+   ],
+   "arrays": 0,
+   "fixed_panels": 2,
+   "solar_faces": 3208
+  },
+  {
+   "key": "TOPEX",
+   "file": "nasa_extra/TOPEX.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/TOPEX-Poseidon/TOPEX-Poseidon.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     22076
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 20926,
+   "dims_m": [
+    7.09,
+    11.5,
+    8.54
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 967
+  },
+  {
+   "key": "JASON-1",
+   "file": "nasa_extra/JASON-1.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Jason 1/Jason 1.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     26997
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 83229,
+   "dims_m": [
+    6.0,
+    1.44,
+    2.39
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 570
+  },
+  {
+   "key": "JASON-2",
+   "file": "nasa_extra/JASON-2.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Ocean Surface Topography Mission (OSTM Jason-2)/Ocean Surface Topography Mission (OSTM Jason-2).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     33105
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 65314,
+   "dims_m": [
+    9.7,
+    4.26,
+    2.32
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 483
+  },
+  {
+   "key": "SORCE",
+   "file": "nasa_extra/SORCE.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Solar Radiation and Climate Experiment (SORCE)/Solar Radiation and Climate Experiment (SORCE).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     27651
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 115513,
+   "dims_m": [
+    4.0,
+    3.78,
+    1.99
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 728
+  },
+  {
+   "key": "RADARSAT-1",
+   "file": "nasa_extra/RADARSAT-1.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Radar Satellite-1 (RADARSAT-1)/Radar Satellite-1 (RADARSAT-1).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     23710
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 6028,
+   "dims_m": [
+    4.04,
+    15.0,
+    2.63
+   ],
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 4244
+  },
+  {
+   "key": "ORBVIEW-2",
+   "file": "nasa_extra/ORBVIEW-2.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/SeaStar/SeaStar.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     24883
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 1839,
+   "dims_m": [
+    4.3,
+    3.83,
+    1.65
+   ],
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 388
+  },
+  {
+   "key": "SAC-C",
+   "file": "nasa_extra/SAC-C.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Satellite for Scientific Applications (SAC-C)/Satellite for Scientific Applications (SAC-C).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     26620
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 14931,
+   "dims_m": [
+    3.12,
+    8.0,
+    6.1
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 4571
+  },
+  {
+   "key": "EO-1",
+   "file": "nasa_extra/EO-1.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Earth Observing-1 (EO-1)/Earth Observing-1 (EO-1).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     26619
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 37775,
+   "dims_m": [
+    5.0,
+    4.22,
+    1.66
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 1389
+  },
+  {
+   "key": "ACRIMSAT",
+   "file": "nasa_extra/ACRIMSAT.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Active Cavity Irradiance Monitor Satellite (AcrimSAT) (A)/Active Cavity Irradiance Monitor Satellite (AcrimSAT) (A).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     26033
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 11551,
+   "dims_m": [
+    2.2,
+    2.2,
+    0.9
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "ICON",
+   "file": "nasa_extra/ICON.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Ionospheric Connection Explorer (ICON)/Ionospheric Connection Explorer (ICON).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     44628
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 321251,
+   "dims_m": [
+    3.6,
+    0.98,
+    1.98
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 1482
+  },
+  {
+   "key": "SWAS",
+   "file": "nasa_extra/SWAS.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Submillimeter Wave Astronomy Satellite (SWAS)/Submillimeter Wave Astronomy Satellite (SWAS).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     25560
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 12908,
+   "dims_m": [
+    2.0,
+    0.53,
+    0.79
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 1359
+  },
+  {
+   "key": "AIM",
+   "file": "nasa_extra/AIM.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Aeronomy of Ice in the Mesosphere/Aeronomy of Ice in the Mesosphere.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     31304
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 132276,
+   "dims_m": [
+    0.9,
+    2.0,
+    0.83
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 310
+  },
+  {
+   "key": "AQUARIUS",
+   "file": "nasa_extra/AQUARIUS.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Aquarius (A)/Aquarius (A).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     37673
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 121163,
+   "dims_m": [
+    6.0,
+    4.42,
+    2.55
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 589
+  },
+  {
+   "key": "ICESAT",
+   "file": "nasa_extra/ICESAT.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Ice, Clouds, and Land Elevation Satellite (ICESat) (A)/Ice, Clouds, and Land Elevation Satellite (ICESat) (A).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     27642
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 976,
+   "dims_m": [
+    2.13,
+    6.5,
+    1.91
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 138
+  },
+  {
+   "key": "GRACE",
+   "file": "nasa_extra/GRACE.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Gravity Recovery and Climate Experiment (GRACE) (A)/Gravity Recovery and Climate Experiment (GRACE) (A).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     27391,
+     27392
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 2,
+   "tri": 3459,
+   "dims_m": [
+    1.22,
+    1.79,
+    3.1
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "TRMM",
+   "file": "nasa_extra/TRMM.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Tropical Rainfall Measuring Mission (TRMM)/Tropical Rainfall Measuring Mission (TRMM).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     25063
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 52320,
+   "dims_m": [
+    5.39,
+    5.11,
+    14.5
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 2013
+  },
+  {
+   "key": "CNOFS",
+   "file": "nasa_extra/CNOFS.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Communication and Navigation Outage Forecast System (CNOFS)/Communication and Navigation Outage Forecast System (CNOFS).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     32765
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 302963,
+   "dims_m": [
+    13.11,
+    12.97,
+    20.0
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 33080
+  },
+  {
+   "key": "RHESSI",
+   "file": "nasa_extra/RHESSI.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/HESSI-RHESSI/HESSI-RHESSI.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     27370
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 23384,
+   "dims_m": [
+    2.26,
+    5.7,
+    5.7
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 1705
+  },
+  {
+   "key": "SUZAKU",
+   "file": "nasa_extra/SUZAKU.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Suzaku/Suzaku.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     28773
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 40725,
+   "dims_m": [
+    6.5,
+    5.02,
+    2.08
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 2740
+  },
+  {
+   "key": "CGRO",
+   "file": "nasa_extra/CGRO.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Gamma Ray Observatory/Gamma Ray Observatory.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     21225
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 4244,
+   "dims_m": [
+    21.3,
+    10.16,
+    8.12
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 128
+  },
+  {
+   "key": "WIRE",
+   "file": "nasa_extra/WIRE.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Wide-Field Infrared Explorer (WIRE)/Wide-Field Infrared Explorer (WIRE).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     25646
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 35482,
+   "dims_m": [
+    1.11,
+    1.7,
+    1.8
+   ],
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 281
+  },
+  {
+   "key": "IBEX",
+   "file": "nasa_extra/IBEX.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Interstellar Boundary Explorer (IBEX)/Interstellar Boundary Explorer (IBEX).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     33401
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 8976,
+   "dims_m": [
+    0.95,
+    1.0,
+    0.83
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "TOMS-EP",
+   "file": "nasa_extra/TOMS-EP.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Total Ozone Mapping Spectrometer (TOMS)/Total Ozone Mapping Spectrometer (TOMS).glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "name": "^TOMS"
+   },
+   "kind": "payload",
+   "matched_gcat": 0,
+   "tri": 22842,
+   "dims_m": [
+    0.1,
+    0.3,
+    0.19
+   ],
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 3874
+  },
+  {
+   "key": "CUBESAT-ICECUBE",
+   "file": "nasa_extra/CUBESAT-ICECUBE.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/CubeSat - ICECube/CubeSat - ICECube.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "name": "^IceCube$"
+   },
+   "kind": "payload",
+   "matched_gcat": 0,
+   "tri": 58118,
+   "dims_m": [
+    0.13,
+    0.14,
+    0.5
+   ],
+   "arrays": 1,
+   "fixed_panels": 1,
+   "solar_faces": 6402
+  },
+  {
+   "key": "CUBESAT-MIRATA",
+   "file": "nasa_extra/CUBESAT-MIRATA.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/CubeSat - MiRaTa/CubeSat - MiRaTa.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "name": "^MiRaTA"
+   },
+   "kind": "payload",
+   "matched_gcat": 0,
+   "tri": 85978,
+   "dims_m": [
+    0.07,
+    0.09,
+    0.3
+   ],
+   "arrays": 4,
+   "fixed_panels": 0,
+   "solar_faces": 6913
+  },
+  {
+   "key": "AGENA",
+   "file": "nasa_extra/AGENA.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Agena Target Vehicle/Agena Target Vehicle.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "name": "Agena",
+    "type": "R"
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 31290,
+   "dims_m": [
+    6.3,
+    1.21,
+    2.91
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "MIR",
+   "file": "nasa_extra/MIR.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Mir/Mir.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     16609
+    ]
+   },
+   "kind": "station",
+   "matched_gcat": 1,
+   "tri": 5836,
+   "dims_m": [
+    10.84,
+    8.06,
+    13.1
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "SKYLAB",
+   "file": "nasa_extra/SKYLAB.glb",
+   "source": "NASA-3D-Resources@11ebb4e: 3D Models/Skylab/Skylab.glb",
+   "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     6633
+    ]
+   },
+   "kind": "station",
+   "matched_gcat": 1,
+   "tri": 25292,
+   "dims_m": [
+    27.82,
+    36.1,
+    10.98
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-centaur",
+   "file": "../rb-cyl-centaur.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 1556,
+   "dims_m": [
+    3.16,
+    3.05,
+    15.5
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-china",
+   "file": "../rb-cyl-china.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 1556,
+   "dims_m": [
+    3.11,
+    3.0,
+    15.1
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-delta",
+   "file": "../rb-cyl-delta.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 1024,
+   "dims_m": [
+    2.51,
+    2.4,
+    7.49
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-electron",
+   "file": "../rb-cyl-electron.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 720,
+   "dims_m": [
+    1.2,
+    1.2,
+    3.39
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-euro",
+   "file": "../rb-cyl-euro.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 1164,
+   "dims_m": [
+    5.5,
+    5.4,
+    8.23
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-gray-l",
+   "file": "../rb-cyl-gray-l.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 1444,
+   "dims_m": [
+    4.1,
+    4.0,
+    14.11
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-gray-m",
+   "file": "../rb-cyl-gray-m.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 1120,
+   "dims_m": [
+    2.6,
+    2.5,
+    8.82
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-gray-s",
+   "file": "../rb-cyl-gray-s.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 748,
+   "dims_m": [
+    1.7,
+    1.6,
+    4.66
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-kerolox",
+   "file": "../rb-cyl-kerolox.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 1556,
+   "dims_m": [
+    3.76,
+    3.66,
+    17.2
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-proton",
+   "file": "../rb-cyl-proton.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 1220,
+   "dims_m": [
+    3.8,
+    3.7,
+    7.36
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-soviet-b",
+   "file": "../rb-cyl-soviet-b.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 928,
+   "dims_m": [
+    2.31,
+    2.2,
+    3.75
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cyl-soviet",
+   "file": "../rb-cyl-soviet.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 1120,
+   "dims_m": [
+    2.51,
+    2.4,
+    8.39
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-cylcone-soviet",
+   "file": "../rb-cylcone-soviet.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 980,
+   "dims_m": [
+    2.55,
+    2.55,
+    4.92
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-sphercone-kick",
+   "file": "../rb-sphercone-kick.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 840,
+   "dims_m": [
+    1.28,
+    1.28,
+    2.21
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-stepcyl-soviet",
+   "file": "../rb-stepcyl-soviet.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 1020,
+   "dims_m": [
+    2.6,
+    2.6,
+    7.22
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "rb-trunccone-gray",
+   "file": "../rb-trunccone-gray.obj",
+   "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+   "license": "AGPL-3.0 (KeepTrack)",
+   "frame": "rb",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "rb": true
+   },
+   "kind": "rocketbody",
+   "matched_gcat": 0,
+   "tri": 900,
+   "dims_m": [
+    2.6,
+    2.6,
+    4.47
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  }
+ ]
+}

@@ -1,12 +1,12 @@
 {
  "name": "STARLINK-32702_20261120T084211",
- "note": "Starlink V2 mini, поза из реконструкции (ψ +4°, φ -4°)",
- "dist_m": 136.27806358148004,
+ "note": "Starlink V2 mini, поза из реконструкции (ψ +4°, φ -4°, снимок предпочитает его на Δχ² 73)",
+ "dist_m": 135.4809348813318,
  "fov_deg": 22.79752613751586,
- "az_deg": 20,
+ "az_deg": 180,
  "el_deg": 60.0,
- "coverage": 1.0,
- "earth_res_m": 100.0,
+ "coverage": 0.9814814814814815,
+ "earth_res_m": 90.0,
  "lens_mm_fullframe": 89,
  "file": "STARLINK-32702_20261120T084211_nasa.jpg"
 }

@@ -75,16 +75,7 @@ def main():
     Gm = lla_to_ecef(float(np.ravel(lon_m)[0]), float(np.ravel(lat_m)[0]))
     rS = geo["rS"]; rO = rS + geo["rng"] * (Gm - rS) / np.linalg.norm(Gm - rS)
     # модель и поза
-    if is_iss:
-        parts, angs = HDM.iss_parts(sun_b); note = f"МКС, штатная ориентация, крылья на Солнце (SARJ {angs['S']:+.0f}°)"
-    else:
-        rows = {}
-        for f in sorted(ROOT.glob("results/recon*/summary.json")):
-            for rr in json.loads(f.read_text()):
-                rows[rr["name"]] = rr
-        psi, phi = rows[a.name]["psi_deg"], rows[a.name]["phi_deg"]
-        psi, phi, pn = HDM.starlink_pose(a.name, psi, phi)
-        parts = HDM.starlink_parts(math.radians(psi), math.radians(phi)); note = f"Starlink V2 mini, {pn}"
+    parts, note, smooth_ = HDM.parts_for(a.name, sun_b, int(e.get("cat", 0)))        # модель из каталога, поза — автоматически
     Vall = HDM.all_vertices(parts); size = float(np.ptp(Vall, 0).max())
     dist = a.dist or 4.0 * size
     fov = a.fov or math.degrees(2 * math.atan(0.5 * size / 0.62 / dist))
@@ -237,7 +228,7 @@ def main():
         fh.write("".join(f"vt {u:.6f} {v:.6f}\n" for u, v in UV))
         fh.write("".join(f"f {i + 1}/{i + 1} {j + 1}/{j + 1} {k + 1}/{k + 1}\n" for i, j, k in Fg))
     T = mi.ScalarTransform4f
-    shapes = HDM.mitsuba_shapes(parts, work / "obj", smooth=is_iss)
+    shapes = HDM.mitsuba_shapes(parts, work / "obj", smooth=smooth_)
     Hh2, Wh2 = 128, 256
     elv = 90.0 - (np.arange(Hh2) + 0.5) * 180.0 / Hh2
     dip = math.degrees(math.acos(6371.0 / np.linalg.norm(rO)))

@@ -97,3 +97,7 @@ data/models/hd/ISS_stationary.glb
 results/realistic/*_nasa.jpg
 data/models/hd/starlink_malacodart/textures/
 data/models/hd/starlink_malacodart/scene.bin
+data/models/catalog/nasa/
+data/models/catalog/nasa_extra/
+data/models/catalog/satvis/
+results/catalog/*.png

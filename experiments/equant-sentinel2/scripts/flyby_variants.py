@@ -85,17 +85,10 @@ def setup():
     is_iss = a.name.startswith("ISS")
     geo = RV.frame_geometry(sen, orb, jd0, epsg, inertial=is_iss)
     geo_e = RV.frame_geometry(sen, orb, jd0, epsg, inertial=False)        # оси, в которых записаны J полос
-    if is_iss:
-        parts, _ = HDM.iss_parts(geo["sun"]); title = "МКС"
-    else:
-        rows = {}
-        for f in sorted(ROOT.glob("results/recon*/summary.json")):
-            for rr in json.loads(f.read_text()):
-                rows[rr["name"]] = rr
-        psi, phi, _ = HDM.starlink_pose(a.name, rows[a.name]["psi_deg"], rows[a.name]["phi_deg"])
-        parts = HDM.starlink_parts(math.radians(psi), math.radians(phi)); title = a.name.split("_")[0]
+    parts, _, smooth = HDM.parts_for(a.name, geo["sun"], int(e.get("cat", 0)))
+    title = "МКС" if is_iss else a.name.split("_")[0]
     work = Path(a.work) / f"{a.name}_var"; work.mkdir(parents=True, exist_ok=True)
-    Vb = HDM.all_vertices(parts); shapes = HDM.mitsuba_shapes(parts, work / "hd", smooth=is_iss)
+    Vb = HDM.all_vertices(parts); shapes = HDM.mitsuba_shapes(parts, work / "hd", smooth=smooth)
     right, up, A2, S = RV.camera_basis(geo["Jf"], geo["los"]); k = float(S.mean())
     proj = Vb - np.outer(Vb @ geo["los"], geo["los"]); ext = float(np.max(np.abs(np.c_[proj @ right, proj @ up]))) + 2.0
     bands = sorted([(b, (float(d["jd"]) - jd0) * 86400.0, np.asarray(d["meas"][:2] if d.get("meas") else d["p0"], float), d) for b, d in rc["bands"].items()],

@@ -278,7 +278,7 @@ def main():
         for f in sorted(ROOT.glob("results/recon*/summary.json")):
             for rr in json.loads(f.read_text()):
                 rows[rr["name"]] = rr
-        psi = a.psi if a.psi is not None else rows[a.name]["psi_deg"]; phi = a.phi if a.phi is not None else rows[a.name]["phi_deg"]
+        psi = a.psi if a.psi is not None else rows.get(a.name, {}).get("psi_deg", 0.0); phi = a.phi if a.phi is not None else rows.get(a.name, {}).get("phi_deg", 0.0)
         Vb = MR.body_vertices(math.radians(psi), math.radians(phi)); F = MR.F0
         MAT = []; mat = None
         for ln in open(MR.MESH):
@@ -291,14 +291,9 @@ def main():
     hd_shapes = None
     if not a.lowpoly:
         import hd_models as HDM
-        if is_iss:
-            parts, angs = HDM.iss_parts(sun)
-            pose_note = f"штатная ориентация +XVV, крылья на Солнце (SARJ S {angs['S']:+.0f}°, P {angs['P']:+.0f}° от положения модели)"
-        else:
-            psi2, phi2, pose_note = HDM.starlink_pose(a.name, psi, phi)
-            parts = HDM.starlink_parts(math.radians(psi2), math.radians(phi2))
+        parts, pose_note, smooth = HDM.parts_for(a.name, sun, int(e.get("cat", 0)))   # модель из каталога, поза — автоматически
         Vb = HDM.all_vertices(parts); F = MAT = None
-        hd_shapes = HDM.mitsuba_shapes(parts, Path(a.work) / a.name / "hd", smooth=is_iss)
+        hd_shapes = HDM.mitsuba_shapes(parts, Path(a.work) / a.name / "hd", smooth=smooth)
     right, up, A2, S = camera_basis(geo["Jf"], los)
     k_scale = float(S.mean())
     print(f"{a.name}: дальность {geo['rng']:.0f} км, λ/R≈{k_scale:.2f} (σ {S.round(3)}), видимая скорость на земле "

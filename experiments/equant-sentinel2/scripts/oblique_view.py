@@ -36,7 +36,7 @@ def main():
         for f in sorted(ROOT.glob("results/recon*/summary.json")):
             for rr in json.loads(f.read_text()):
                 rows[rr["name"]] = rr
-        r = rows[a.name]
+        r = rows.get(a.name, {"psi_deg": 0.0, "phi_deg": 0.0})
         Vb = MR.body_vertices(math.radians(r["psi_deg"]), math.radians(r["phi_deg"])); F = MR.F0
         MAT = []; mat = None
         for ln in open(MR.MESH):
@@ -48,13 +48,9 @@ def main():
     shapes = None
     if not a.lowpoly:
         import hd_models as HDM
-        if a.name.startswith("ISS"):
-            parts, _ = HDM.iss_parts(sun)
-        else:
-            psi2, phi2, _ = HDM.starlink_pose(a.name, r["psi_deg"], r["phi_deg"])
-            parts = HDM.starlink_parts(math.radians(psi2), math.radians(phi2))
+        parts, _, smooth = HDM.parts_for(a.name, sun, int(rc.get("cat", 0)))
         Vb = HDM.all_vertices(parts); F = MAT = None
-        shapes = HDM.mitsuba_shapes(parts, Path(a.work) / (a.name + "_obl") / "hd", smooth=a.name.startswith("ISS"))
+        shapes = HDM.mitsuba_shapes(parts, Path(a.work) / (a.name + "_obl") / "hd", smooth=smooth)
     # камера: от зенита на zen, по азимуту (Солнце + az) в горизонтальной плоскости (вдоль, поперёк)
     saz = math.atan2(sun[1], sun[0]) + math.radians(a.az)
     h = np.array([math.cos(saz), math.sin(saz), 0.0]); zr = np.array([0.0, 0.0, 1.0])

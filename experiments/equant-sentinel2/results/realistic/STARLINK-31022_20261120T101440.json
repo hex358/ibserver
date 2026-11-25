@@ -52,8 +52,8 @@
   },
   {
    "file": "STARLINK-31022_20261120T101440_tele.png",
-   "m_per_px_ground": 0.108,
-   "m_per_px_object": 0.041814652546471945,
+   "m_per_px_ground": 0.106,
+   "m_per_px_object": 0.041040307128944686,
    "mode": "track",
    "exposure_s": 0.001,
    "smear_m": 16.98643232829228
