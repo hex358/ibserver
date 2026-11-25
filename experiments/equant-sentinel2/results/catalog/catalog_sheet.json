@@ -2773,5 +2773,135 @@
   "gcat_bus_objects": 0,
   "scale_m_per_px": 0.0878,
   "seconds": 5.8
+ },
+ "CUBESAT-ICECUBE": {
+  "key": "CUBESAT-ICECUBE",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/CubeSat - ICECube/CubeSat - ICECube.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 58118,
+  "dims_m": [
+   2.12,
+   2.34,
+   8.29
+  ],
+  "wings": 2,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": "^IceCube$",
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.027,
+  "seconds": 10.1
+ },
+ "CUBESAT-MIRATA": {
+  "key": "CUBESAT-MIRATA",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/CubeSat - MiRaTa/CubeSat - MiRaTa.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 85978,
+  "dims_m": [
+   2.09,
+   2.46,
+   8.4
+  ],
+  "wings": 0,
+  "fixed_panels": 2,
+  "norad": [],
+  "bus": [],
+  "name_re": "^MiRaTA",
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0181,
+  "seconds": 10.3
+ },
+ "AGENA": {
+  "key": "AGENA",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Agena Target Vehicle/Agena Target Vehicle.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "rocketbody",
+  "tri": 31290,
+  "dims_m": [
+   27.25,
+   5.23,
+   12.59
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": "Agena",
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.042,
+  "seconds": 8.4
+ },
+ "MIR": {
+  "key": "MIR",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Mir/Mir.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "station",
+  "tri": 5836,
+  "dims_m": [
+   10.84,
+   8.06,
+   13.1
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [
+   16609
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.027,
+  "seconds": 5.4
+ },
+ "SKYLAB": {
+  "key": "SKYLAB",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Skylab/Skylab.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "station",
+  "tri": 25292,
+  "dims_m": [
+   27.82,
+   36.1,
+   10.98
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [
+   6633
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0718,
+  "seconds": 7.2
+ },
+ "rb-cyl-centaur": {
+  "key": "rb-cyl-centaur",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 1556,
+  "dims_m": [
+   3.16,
+   3.05,
+   15.5
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0204,
+  "seconds": 6.1
  }
 }
