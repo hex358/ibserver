@@ -89,8 +89,10 @@ def pose_body(spec, h, x, sun_b):
         return V @ R.T, R, angs
     R = law_attitude(h) @ spec["M2B"]
     mode = h.get("arrays", "fixed")
-    if mode == "est":                                      # углы приводов — по снимку (x[7:]), режима нет
+    if mode == "est" and len(x) >= 7 + n_drives(spec):     # углы приводов — по снимку (x[7:]), режима нет
         ang = np.asarray(x[7:7 + n_drives(spec)], float)
+    elif mode == "est":                                    # углов ещё нет (поза не подбиралась) — слежение за Солнцем
+        ang = mode_angles(spec, R, "sun", sun_b, x)
     else:
         ang = mode_angles(spec, R, mode, sun_b, x)
     V = apply_drives(spec, ang)
