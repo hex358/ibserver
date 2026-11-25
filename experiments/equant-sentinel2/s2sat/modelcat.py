@@ -570,9 +570,27 @@ ARRAY_MODES = (("sun", "панели на Солнце"), ("edge", "панели
 YAWS = (0, 90, 180, 270)
 
 
-def laws_for(kind, has_arrays, frame_ok, year):
+@lru_cache(maxsize=1)
+def _ops():
+    """Статус работы из CelesTrak SATCAT: '+' работает, 'P' частично, 'B' резерв, 'S' запасной, 'X' продлён, '-' не работает,
+    '?' неизвестно."""
+    f = CAT / "celestrak_satcat.csv.gz"
+    if not f.exists():
+        return {}
+    return {int(r["NORAD_CAT_ID"]): r["OPS_STATUS_CODE"] for r in csv.DictReader(io.TextIOWrapper(gzip.open(f), encoding="utf-8"))}
+
+
+def is_active(norad, year=2026):
+    """Работает ли аппарат (управляемая ориентация): по SATCAT; если статуса нет — моложе 15 лет."""
+    st = _ops().get(int(norad or 0), "")
+    if st:
+        return st in "+PBSX"
+    return year >= 2011
+
+
+def laws_for(kind, has_arrays, frame_ok, year, active=True):
     """Законы ориентации класса. Аппарат с выверенными осями модели: на Землю (оси тела = орбитальные), рысканье
-    0/90/180/270°, режим панелей; запущенные до 2011 г. — ещё гравитационная стабилизация и кувыркание. Оси модели
+    0/90/180/270°, режим панелей; неработающий (SATCAT) — ещё гравитационная стабилизация и кувыркание. Оси модели
     не выверены — только оценка поворота. Ступень, обломок — ось по сфере."""
     if kind in ("rocketbody", "debris"):
         return [dict(name="кувыркание: ось по сфере", tumble=True)]
@@ -580,7 +598,7 @@ def laws_for(kind, has_arrays, frame_ok, year):
         return [dict(name="поворот оценивается (оси модели не выверены)", free3=True)]
     modes = ARRAY_MODES if has_arrays else (("fixed", "без приводов панелей"),)
     laws = [dict(name=f"на Землю, рысканье {y}°, {an}", yaw=y, arrays=ar) for y in YAWS for ar, an in modes]
-    if year < 2011:
+    if not active:
         laws += [dict(name="гравитационная стабилизация: продольная ось к Земле", gg=True),
                  dict(name="кувыркание: ось по сфере", tumble=True)]
     return laws
@@ -599,9 +617,9 @@ def spec_for(norad, name=""):
         M = load_catalog_model(e, g)
         kind = "rocketbody" if e["kind"] == "rocketbody" or typ == "R" else "debris" if typ == "D" else "payload"
         return dict(kind=kind, V=M["V"], F=M["F"], G=M["G"], M2B=M["M2B"], arrays=M["arrays"],
-                    laws=laws_for(kind, bool(M["arrays"]), e["frame"] == "satvis", year),
+                    laws=laws_for(kind, bool(M["arrays"]), e["frame"] == "satvis", year, is_active(norad, year)),
                     source=f"каталог: {e['key']} ({e['source']}; {M['tri']} тр., для подгонки {len(M['F'])})", catalog=e, gcat=g)
     V, F, G, arrays, src = parametric(g)
     kind = "payload" if typ == "P" else "rocketbody" if typ == "R" else "debris"
-    return dict(kind=kind, V=V, F=F, G=G, M2B=np.eye(3), arrays=arrays, laws=laws_for(kind, bool(arrays), True, year),
+    return dict(kind=kind, V=V, F=F, G=G, M2B=np.eye(3), arrays=arrays, laws=laws_for(kind, bool(arrays), True, year, is_active(norad, year)),
                 source=src, catalog=None, gcat=g)

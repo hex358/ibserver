@@ -182,6 +182,7 @@ class Problem:
         self.C = np.eye(3) if C is None else np.asarray(C, float)
         self.sun = np.asarray(rc["sun"], float); self.los = np.asarray(rc["los"], float)
         self.sun_l = self.C.T @ self.sun                   # Солнце в инерциальных орбитальных осях
+        self.kappa = 1.0                                   # несоответствие модели снимку; задаётся после точных законов
         self.ng = int(spec["G"].max()) + 1
         self.bands = sorted(rc["bands"], key=lambda b: rc["bands"][b]["jd"])
         self.cache = {}
@@ -189,13 +190,14 @@ class Problem:
     @staticmethod
     def free_idx(h):
         """Какие компоненты x подбираются: у закона — только положение; у оценки поворота — поворот и положение."""
+        # положение — только вдоль следа и поперёк: сдвиг по радиусу идёт почти вдоль визира и снимком не определяется
         if h.get("free3"):
-            return [0, 1, 2, 3, 4, 5, 6]
+            return [0, 1, 2, 3, 4, 5]
         if h.get("gg"):
-            return [0, 1, 2, 4, 5, 6]
+            return [0, 1, 2, 4, 5]
         if h.get("tumble"):
-            return [0, 1, 4, 5, 6]
-        return [4, 5, 6]
+            return [0, 1, 4, 5]
+        return [4, 5]
 
     def body(self, h, x):
         """Вершины в осях реконструкции: поза по закону в инерциальных орбитальных осях, затем поворот C."""
@@ -209,6 +211,7 @@ class Problem:
         for b in bands:
             d = self.rc["bands"][b]
             L += band_loss(d, regress(d, Vb, self.spec["F"], self.spec["G"], self.ng, self.los, x[-3:], self.cache, ak + (b,)))[0]
+        L /= self.kappa                                    # данные в единицах эффективного χ² — сопоставимы с априорными
         if prior:
             L += float(np.sum((np.asarray(x[-3:]) / SIG_POS) ** 2))                         # ошибка орбиты
             if h.get("gg"):
@@ -238,17 +241,30 @@ class Problem:
             return [np.array([math.radians(y), 0, 0, 0, 0, 0, 0]) for y in (0, 45, 90, 135)]
         return [np.zeros(7)]
 
-    def pos_grid(self, h, bands, x0, half=60.0, step=15.0):
-        """Положение — перебор по сетке (вдоль, поперёк) ±60 м с шагом 15 м: маски не перерисовываются (только сдвиг
-        выборки), поэтому дёшево; без него оптимизатор застревает, если объект смещён на десятки метров."""
+    def ground_scale(self):
+        """Метров на земле на метр смещения объекта (вдоль/поперёк): объект ближе к камере, чем земля."""
+        return float(np.median([np.linalg.norm(self.rc["bands"][b]["J"][:, :2], 2) / 1000.0 for b in self.bands]))
+
+    def pos_grid(self, h, bands, x0):
+        """Положение — перебор в масштабе снимка: грубо с шагом в половину размера объекта на земле в пределах ±2σ
+        ошибки орбиты, затем точно — шагом в полпикселя (5 м на земле) вокруг лучшего. Маски не перерисовываются."""
+        k = self.ground_scale()
+        size = float(np.max(np.ptp(self.spec["V"], 0)))
         best, bl = np.asarray(x0, float), self.loss(h, x0, bands)
-        g = np.arange(-half, half + 1e-6, step)
-        for dx in g:
-            for dy in g:
-                x = np.array(x0, float); x[-3] += dx; x[-2] += dy
-                L = self.loss(h, x, bands)
-                if L < bl:
-                    best, bl = x, L
+
+        def scan(cx, cy, half, step):
+            nonlocal best, bl
+            g = np.arange(-half, half + 1e-9, step)
+            for dx in g:
+                for dy in g:
+                    x = np.array(best, float); x[-3] = cx + dx; x[-2] = cy + dy
+                    L = self.loss(h, x, bands)
+                    if L < bl:
+                        best, bl = x, L
+        c0 = np.asarray(x0, float)
+        coarse = max(0.5 * size, 5.0 / k)
+        scan(c0[-3], c0[-2], 2 * SIG_POS, coarse)
+        scan(best[-3], best[-2], coarse, 5.0 / k)
         return best
 
     def evaluate(self, h, maxfev=160):
@@ -297,11 +313,21 @@ def decide(out, spec, sun_l, law_best, free, kappa, thr):
 
 def solve(rc, spec, log=print, maxfev=160, C=None):
     P = Problem(rc, spec, C)
+    npix = sum(int(np.isfinite(P.rc["bands"][b]["r"]).sum()) for b in P.bands)
+    exact = [h for h in spec["laws"] if not (h.get("gg") or h.get("tumble") or h.get("free3"))]
+    est = [h for h in spec["laws"] if h not in exact]
     res = []
-    for h in spec["laws"]:
+    for h in exact:                                        # проход 1: точные законы (подбираются только положение и яркость)
         r = P.evaluate(h, maxfev); r["law"] = h; res.append(r)
         log(f"   {h['name']:52s} невязка на отложенных {r['cv']:10.0f}   по всем {r['L']:10.0f}")
-    npix = sum(int(np.isfinite(P.rc["bands"][b]["r"]).sum()) for b in P.bands)
+    if res:                                                # κ — по лучшему точному закону; дальше всё в эффективном χ²
+        P.kappa = max(1.0, min(r["L"] for r in res) / max(1, npix))
+        P.cache.clear()
+        for r in res:
+            r["cv"] /= P.kappa; r["L"] /= P.kappa; r["null"] /= P.kappa
+    for h in est:                                          # проход 2: оценки поворота (кувыркание, либрации, свободный)
+        r = P.evaluate(h, maxfev); r["law"] = h; res.append(r)
+        log(f"   {h['name']:52s} невязка на отложенных {r['cv']:10.1f}   по всем {r['L']:10.1f}   (эфф. χ²)")
     law_best = min(res, key=lambda r: r["cv"])
     thr = eq_rms(spec)
     for r in res:                                        # насколько поза каждой гипотезы отличается от лучшей
@@ -316,17 +342,17 @@ def solve(rc, spec, log=print, maxfev=160, C=None):
         log(f"   {hf['name']:52s} невязка на отложенных {free['cv']:10.0f}   по всем {free['L']:10.0f}   отличие позы {free['rms_vs_best_m']:.1f} м")
     # κ: средняя невязка на пиксель у лучшей позы — несоответствие модели снимку (яркость, BRDF, смаз) сверх шума.
     # Разности невязок делятся на κ — «эффективный χ²»; без этого запас и порог нештатности завышены во много раз.
-    kappa = max(1.0, min([r["L"] for r in res] + ([free["L"]] if free else [])) / max(1, npix))
-    margin = float(dist[0] - law_best["cv"]) if dist else None
+    kappa = P.kappa if res else 1.0                       # невязки уже в эффективном χ²
+    margin = float(dist[0] - law_best["cv"]) if dist else None          # в эффективном χ²
     # законы, которые снимок не отличает от лучшего статистически: невязка на отложенных хуже менее чем на 4 эфф. χ²
-    consistent = [r["name"] for r in sorted(res, key=lambda r: r["cv"]) if (r["cv"] - law_best["cv"]) / kappa < 4.0]
+    consistent = [r["name"] for r in sorted(res, key=lambda r: r["cv"]) if r["cv"] - law_best["cv"] < 4.0]
     out = dict(kind=spec["kind"], source=spec["source"], hypotheses=[{k: v for k, v in r.items() if k != "law"} for r in res],
                chosen=law_best["name"], equivalent=equiv, consistent=consistent, eq_rms_m=thr, kappa=kappa, npix=npix,
-               margin=margin, margin_eff=None if margin is None else margin / kappa, anomalous=False)
+               margin=margin, margin_eff=margin, anomalous=False)
     chosen = law_best
     if free is not None:
         out["free"] = {k: v for k, v in free.items() if k != "law"}
-        decide(out, spec, P.sun_l, law_best, free, kappa, thr)
+        decide(out, spec, P.sun_l, law_best, free, 1.0, thr)
         if out["anomalous"]:
             chosen = free
     Vb, R, angs = pose_body(spec, chosen["law"], np.asarray(chosen["x"]), P.sun_l)
