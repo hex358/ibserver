@@ -629,8 +629,11 @@ def laws_for(kind, has_arrays, frame_ok, year, active=True):
         return [dict(name="кувыркание: ось по сфере", tumble=True)]
     if not frame_ok:
         return [dict(name="поворот оценивается (оси модели не выверены)", free3=True)]
-    if has_arrays:                                         # углы приводов панелей — по снимку (режим — вывод)
+    if has_arrays:                                         # углы приводов панелей — по снимку (режим — вывод);
         laws = [dict(name=f"на Землю, рысканье {y}°, углы панелей по снимку", yaw=y, arrays="est") for y in YAWS]
+        # соперник: слежение за Солнцем без подбора углов — если свободные углы не предсказывают отложенные полосы
+        # лучше, отклонение от слежения снимком не подтверждено
+        laws += [dict(name=f"на Землю, рысканье {y}°, панели следят за Солнцем", yaw=y, arrays="sun") for y in YAWS]
     else:
         laws = [dict(name=f"на Землю, рысканье {y}°", yaw=y, arrays="fixed") for y in YAWS]
     if not active:

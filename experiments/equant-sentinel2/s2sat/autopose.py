@@ -404,16 +404,28 @@ def drive_report(P, r, step=math.radians(2.0)):
     и отличие от углов слежения за Солнцем — режим получается выводом, а не допущением."""
     h, x = r["law"], np.asarray(r["x"], float)
     n = n_drives(P.spec); L0 = P.loss(h, x, P.bands)
-    sig = []
+    sig_curv = []
     for k in range(n):
         xp = x.copy(); xm = x.copy(); xp[7 + k] += step; xm[7 + k] -= step
         H = (P.loss(h, xp, P.bands) - 2 * L0 + P.loss(h, xm, P.bands)) / step ** 2
-        sig.append(math.degrees(math.sqrt(2.0 / H)) if H > 1e-9 else float("inf"))
+        sig_curv.append(math.degrees(math.sqrt(2.0 / H)) if H > 1e-9 else float("inf"))
+    # «складной нож» по полосам: подгонка без одной полосы; разброс углов — реальная погрешность (кривизна её
+    # занижает, когда модель не совпадает со снимком: свободные углы подстраиваются под несоответствие)
+    jk = []
+    for b in P.bands:
+        xb, _ = P.fit(h, [c for c in P.bands if c != b], x, maxfev=80)
+        jk.append(xb[7:7 + n])
+    jk = np.asarray(jk); m = len(jk)
+    d = (jk - x[7:7 + n] + math.pi) % (2 * math.pi) - math.pi
+    d = (d + math.pi / 2) % math.pi - math.pi / 2                     # с точностью до стороны пластины
+    sig_jk = np.degrees(np.sqrt((m - 1) / m * ((d - d.mean(0)) ** 2).sum(0))).tolist()
+    sig = [max(a_, b_) for a_, b_ in zip(sig_curv, sig_jk)]
     R = law_attitude(h) @ P.spec["M2B"]
     sun = mode_angles(P.spec, R, "sun", P.sun_l)
     dev = [math.degrees((a - b + math.pi) % (2 * math.pi) - math.pi) for a, b in zip(x[7:7 + n], sun)]
     dev2 = [((d + 90) % 180) - 90 for d in dev]           # с точностью до стороны пластины
-    r.update(drive_angles_deg=[math.degrees(v) for v in x[7:7 + n]], drive_sigma_deg=sig, sun_dev_deg=dev, sun_dev_plate_deg=dev2)
+    r.update(drive_angles_deg=[math.degrees(v) for v in x[7:7 + n]], drive_sigma_deg=sig, drive_sigma_curv_deg=sig_curv,
+             drive_sigma_jackknife_deg=sig_jk, sun_dev_deg=dev, sun_dev_plate_deg=dev2)
     tracked = [abs(d) < max(10.0, 2 * sg) for d, sg in zip(dev2, sig) if math.isfinite(sg)]
     undet = sum(1 for sg in sig if not math.isfinite(sg) or sg > 45)
     r["drives_summary"] = (f"{sum(tracked)}/{len(tracked)} приводов следят за Солнцем (в пределах ошибки), "
