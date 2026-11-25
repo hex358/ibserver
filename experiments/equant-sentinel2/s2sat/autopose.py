@@ -318,8 +318,10 @@ def solve(rc, spec, log=print, maxfev=160, C=None):
     # Разности невязок делятся на κ — «эффективный χ²»; без этого запас и порог нештатности завышены во много раз.
     kappa = max(1.0, min([r["L"] for r in res] + ([free["L"]] if free else [])) / max(1, npix))
     margin = float(dist[0] - law_best["cv"]) if dist else None
+    # законы, которые снимок не отличает от лучшего статистически: невязка на отложенных хуже менее чем на 4 эфф. χ²
+    consistent = [r["name"] for r in sorted(res, key=lambda r: r["cv"]) if (r["cv"] - law_best["cv"]) / kappa < 4.0]
     out = dict(kind=spec["kind"], source=spec["source"], hypotheses=[{k: v for k, v in r.items() if k != "law"} for r in res],
-               chosen=law_best["name"], equivalent=equiv, eq_rms_m=thr, kappa=kappa, npix=npix,
+               chosen=law_best["name"], equivalent=equiv, consistent=consistent, eq_rms_m=thr, kappa=kappa, npix=npix,
                margin=margin, margin_eff=None if margin is None else margin / kappa, anomalous=False)
     chosen = law_best
     if free is not None:
