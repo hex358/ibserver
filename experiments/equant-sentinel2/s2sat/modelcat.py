@@ -216,7 +216,10 @@ def _scene_parts(path):
                 chain.append((str(n), org[n]))
             n = par.get(n)
         uv = getattr(m.visual, "uv", None); mat = getattr(m.visual, "material", None)
-        parts.append(dict(node=str(node), V=trimesh.transform_points(np.asarray(m.vertices, float), T), F=np.asarray(m.faces, int),
+        F = np.asarray(m.faces, int)
+        if np.linalg.det(np.asarray(T, float)[:3, :3]) < 0:          # зеркальное преобразование узла: обход граней обратный
+            F = F[:, ::-1]
+        parts.append(dict(node=str(node), V=trimesh.transform_points(np.asarray(m.vertices, float), T), F=F,
                           UV=None if uv is None or len(uv) != len(m.vertices) else np.asarray(uv, float), mat=mat,
                           mname=str(getattr(mat, "name", None) or ""), joints=chain[::-1]))
     return parts

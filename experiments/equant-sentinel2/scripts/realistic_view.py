@@ -103,11 +103,7 @@ def render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth_rgb, alt_km, 
         shapes[f"s{i}"] = {"type": "obj", "filename": str(p), "face_normals": True,
                            "bsdf": {"type": "twosided", "bsdf": {"type": "principled", "base_color": {"type": "rgb", "value": list(base)},
                                                                   "metallic": met, "roughness": rough}}}
-    # свечение Земли: полусфера ниже горизонта (провал горизонта acos(R/(R+h))), локальный +Y карты → +радиус тела
-    Hh, Wh = 128, 256
-    el = 90.0 - (np.arange(Hh) + 0.5) * 180.0 / Hh
-    dip = math.degrees(math.acos(6371.0 / (6371.0 + alt_km)))
-    env = np.zeros((Hh, Wh, 3), np.float32); env[el < -dip] = np.asarray(earth_rgb, np.float32)
+    env = earth_env(sun, alt_km, earth_rgb)
     D = 5000.0
     scene = {"type": "scene", "integrator": {"type": "path", "max_depth": 8, "hide_emitters": True},
              "sensor": {"type": "orthographic",
@@ -125,6 +121,41 @@ def render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth_rgb, alt_km, 
 
 
 # ---------------------------------------------------------------- земля
+def earth_env(sun_b, alt_km, earth_rgb_local, local_km=60.0, H=192, W=384):
+    """Карта окружения: свет Земли, как его видит объект на высоте alt_km (оси тела: z — радиус). Каждое направление ниже
+    горизонта — точка на шаре Земли; яркость = отражательная способность × освещённость Солнцем в этой точке (косинус
+    зенитного угла Солнца там — терминатор, ночная сторона тёмная) + рэлеевская дымка с учётом наклона луча.
+    Под объектом (радиус local_km) — отражательная способность из снимка Sentinel-2 (earth_rgb_local — яркость на
+    надире); дальше — средняя Земля с облаками (альбедо в верхней атмосфере ≈ 0.30). Единицы: облучённость Солнца = π.
+    Раскладка — как у envmap Mitsuba при повороте [1,0,0] на 90°: строка — угол от зенита, столбец — азимут
+    (u = 0 → +y, u = 1/4 → +x)."""
+    R = 6371.0; h = float(alt_km); P = np.array([0.0, 0.0, R + h])
+    s = np.asarray(sun_b, float); s = s / np.linalg.norm(s)
+    v = (np.arange(H) + 0.5) / H; u = (np.arange(W) + 0.5) / W
+    th = math.pi * v[:, None]; ph = 2 * math.pi * u[None, :]
+    D = np.stack([np.sin(th) * np.sin(ph), np.sin(th) * np.cos(ph), np.cos(th) * np.ones_like(ph)], -1)
+    b = D @ P; c = P @ P - R * R; disc = b * b - c
+    hit = (disc > 0) & (b < 0)
+    t = np.where(hit, -b - np.sqrt(np.clip(disc, 0, None)), 0.0)
+    G = P + t[..., None] * D; n = G / R
+    mus = np.clip(n @ s, 0.0, 1.0)                                   # освещённость точки Солнцем
+    muv = np.clip(-(D * n).sum(-1), 0.02, 1.0)                       # наклон луча к поверхности (у лимба мал)
+    tau = np.array([0.0465, 0.0940, 0.1550])
+    trans = np.exp(-0.5 * tau[None, None, :] * (1 / np.clip(mus, 0.05, 1)[..., None] + 1 / muv[..., None]))
+    cosT = np.clip((D * s).sum(-1), -1, 1)                           # рассеяние назад/вперёд
+    haze = tau[None, None, :] * (0.75 * (1 + cosT ** 2))[..., None] / (4 * muv[..., None])
+    haze = np.minimum(haze, 0.35)                                    # у лимба — насыщение (однократное рассеяние)
+    dist = R * np.arccos(np.clip(n[..., 2], -1, 1))                  # расстояние по поверхности от надира
+    mu0 = max(float(s[2]), 0.05)
+    rho_loc = np.asarray(earth_rgb_local, float) / mu0              # отражательная способность под объектом (с дымкой)
+    rho_glob = np.array([0.30, 0.31, 0.34])                          # средняя Земля с облаками (альбедо ВГА)
+    w = np.clip((local_km * 1.5 - dist) / (local_km * 0.5), 0, 1)[..., None]   # плавный переход
+    surf = w * rho_loc + (1 - w) * rho_glob
+    L = mus[..., None] * (surf * np.where(w > 0, 1.0, trans) + haze * (1 - w))
+    env = np.where(hit[..., None], L, 0.0).astype(np.float32)
+    return env
+
+
 def rayleigh(sun_el_deg, vza_deg=5.0):
     """Однократное рэлеевское рассеяние: дымка (в ед. отражательной способности) и пропускание, полосы R, G, B."""
     tau = np.array([0.0465, 0.0940, 0.1550])
