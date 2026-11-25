@@ -83,7 +83,7 @@ def camera_basis(Jf, los):
 
 
 # ---------------------------------------------------------------- рендер объекта (Mitsuba 3)
-def render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth_rgb, alt_km, spp, work, shapes=None):
+def render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth_rgb, alt_km, spp, work, shapes=None, env=None):
     import mitsuba as mi
     try:
         mi.set_variant("llvm_ad_rgb")
@@ -103,7 +103,8 @@ def render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth_rgb, alt_km, 
         shapes[f"s{i}"] = {"type": "obj", "filename": str(p), "face_normals": True,
                            "bsdf": {"type": "twosided", "bsdf": {"type": "principled", "base_color": {"type": "rgb", "value": list(base)},
                                                                   "metallic": met, "roughness": rough}}}
-    env = earth_env(sun, alt_km, earth_rgb)
+    if env is None:
+        env = earth_env(sun, alt_km, earth_rgb)
     D = 5000.0
     scene = {"type": "scene", "integrator": {"type": "path", "max_depth": 8, "hide_emitters": True},
              "sensor": {"type": "orthographic",
@@ -121,6 +122,48 @@ def render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth_rgb, alt_km, 
 
 
 # ---------------------------------------------------------------- земля
+def earth_env_s2(geo, refl, bb, res, epsg, H=256, W=512):
+    """Свет Земли для объекта из снимка Sentinel-2 этого же пролёта (оси тела: z — радиус). Каждое направление ниже
+    горизонта — точка на эллипсоиде (луч из положения объекта); яркость = μs·(ρ·T + дымка) с косинусом зенитного угла
+    Солнца μs в этой точке и наклоном луча μv (рэлеевское рассеяние, пропускание по двум путям). ρ — отражательная
+    способность L2A полосы снимка (refl, сетка bb с шагом res в UTM epsg); за краем полосы съёмки — средняя ρ полосы.
+    Раскладка — как у envmap Mitsuba при повороте [1,0,0] на 90° (строка — угол от зенита, столбец — азимут, u=0 → +y)."""
+    A, rO = geo["A"], geo["rO"]
+    s_e = A.T @ (np.asarray(geo["sun"], float) / np.linalg.norm(geo["sun"]))
+    v = (np.arange(H) + 0.5) / H; u = (np.arange(W) + 0.5) / W
+    th = math.pi * v[:, None]; ph = 2 * math.pi * u[None, :]
+    Db = np.stack([np.sin(th) * np.sin(ph), np.sin(th) * np.cos(ph), np.cos(th) * np.ones_like(ph)], -1)
+    De = Db @ A                                                       # направления в ECEF
+    lam = G.ray_ellipsoid(np.broadcast_to(rO, De.shape), De)
+    hit = np.isfinite(lam)
+    Pg = rO + np.where(hit, lam, 0.0)[..., None] * De
+    n = G.unit(Pg)
+    mus = np.clip(n @ s_e, 0.0, 1.0); muv = np.clip(-(De * n).sum(-1), 0.02, 1.0)
+    # ρ в точке: из снимка, где он есть; иначе — средняя по полосе
+    good = np.isfinite(refl).all(-1) & (refl.max(-1) > 0)
+    rho_mean = np.nanmean(np.where(good[..., None], refl, np.nan).reshape(-1, 3), 0)
+    rho = np.tile(rho_mean, (H, W, 1))
+    idx = np.where(hit.ravel())[0]
+    if len(idx):
+        X, Y = G.ecef_to_utm(Pg.reshape(-1, 3)[idx], epsg)
+        col = ((X - bb[0]) / res - 0.5); row = ((bb[3] - Y) / res - 0.5)
+        ins = (col >= 0) & (col < refl.shape[1] - 1) & (row >= 0) & (row < refl.shape[0] - 1)
+        ci, ri = np.round(col[ins]).astype(int), np.round(row[ins]).astype(int)
+        ok = good[ri, ci]
+        flat = rho.reshape(-1, 3); sel = idx[ins][ok]
+        flat[sel] = refl[ri[ok], ci[ok]]
+        rho = flat.reshape(H, W, 3)
+    tau = np.array([0.0465, 0.0940, 0.1550]) + 0.05 * (np.array([0.665, 0.56, 0.49]) / 0.55) ** -1.3   # Рэлей + аэрозоль
+    am = 1 / np.clip(mus, 0.05, 1)[..., None] + 1 / muv[..., None]
+    trans = np.exp(-tau * am)
+    cosT = np.clip((Db * (np.asarray(geo["sun"], float) / np.linalg.norm(geo["sun"]))).sum(-1), -1, 1)
+    P_ray = 0.75 * (1 + cosT ** 2)
+    haze = np.array([0.0465, 0.0940, 0.1550]) * P_ray[..., None] / (4 * muv[..., None])
+    haze = np.minimum(haze, 0.35)
+    L = mus[..., None] * (np.clip(rho, 0, 1.5) * trans + haze)
+    return np.where(hit[..., None], L, 0.0).astype(np.float32)
+
+
 def earth_env(sun_b, alt_km, earth_rgb_local, local_km=60.0, H=192, W=384):
     """Карта окружения: свет Земли, как его видит объект на высоте alt_km (оси тела: z — радиус). Каждое направление ниже
     горизонта — точка на шаре Земли; яркость = отражательная способность × освещённость Солнцем в этой точке (косинус
@@ -275,15 +318,25 @@ def main():
     print(f"  EDSR ×4: {Lg.shape[:2]} → {Lsr.shape[:2]}, {time.time() - t1:.0f} с", flush=True)
     lum = Lg @ np.array([0.2126, 0.7152, 0.0722])
     expo = float(np.clip(0.18 / np.median(lum), 1.2, 8.0))
+    # свет Земли: вся полоса съёмки этого пролёта вокруг (±200 км, 500 м), та же отражательная способность L2A
+    t1 = time.time(); W_KM = 200.0; RES_W = 500.0
+    bbw = (anchor[0] - W_KM * 1e3, anchor[1] - W_KM * 1e3, anchor[0] + W_KM * 1e3, anchor[1] + W_KM * 1e3)
+    itw = I.items_around(e["lon"], e["lat"], dt_from_jd(e["jd"]), e["sent"][-1], d=2.2)
+    IMW = PD.read_band_region(itw, epsg, bbw, ["red", "green", "blue"], RES_W)
+    rw = np.stack([IMW[b] for b in ("red", "green", "blue")], -1)
+    rw = np.where((rw > 0).all(-1, keepdims=True), rw / 10000.0 - 0.1, np.nan)
+    env = earth_env_s2(geo, rw, bbw, RES_W, epsg)
+    print(f"  свет Земли: полоса {rw.shape[:2]} по {RES_W:.0f} м, покрыто снимком {np.isfinite(rw).all(-1).mean() * 100:.0f}%, "
+          f"{len(itw)} гранул, {time.time() - t1:.0f} с", flush=True)
 
     meta = dict(name=a.name, pose=pose_note, rng_km=geo["rng"], k=k_scale, vG_ms=geo["vG"].tolist(), sun_body=sun.tolist(),
-                los_body=los.tolist(), earth_rgb=earth.tolist(), haze=path.tolist(), trans=trans.tolist(), exposure_gain=expo, shots=[])
+                los_body=los.tolist(), earth_rgb=earth.tolist(), earth_light="полоса Sentinel-2 этого пролёта (earth_env_s2)", haze=path.tolist(), trans=trans.tolist(), exposure_gain=expo, shots=[])
     for sh in shots:
         nm, rg, mode = sh[0], float(sh[1]), sh[2]; t1 = time.time()
         tau_sh = float(sh[3]) if len(sh) > 3 else (a.tau_track if mode == "track" else a.tau_ground)
         pix = rg / k_scale                                     # м на объекте на пиксель кадра
         npx = int(math.ceil(2 * ext / pix)) + 8
-        obj = render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth, geo["alt"], a.spp, Path(a.work) / a.name, shapes=hd_shapes)
+        obj = render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth, geo["alt"], a.spp, Path(a.work) / a.name, shapes=hd_shapes, env=env)
         # кадр: центр — якорь, север вверх
         jj, ii = np.meshgrid(np.arange(a.W), np.arange(a.H))
         gE = (jj + 0.5 - a.W / 2) * rg; gN = (a.H / 2 - ii - 0.5) * rg

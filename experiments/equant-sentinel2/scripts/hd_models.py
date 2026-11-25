@@ -28,17 +28,41 @@ def _mat_props(mat):
     return (getattr(mat, "name", None) or "m", col, tex, 1.0 if met is None else float(met), 1.0 if rough is None else float(rough))   # умолчания glTF
 
 
-def _mr_maps(mat, met, rough, work, i):
-    """Карты металличности и шероховатости: канал B / G текстуры metallicRoughness × коэффициент материала (glTF 2.0).
-    Возвращает (металл, шероховатость) — числа или словари bitmap для Mitsuba."""
-    mrt = getattr(mat, "metallicRoughnessTexture", None) if mat is not None else None
-    if mrt is None:
+def _phys_maps(rgb):
+    """Физический класс поверхности по цвету (линейный RGB 0..1, массив …×3) → (металличность, шероховатость).
+    Карты металличности моделей NASA сделаны под студийный свет (белые модули — «металл», отражающий белые стены);
+    в космосе отражать нечего, поэтому свойства берутся по классу покрытия космических аппаратов:
+      белая краска / бета-ткань / белые радиаторы (светлое, нейтральное) — матовый диэлектрик, ρ ≈ 0.8, шерох. 0.85;
+      золотая / алюминированная плёнка (жёлто-оранжевый оттенок) — металл, шерох. 0.3 (мятая фольга);
+      алюминий конструкции (средне-серое, нейтральное) — металл 0.6, шерох. 0.45;
+      чёрная краска, тёмная плёнка — диэлектрик, шерох. 0.7."""
+    c = np.clip(rgb, 0, 1); mx = c.max(-1); mn = c.min(-1)
+    lum = c @ np.array([0.2126, 0.7152, 0.0722])
+    sat = (mx - mn) / np.maximum(mx, 1e-4)
+    r, g, b = c[..., 0], c[..., 1], c[..., 2]
+    gold = np.clip((sat - 0.25) / 0.2, 0, 1) * ((r >= g) & (g > b)) * np.clip((lum - 0.06) / 0.1, 0, 1)
+    neutral = 1 - np.clip((sat - 0.12) / 0.15, 0, 1)
+    white = neutral * np.clip((lum - 0.30) / 0.15, 0, 1)
+    alu = neutral * (1 - white) * np.clip((lum - 0.06) / 0.08, 0, 1)
+    met = gold * 1.0 + alu * 0.6
+    rough = gold * 0.30 + white * 0.85 + alu * 0.45 + np.clip(1 - gold - white - alu, 0, 1) * 0.70
+    return np.clip(met, 0, 1), np.clip(rough, 0.05, 1)
+
+
+def _mr_maps(mat, met, rough, work, i, tex_rgb=None, col=(1, 1, 1)):
+    """Металличность и шероховатость для Mitsuba: у текстурированных материалов — карты по физическому классу каждого
+    пикселя текстуры цвета; у нетекстурированных — явные коэффициенты материала, если заданы, иначе — по цвету."""
+    if tex_rgb is not None:
+        lin = (np.asarray(tex_rgb, np.float32) / 255.0) ** 2.2 * np.asarray(col, np.float32)
+        m, r = _phys_maps(lin)
+        fm, fr = work / f"m{i}.png", work / f"r{i}.png"
+        Image.fromarray((m * 255).astype(np.uint8)).save(fm); Image.fromarray((r * 255).astype(np.uint8)).save(fr)
+        return ({"type": "bitmap", "filename": str(fm), "raw": True}, {"type": "bitmap", "filename": str(fr), "raw": True})
+    explicit = mat is not None and getattr(mat, "metallicFactor", None) is not None
+    if explicit:
         return float(met), float(max(rough, 0.05))
-    a = np.asarray(mrt.convert("RGB"), np.float32) / 255.0
-    fm, fr = work / f"m{i}.png", work / f"r{i}.png"
-    Image.fromarray((np.clip(a[..., 2] * met, 0, 1) * 255).astype(np.uint8)).save(fm)
-    Image.fromarray((np.clip(a[..., 1] * rough, 0.05, 1) * 255).astype(np.uint8)).save(fr)
-    return ({"type": "bitmap", "filename": str(fm), "raw": True}, {"type": "bitmap", "filename": str(fr), "raw": True})
+    m, r = _phys_maps(np.asarray(col, np.float32)[None, :])
+    return float(m[0]), float(r[0])
 
 
 EXTRA = {  # материалы, которых нет в glTF: (цвет, металл, шероховатость, текстура)
@@ -89,7 +113,11 @@ def mitsuba_shapes(parts, work, smooth=True):
                 Image.fromarray((np.clip(im, 0, 1) * 255).astype(np.uint8)).save(tex)
         bc = {"type": "bitmap", "filename": str(tex)} if tex is not None else {"type": "rgb", "value": list(map(float, col))}
         mtl = ps[0].get("mat")
-        metv, roughv = _mr_maps(mtl, met, rough, work, i) if (has_uv and base not in EXTRA) else (float(met), float(max(rough, 0.05)))
+        if base in EXTRA:
+            metv, roughv = float(met), float(max(rough, 0.05))
+        else:
+            trgb = np.asarray(texi.convert("RGB")) if (texi is not None and has_uv) else None
+            metv, roughv = _mr_maps(mtl, met, rough, work, i, trgb, col)
         if key.endswith("|cells"):
             # солнечные элементы: диффузная подложка (цвет/текстура модели) под покровным стеклом n = 1.5 с почти
             # зеркальным отражением — на снимках панели отражают Землю и дают блики
