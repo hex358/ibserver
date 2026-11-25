@@ -2903,5 +2903,343 @@
   "gcat_bus_objects": 0,
   "scale_m_per_px": 0.0204,
   "seconds": 6.1
+ },
+ "rb-cyl-china": {
+  "key": "rb-cyl-china",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 1556,
+  "dims_m": [
+   3.11,
+   3.0,
+   15.1
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0195,
+  "seconds": 5.5
+ },
+ "rb-cyl-delta": {
+  "key": "rb-cyl-delta",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 1024,
+  "dims_m": [
+   2.51,
+   2.4,
+   7.49
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0111,
+  "seconds": 4.6
+ },
+ "rb-cyl-electron": {
+  "key": "rb-cyl-electron",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 720,
+  "dims_m": [
+   1.2,
+   1.2,
+   3.39
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0055,
+  "seconds": 5.0
+ },
+ "rb-cyl-euro": {
+  "key": "rb-cyl-euro",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 1164,
+  "dims_m": [
+   5.5,
+   5.4,
+   8.23
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0163,
+  "seconds": 5.7
+ },
+ "rb-cyl-gray-l": {
+  "key": "rb-cyl-gray-l",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 1444,
+  "dims_m": [
+   4.1,
+   4.0,
+   14.11
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0201,
+  "seconds": 4.7
+ },
+ "rb-cyl-gray-m": {
+  "key": "rb-cyl-gray-m",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 1120,
+  "dims_m": [
+   2.6,
+   2.5,
+   8.82
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0124,
+  "seconds": 4.8
+ },
+ "rb-cyl-gray-s": {
+  "key": "rb-cyl-gray-s",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 748,
+  "dims_m": [
+   1.7,
+   1.6,
+   4.66
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0071,
+  "seconds": 4.9
+ },
+ "rb-cyl-kerolox": {
+  "key": "rb-cyl-kerolox",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 1556,
+  "dims_m": [
+   3.76,
+   3.66,
+   17.2
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0232,
+  "seconds": 5.2
+ },
+ "rb-cyl-proton": {
+  "key": "rb-cyl-proton",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 1220,
+  "dims_m": [
+   3.8,
+   3.7,
+   7.36
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0132,
+  "seconds": 5.8
+ },
+ "rb-cyl-soviet-b": {
+  "key": "rb-cyl-soviet-b",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 928,
+  "dims_m": [
+   2.31,
+   2.2,
+   3.75
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0072,
+  "seconds": 5.6
+ },
+ "rb-cyl-soviet": {
+  "key": "rb-cyl-soviet",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 1120,
+  "dims_m": [
+   2.51,
+   2.4,
+   8.39
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0124,
+  "seconds": 5.0
+ },
+ "rb-cylcone-soviet": {
+  "key": "rb-cylcone-soviet",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 980,
+  "dims_m": [
+   2.55,
+   2.55,
+   4.92
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.009,
+  "seconds": 4.5
+ },
+ "rb-sphercone-kick": {
+  "key": "rb-sphercone-kick",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 840,
+  "dims_m": [
+   1.28,
+   1.28,
+   2.21
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0036,
+  "seconds": 6.8
+ },
+ "rb-stepcyl-soviet": {
+  "key": "rb-stepcyl-soviet",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 1020,
+  "dims_m": [
+   2.6,
+   2.6,
+   7.22
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.011,
+  "seconds": 4.6
+ },
+ "rb-trunccone-gray": {
+  "key": "rb-trunccone-gray",
+  "source": "KeepTrack (keeptrack.space) scripts/mesh-gen",
+  "license": "AGPL-3.0 (KeepTrack)",
+  "frame": "rb",
+  "kind": "rocketbody",
+  "tri": 900,
+  "dims_m": [
+   2.6,
+   2.6,
+   4.47
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0085,
+  "seconds": 5.1
+ },
+ "ENVISAT": {
+  "key": "ENVISAT",
+  "source": "Sketchfab: tashtego, «Envisat» (sketchfab.com/3d-models/envisat-65b0ec49681a44f68dfc8bd4efe95839)",
+  "license": "CC-BY-4.0",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 12442,
+  "dims_m": [
+   26.0,
+   9.66,
+   7.47
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [
+   27386
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0576,
+  "seconds": 2.6
  }
 }

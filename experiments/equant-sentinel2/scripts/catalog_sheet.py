@@ -77,7 +77,7 @@ def main():
         img = RV.render_object(None, None, None, sun, c, right, up, pix, a.px, (0.05, 0.06, 0.08), 600.0, a.spp, work, shapes=shapes)
         bg = np.array([0.006, 0.007, 0.010])
         lum = img[..., :3].mean(-1)[img[..., 3] > 0.5]
-        expo = min(3.0, 0.55 / max(1e-4, float(np.percentile(lum, 90)))) if lum.size else 1.0
+        expo = min(10.0, 0.55 / max(1e-4, float(np.percentile(lum, 90)))) if lum.size else 1.0
         rgb = img[..., :3] * expo + bg * (1 - img[..., 3:4])
         from PIL import Image
         Image.fromarray((RV.srgb(RV.aces(rgb)) * 255 + 0.5).astype(np.uint8)).save(out / f"{k}.png")
