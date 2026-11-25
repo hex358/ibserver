@@ -66,8 +66,7 @@ def main():
     epsg = int(r["epsg"]); sen, orb = RV.choose_orbits(e, rc, None)
     band = next((b for b in ("green", "red", "blue", "nir") if b in rc["bands"]), next(iter(rc["bands"])))
     db = rc["bands"][band]; jd = float(db["jd"]); anchor = np.asarray(db["meas"][:2] if db.get("meas") else db["p0"], float)
-    is_iss = a.name.startswith("ISS")
-    geo = RV.frame_geometry(sen, orb, jd, epsg, inertial=is_iss)
+    geo = RV.frame_geometry(sen, orb, jd, epsg)
     A, sun_b = geo["A"], geo["sun"]
     sun_e = O.sun_ecef([jd])[0]; sun_e = sun_e / np.linalg.norm(sun_e)
     # истинное положение объекта: на луче Sentinel → измеренная точка снимка, на дальности из орбиты

@@ -80,9 +80,9 @@
     99.3,
     30.63
    ],
-   "arrays": 0,
-   "fixed_panels": 8,
-   "solar_faces": 2171
+   "arrays": 8,
+   "fixed_panels": 0,
+   "solar_faces": 620
   },
   {
    "key": "LANDSAT-8",
@@ -119,7 +119,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 1104
+   "solar_faces": 1041
   },
   {
    "key": "CLOUDSAT",
@@ -187,7 +187,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 128
+   "solar_faces": 64
   },
   {
    "key": "GRACE-FO-1",
@@ -319,7 +319,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 761
+   "solar_faces": 670
   },
   {
    "key": "CYGFM01",
@@ -355,8 +355,8 @@
     1.67,
     0.26
    ],
-   "arrays": 2,
-   "fixed_panels": 0,
+   "arrays": 0,
+   "fixed_panels": 2,
    "solar_faces": 512
   },
   {
@@ -427,7 +427,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 3074
+   "solar_faces": 406
   },
   {
    "key": "TERRA",
@@ -459,7 +459,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 60
+   "solar_faces": 40
   },
   {
    "key": "AURA",
@@ -552,9 +552,9 @@
     2.05,
     2.9
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
-   "solar_faces": 1114
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 2673
   },
   {
    "key": "TESS",
@@ -606,9 +606,9 @@
     5.41,
     3.99
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 4360
+   "solar_faces": 2640
   },
   {
    "key": "GPM-CORE",
@@ -640,7 +640,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 922
+   "solar_faces": 1176
   },
   {
    "key": "OCO-2",
@@ -678,9 +678,9 @@
     6.5,
     1.24
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 4487
+   "solar_faces": 4511
   },
   {
    "key": "SDO",
@@ -705,9 +705,9 @@
     6.26,
     5.2
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
-   "solar_faces": 739
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 1185
   },
   {
    "key": "SENTINEL-6A",
@@ -738,9 +738,9 @@
     4.37,
     2.32
    ],
-   "arrays": 1,
-   "fixed_panels": 0,
-   "solar_faces": 587
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 418
   },
   {
    "key": "JASON-3",
@@ -774,9 +774,9 @@
     8.43,
     2.01
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 551
+   "solar_faces": 186
   },
   {
    "key": "MMS-1",
@@ -804,9 +804,9 @@
     28.88,
     16.93
    ],
-   "arrays": 1,
+   "arrays": 0,
    "fixed_panels": 1,
-   "solar_faces": 493
+   "solar_faces": 224
   },
   {
    "key": "THEMIS-A",
@@ -871,7 +871,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 27029
+   "solar_faces": 4495
   },
   {
    "key": "CSS-(TIANHE)",
@@ -1086,8 +1086,8 @@
     9.96,
     1.08
    ],
-   "arrays": 5,
-   "fixed_panels": 0,
+   "arrays": 4,
+   "fixed_panels": 1,
    "solar_faces": 300
   },
   {
@@ -1297,7 +1297,7 @@
     11.33,
     3.51
    ],
-   "arrays": 2,
+   "arrays": 4,
    "fixed_panels": 0,
    "solar_faces": 48
   },
@@ -1360,8 +1360,8 @@
     14.96,
     4.3
    ],
-   "arrays": 2,
-   "fixed_panels": 2,
+   "arrays": 4,
+   "fixed_panels": 0,
    "solar_faces": 72
   },
   {
@@ -1930,8 +1930,8 @@
     0.3,
     0.1
    ],
-   "arrays": 4,
-   "fixed_panels": 2,
+   "arrays": 1,
+   "fixed_panels": 4,
    "solar_faces": 72
   },
   {
@@ -1957,8 +1957,8 @@
     0.1,
     0.1
    ],
-   "arrays": 0,
-   "fixed_panels": 2,
+   "arrays": 1,
+   "fixed_panels": 0,
    "solar_faces": 48
   },
   {
@@ -1986,8 +1986,8 @@
     0.67,
     0.1
    ],
-   "arrays": 2,
-   "fixed_panels": 0,
+   "arrays": 0,
+   "fixed_panels": 2,
    "solar_faces": 72
   },
   {
@@ -2013,8 +2013,8 @@
     0.23,
     0.1
    ],
-   "arrays": 0,
-   "fixed_panels": 2,
+   "arrays": 1,
+   "fixed_panels": 0,
    "solar_faces": 48
   },
   {
@@ -2042,8 +2042,8 @@
     1.58,
     0.23
    ],
-   "arrays": 0,
-   "fixed_panels": 2,
+   "arrays": 1,
+   "fixed_panels": 0,
    "solar_faces": 120
   },
   {
@@ -2071,8 +2071,8 @@
     1.58,
     0.23
    ],
-   "arrays": 0,
-   "fixed_panels": 2,
+   "arrays": 1,
+   "fixed_panels": 0,
    "solar_faces": 120
   },
   {
@@ -2405,7 +2405,7 @@
     9.46,
     3.75
    ],
-   "arrays": 2,
+   "arrays": 4,
    "fixed_panels": 0,
    "solar_faces": 48
   },
@@ -2461,7 +2461,7 @@
     5.5,
     1.64
    ],
-   "arrays": 1,
+   "arrays": 2,
    "fixed_panels": 0,
    "solar_faces": 24
   },
@@ -2553,9 +2553,9 @@
     22.7,
     16.21
    ],
-   "arrays": 1,
-   "fixed_panels": 0,
-   "solar_faces": 3118
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 2818
   },
   {
    "key": "HST",
@@ -2582,9 +2582,9 @@
     13.1,
     13.04
    ],
-   "arrays": 1,
+   "arrays": 0,
    "fixed_panels": 0,
-   "solar_faces": 400
+   "solar_faces": 0
   },
   {
    "key": "AQUA",
@@ -2610,7 +2610,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 3268
+   "solar_faces": 3380
   },
   {
    "key": "LANDSAT-7",
@@ -2634,9 +2634,9 @@
     8.0,
     4.43
    ],
-   "arrays": 1,
-   "fixed_panels": 0,
-   "solar_faces": 643
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 176
   },
   {
    "key": "LANDSAT-5",
@@ -2661,9 +2661,9 @@
     3.01,
     3.39
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
-   "solar_faces": 320
+   "arrays": 3,
+   "fixed_panels": 0,
+   "solar_faces": 134
   },
   {
    "key": "LANDSAT-1",
@@ -2717,7 +2717,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 1276
+   "solar_faces": 880
   },
   {
    "key": "NOAA-POES",
@@ -2742,9 +2742,9 @@
     7.8,
     5.27
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
-   "solar_faces": 228
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 56
   },
   {
    "key": "QUIKSCAT",
@@ -2768,9 +2768,9 @@
     3.8,
     2.57
    ],
-   "arrays": 0,
-   "fixed_panels": 2,
-   "solar_faces": 3208
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 4282
   },
   {
    "key": "TOPEX",
@@ -2794,9 +2794,9 @@
     11.5,
     8.54
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
-   "solar_faces": 1082
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 2418
   },
   {
    "key": "JASON-1",
@@ -2820,9 +2820,9 @@
     1.44,
     2.39
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 699
+   "solar_faces": 158
   },
   {
    "key": "JASON-2",
@@ -2846,9 +2846,9 @@
     4.26,
     2.32
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 551
+   "solar_faces": 186
   },
   {
    "key": "SORCE",
@@ -2874,7 +2874,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 730
+   "solar_faces": 96
   },
   {
    "key": "RADARSAT-1",
@@ -2952,7 +2952,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 4737
+   "solar_faces": 3000
   },
   {
    "key": "EO-1",
@@ -2978,7 +2978,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 1884
+   "solar_faces": 1472
   },
   {
    "key": "ACRIMSAT",
@@ -3030,7 +3030,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 1482
+   "solar_faces": 1102
   },
   {
    "key": "SWAS",
@@ -3054,9 +3054,9 @@
     0.53,
     0.79
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
-   "solar_faces": 1443
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 340
   },
   {
    "key": "AIM",
@@ -3080,9 +3080,9 @@
     2.0,
     0.83
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
-   "solar_faces": 766
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 2263
   },
   {
    "key": "AQUARIUS",
@@ -3106,9 +3106,9 @@
     4.42,
     2.55
    ],
-   "arrays": 1,
-   "fixed_panels": 0,
-   "solar_faces": 1176
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 988
   },
   {
    "key": "ICESAT",
@@ -3132,8 +3132,8 @@
     6.5,
     1.91
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
+   "arrays": 1,
+   "fixed_panels": 0,
    "solar_faces": 138
   },
   {
@@ -3185,9 +3185,9 @@
     5.11,
     14.5
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 2013
+   "solar_faces": 30
   },
   {
    "key": "CNOFS",
@@ -3213,7 +3213,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 33080
+   "solar_faces": 1762
   },
   {
    "key": "RHESSI",
@@ -3239,7 +3239,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 1705
+   "solar_faces": 2244
   },
   {
    "key": "SUZAKU",
@@ -3263,9 +3263,9 @@
     5.02,
     2.08
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
-   "solar_faces": 3052
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 1696
   },
   {
    "key": "CGRO",
@@ -3317,7 +3317,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 342
+   "solar_faces": 176
   },
   {
    "key": "IBEX",
@@ -3367,7 +3367,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 3999
+   "solar_faces": 3100
   },
   {
    "key": "CUBESAT-ICECUBE",
@@ -3389,9 +3389,9 @@
     0.14,
     0.5
    ],
-   "arrays": 2,
-   "fixed_panels": 0,
-   "solar_faces": 6646
+   "arrays": 0,
+   "fixed_panels": 2,
+   "solar_faces": 4632
   },
   {
    "key": "CUBESAT-MIRATA",
@@ -3413,9 +3413,9 @@
     0.09,
     0.3
    ],
-   "arrays": 0,
-   "fixed_panels": 2,
-   "solar_faces": 7495
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 6199
   },
   {
    "key": "AGENA",

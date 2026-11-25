@@ -41,7 +41,6 @@ ap.add_argument("--tau-ground", type=float, default=1 / 4000); ap.add_argument("
 ap.add_argument("--spp", type=int, default=256)
 ap.add_argument("--psi", type=float, default=None); ap.add_argument("--phi", type=float, default=None)
 ap.add_argument("--out", default=str(ROOT / "results/realistic"))
-ap.add_argument("--lowpoly", action="store_true", help="старые сетки KeepTrack вместо детальных")
 ap.add_argument("--work", default="/tmp/realistic_work")
 a = ap.parse_args()
 
@@ -65,78 +64,6 @@ def load_obj(path):
             for k in range(1, len(idx) - 1):
                 F.append([idx[0], idx[k], idx[k + 1]]); MAT.append(mat); OBJ.append(o)
     return np.array(V), np.array(F), np.array(MAT), np.array(OBJ)
-
-
-def iss_body(V, F, OBJ, sun_b):
-    """Штатная ориентация +XVV (модули вдоль скорости, ферма поперёк, ферма над модулями) — сетка: Z вдоль, X поперёк,
-    Y в зенит. Панели (SARJ) повёрнуты вокруг оси фермы на Солнце: нормаль панелей = проекция Солнца на плоскость
-    (вдоль, радиус). BGA (β ≈ 2°) не учитываем."""
-    W = V.copy()
-    rot = np.zeros(len(V), bool)
-    rot[np.unique(F[np.isin(OBJ, ["ITSSolarPanels", "ITSPanelBrackets"])])] = True
-    pan = np.unique(F[OBJ == "ITSSolarPanels"])
-    y0, z0 = V[pan, 1].mean(), V[pan, 2].mean()
-    alpha = math.atan2(-sun_b[2], sun_b[0])          # нормаль (Y=0, Z=1) → (−sin α, cos α) ∥ (s_рад, s_вдоль)
-    c, s = math.cos(alpha), math.sin(alpha)
-    y, z = V[rot, 1] - y0, V[rot, 2] - z0
-    W[rot, 1] = y0 + c * y - s * z; W[rot, 2] = z0 + s * y + c * z
-    return np.c_[W[:, 2], W[:, 0], W[:, 1]], math.degrees(alpha)
-
-
-MATS = {  # материал → principled BSDF (база, металл, шероховатость); по смыслу, альбедо из справочных значений
-    "SolarPanels": ((0.040, 0.040, 0.075), 0.0, 0.12), "solar_cell": ((0.035, 0.045, 0.10), 0.0, 0.12),
-    "WhiteMetal": ((0.80, 0.80, 0.78), 0.0, 0.6), "white": ((0.82, 0.82, 0.84), 0.0, 0.6),
-    "LightGrayMetal": ((0.60, 0.60, 0.62), 0.6, 0.45), "LightGrayMetal.001": ((0.60, 0.60, 0.62), 0.6, 0.45),
-    "DarkGrayMetal": ((0.10, 0.10, 0.11), 0.3, 0.5), "dark_detail": ((0.10, 0.10, 0.11), 0.3, 0.5),
-    "BrownMetal": ((0.75, 0.55, 0.25), 0.85, 0.35), "RadiatorWhite": ((0.86, 0.86, 0.85), 0.0, 0.5),
-    "panel_back": ((0.70, 0.71, 0.73), 0.0, 0.7), "silver": ((0.80, 0.81, 0.84), 0.9, 0.25),
-    "bus_gray": ((0.30, 0.31, 0.33), 0.5, 0.45), "phased_array": ((0.05, 0.07, 0.12), 0.2, 0.3),
-}
-
-
-# ---------------------------------------------------------------- геометрия кадра
-def ground_utm(rS, p, epsg):
-    d = G.unit(p - rS); lam = G.ray_ellipsoid(rS, d)
-    X, Y = G.ecef_to_utm((rS + lam * d)[None], epsg)
-    return np.array([float(np.ravel(X)[0]), float(np.ravel(Y)[0])])
-
-
-def choose_orbits(e, rc, until=None):
-    """TLE Sentinel-2 с эпохой, ближайшей к снимку (архивные события — не из будущего каталога); орбита объекта —
-    из TLE этого объекта в ±6 сут та, что воспроизводит дальность, с которой делалась реконструкция."""
-    orbs = PG.Orbits(until=until or "99999999")
-    jd = e["jd"]
-    S2 = []
-    for sd in (ROOT / "data/tle_snapshots").iterdir():
-        f = sd / "sentinel2.tle"
-        if f.exists():
-            S2 += [o for o in O.parse_tle(f.read_text()) if o.name == e["sent"]]
-    sen = min(S2, key=lambda o: abs(o.epoch_jd - jd))
-    pool = [o for o in orbs.SG.get(e["cat"], []) + orbs.GP.get(e["cat"], []) if abs(o.epoch_jd - jd) < 6]
-    rS = sen.ecef([jd])[0][0]
-    rng = lambda o: float(np.linalg.norm(o.ecef([jd])[0][0] - rS))
-    orb = min(pool, key=lambda o: abs(rng(o) - rc["rng"]))
-    return sen, orb
-
-
-def frame_geometry(sen, orb, jd, epsg, inertial):
-    rO, vO = orb.ecef([jd]); rO, vO = rO[0], vO[0]
-    rS = sen.ecef([jd])[0][0]
-    ur = G.unit(rO)
-    v = vO + (np.cross([0, 0, OMEGA], rO) if inertial else 0.0)   # LVLH МКС — по инерциальной скорости
-    uv = G.unit(v - (v @ ur) * ur); uc = G.unit(np.cross(ur, uv))
-    A = np.stack([uv, uc, ur])
-    su = O.sun_ecef([jd])[0]; su = su / np.linalg.norm(su)
-    los = G.unit(rS - rO)
-    g0 = ground_utm(rS, rO, epsg)
-    h = 0.05
-    Jf = np.stack([(ground_utm(rS, rO + A[k] * h, epsg) - g0) / (h * 1000.0) for k in range(3)], 1)
-    dt = 0.05 / 86400.0
-    gp = ground_utm(sen.ecef([jd + dt])[0][0], orb.ecef([jd + dt])[0][0], epsg)
-    gm = ground_utm(sen.ecef([jd - dt])[0][0], orb.ecef([jd - dt])[0][0], epsg)
-    vG = (gp - gm) / 0.1
-    return dict(A=A, sun=A @ su, los=A @ los, Jf=Jf, vG=vG, g0=g0, rng=float(np.linalg.norm(rS - rO)),
-                alt=float(np.linalg.norm(rO) - 6371.0), rS=rS, rO=rO)
 
 
 def camera_basis(Jf, los):
@@ -264,36 +191,12 @@ def main():
     band = next((b for b in (a.band, "green", "red", "blue", "nir") if b in rc["bands"]), next(iter(rc["bands"])))
     db = rc["bands"][band]
     jd = float(db["jd"]); anchor = np.asarray(db["meas"][:2] if db.get("meas") else db["p0"], float)
-    is_iss = a.name.startswith("ISS")
-    geo = frame_geometry(sen, orb, jd, epsg, inertial=is_iss)
+    geo = frame_geometry(sen, orb, jd, epsg)
     sun, los = geo["sun"], geo["los"]
-    if is_iss:
-        V, F, MAT, OBJ = load_obj(ROOT / "data/models/iss.obj")
-        Vb, alpha = iss_body(V, F, OBJ, sun)
-        MAT = np.where(np.char.startswith(OBJ.astype(str), "Radiator") | (OBJ == "ITSRadiators"), "RadiatorWhite", MAT)
-        pose_note = f"штатная ориентация +XVV, панели на Солнце (SARJ {alpha:+.0f}°)"
-    else:
-        import model_recon as MR
-        rows = {}
-        for f in sorted(ROOT.glob("results/recon*/summary.json")):
-            for rr in json.loads(f.read_text()):
-                rows[rr["name"]] = rr
-        psi = a.psi if a.psi is not None else rows.get(a.name, {}).get("psi_deg", 0.0); phi = a.phi if a.phi is not None else rows.get(a.name, {}).get("phi_deg", 0.0)
-        Vb = MR.body_vertices(math.radians(psi), math.radians(phi)); F = MR.F0
-        MAT = []; mat = None
-        for ln in open(MR.MESH):
-            if ln.startswith("usemtl"):
-                mat = ln.split()[1]
-            elif ln.startswith("f "):
-                MAT += [mat] * (len(ln.split()) - 3)
-        MAT = np.array(MAT)
-        pose_note = f"поза из реконструкции: рысканье {psi:+.0f}°, крылья {phi:+.0f}°"
-    hd_shapes = None
-    if not a.lowpoly:
-        import hd_models as HDM
-        parts, pose_note, smooth = HDM.parts_for(a.name, sun, int(e.get("cat", 0)))   # модель из каталога, поза — автоматически
-        Vb = HDM.all_vertices(parts); F = MAT = None
-        hd_shapes = HDM.mitsuba_shapes(parts, Path(a.work) / a.name / "hd", smooth=smooth)
+    import hd_models as HDM
+    parts, pose_note, smooth = HDM.parts_for(a.name, sun, int(e.get("cat", 0)))   # модель из каталога, поза — автоматически
+    Vb = HDM.all_vertices(parts); F = MAT = None
+    hd_shapes = HDM.mitsuba_shapes(parts, Path(a.work) / a.name / "hd", smooth=smooth)
     right, up, A2, S = camera_basis(geo["Jf"], los)
     k_scale = float(S.mean())
     print(f"{a.name}: дальность {geo['rng']:.0f} км, λ/R≈{k_scale:.2f} (σ {S.round(3)}), видимая скорость на земле "

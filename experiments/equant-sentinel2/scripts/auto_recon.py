@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 import model_recon as MR
-from s2sat import autopose as AP, modelcat as MC
+from s2sat import autopose as AP, modelcat as MC, scenegeom as SG
 
 
 def run(name, maxfev=160):
@@ -18,7 +18,8 @@ def run(name, maxfev=160):
     rc = pickle.loads((ROOT / "results/shape" / f"{name}.pkl").read_bytes()); MR.prepare(rc)
     spec = MC.spec_for(rc.get("cat", 0), name)
     print(f"{name}: модель — {spec['source']} ({spec['kind']}), {len(spec['F'])} граней, законов {len(spec['laws'])}", flush=True)
-    out = AP.solve(rc, spec, maxfev=maxfev)
+    C = SG.lvlh_to_fit(name, rc)                        # инерциальные орбитальные оси → оси реконструкции
+    out = AP.solve(rc, spec, maxfev=maxfev, C=C)
     out.update(name=name, seconds=round(time.time() - t0))
     Path(ROOT / "results/auto").mkdir(parents=True, exist_ok=True)
     (ROOT / "results/auto" / f"{name}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
@@ -27,5 +28,11 @@ def run(name, maxfev=160):
 
 
 if __name__ == "__main__":
-    for n in sys.argv[1:]:
-        run(n)
+    names = sys.argv[1:] or sorted(p.stem for p in (ROOT / "results/shape").glob("*.pkl"))   # без аргументов — все
+    for n in names:
+        if (ROOT / "results/auto" / f"{n}.json").exists():
+            continue
+        try:
+            run(n)
+        except Exception as ex:                                   # noqa: BLE001 — пакет не должен останавливаться
+            print(f"{n}: ОШИБКА {type(ex).__name__}: {ex}", flush=True)

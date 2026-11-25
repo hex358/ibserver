@@ -82,11 +82,10 @@ def setup():
     sen, orb = RV.choose_orbits(e, rc, None)
     b0 = next((b for b in ("green", "red", "blue", "nir") if b in rc["bands"]), next(iter(rc["bands"])))
     db = rc["bands"][b0]; jd0 = float(db["jd"]); anchor = np.asarray(db["meas"][:2] if db.get("meas") else db["p0"], float)
-    is_iss = a.name.startswith("ISS")
-    geo = RV.frame_geometry(sen, orb, jd0, epsg, inertial=is_iss)
+    geo = RV.frame_geometry(sen, orb, jd0, epsg)
     geo_e = RV.frame_geometry(sen, orb, jd0, epsg, inertial=False)        # оси, в которых записаны J полос
     parts, _, smooth = HDM.parts_for(a.name, geo["sun"], int(e.get("cat", 0)))
-    title = "МКС" if is_iss else a.name.split("_")[0]
+    title = e.get("obj") or a.name.split("_")[0]
     work = Path(a.work) / f"{a.name}_var"; work.mkdir(parents=True, exist_ok=True)
     Vb = HDM.all_vertices(parts); shapes = HDM.mitsuba_shapes(parts, work / "hd", smooth=smooth)
     right, up, A2, S = RV.camera_basis(geo["Jf"], geo["los"]); k = float(S.mean())
@@ -101,7 +100,7 @@ def setup():
     R_ie = geo_e["A"] @ geo["A"].T                                          # тело (инерциальные оси) → оси J
     return dict(e=e, r=r, rc=rc, epsg=epsg, sen=sen, orb=orb, jd0=jd0, anchor=anchor, geo=geo, parts=parts, shapes=shapes, Vb=Vb, title=title,
                 right=right, up=up, A2=A2, k=k, ext=ext, span_g=2 * ext * k, bands=bands, its=its, toL=toL, a_hat=a_hat, R_ie=R_ie, work=work,
-                is_iss=is_iss)
+                )
 
 
 def raw_rgb(c, bb):
@@ -269,7 +268,7 @@ def v2(c):
 def v4(c):
     geo = c["geo"]; vG = geo["vG"]; anchor = c["anchor"]; k = c["k"]
     rg = float(max(0.5, round(c["span_g"] / (0.3 * a.W) * 4) / 4)); dur = 8.0
-    T_real = 0.20 if c["is_iss"] else 0.12
+    T_real = 0.20 if c["span_g"] > 400 else 0.12            # большой объект — дольше в кадре
     trav = np.abs(vG) * T_real
     hx, hy = a.W * rg / 2 + trav[0] / 2 + 200, a.H * rg / 2 + trav[1] / 2 + 200
     bb = (int(math.floor((anchor[0] - hx) / 10) * 10), int(math.floor((anchor[1] - hy) / 10) * 10), int(math.ceil((anchor[0] + hx) / 10) * 10), int(math.ceil((anchor[1] + hy) / 10) * 10))
@@ -314,7 +313,7 @@ def v5(c, dur=12.0):
     from concurrent.futures import ThreadPoolExecutor
     from matplotlib.path import Path as MPath
     from s2sat import orbits as O
-    geo = c["geo"]; e = c["e"]; jd0 = c["jd0"]; orb = c["orb"]; sen = c["sen"]; is_iss = c["is_iss"]; epsg = c["epsg"]
+    geo = c["geo"]; e = c["e"]; jd0 = c["jd0"]; orb = c["orb"]; sen = c["sen"]; epsg = c["epsg"]
     W, H = a.W, a.H
     lon_m, lat_m = G.utm_to_lonlat(c["anchor"][0], c["anchor"][1], epsg)
     Gm = NS.lla_to_ecef(float(np.ravel(lon_m)[0]), float(np.ravel(lat_m)[0]))
@@ -323,7 +322,7 @@ def v5(c, dur=12.0):
     def frame_at(t):
         jd = jd0 + t / 86400.0
         rO, vO = orb.ecef([jd]); rO, vO = rO[0] + dO, vO[0]
-        ur = rO / np.linalg.norm(rO); v = vO + (np.cross([0, 0, 7.2921159e-5], rO) if is_iss else 0.0)
+        ur = rO / np.linalg.norm(rO); v = vO + np.cross([0, 0, 7.2921159e-5], rO)      # инерциальная скорость — для всех
         uv = v - (v @ ur) * ur; uv /= np.linalg.norm(uv); uc = np.cross(ur, uv)
         return rO, np.stack([uv, uc, ur])
     size = float(np.ptp(c["Vb"], 0).max()); dist = 4.0 * size; fov = math.degrees(2 * math.atan(0.5 * size / 0.62 / dist)); el = 60.0

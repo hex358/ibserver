@@ -193,19 +193,32 @@ def frame_matrix(e, g=None, ext=None):
     return R @ np.diag(S3)
 
 
+JOINT_RE = re.compile(r"(^|[_\W])(rot|joint|gimbal|hinge|sada|drive|bapta)([_\W]|$)", re.I)
+
+
 def _scene_parts(path):
-    """Части сцены glTF/OBJ: dict(node, V (мир сцены), F, UV, mat, mname)."""
+    """Части сцены glTF/OBJ: dict(node, V (мир сцены), F, UV, mat, mname, joints). joints — цепочка узлов-шарниров
+    модели над частью (от корня к листу): [(имя, начало узла в мире сцены)] — кинематическое дерево, если оно есть."""
     import trimesh
     sc = trimesh.load(str(path), force="scene", process=False)
+    par = getattr(sc.graph.transforms, "parents", {}) or {}
+    org = {}
     parts = []
     for node in sc.graph.nodes_geometry:
         T, gname = sc.graph[node]; m = sc.geometry[gname]
         if not hasattr(m, "faces") or len(m.faces) == 0:
             continue
+        chain, n = [], par.get(node)
+        while n is not None and n != sc.graph.base_frame:
+            if JOINT_RE.search(str(n)):
+                if n not in org:
+                    org[n] = np.asarray(sc.graph.get(n)[0], float)[:3, 3]
+                chain.append((str(n), org[n]))
+            n = par.get(n)
         uv = getattr(m.visual, "uv", None); mat = getattr(m.visual, "material", None)
         parts.append(dict(node=str(node), V=trimesh.transform_points(np.asarray(m.vertices, float), T), F=np.asarray(m.faces, int),
                           UV=None if uv is None or len(uv) != len(m.vertices) else np.asarray(uv, float), mat=mat,
-                          mname=str(getattr(mat, "name", None) or "")))
+                          mname=str(getattr(mat, "name", None) or ""), joints=chain[::-1]))
     return parts
 
 
@@ -228,52 +241,35 @@ def _plum(p):
     return float(np.median(p["flum"])) if p.get("flum") is not None and len(p["flum"]) else p.get("lum", 0.5)
 
 
+def _cluster(p, h):
+    """Упрощение части кластеризацией вершин на сетке шага h (м): вершины в одной ячейке сливаются, вырожденные грани
+    удаляются. Детерминированно, для частей любого размера; принадлежность граней части сохраняется."""
+    u = np.unique(p["F"]); V = p["V"][u]
+    key = np.floor(V / h).astype(np.int64)
+    _, rep, inv = np.unique(key, axis=0, return_index=True, return_inverse=True)
+    remap = np.full(int(u.max()) + 1, -1); remap[u] = inv.ravel()
+    F = remap[p["F"]]
+    F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 0] != F[:, 2])]
+    if len(F) == 0:
+        return None
+    F = np.unique(np.sort(F, 1), axis=0) if False else F
+    Vn = np.zeros((len(rep), 3)); np.add.at(Vn, inv.ravel(), V); Vn /= np.bincount(inv.ravel(), minlength=len(rep))[:, None]
+    return dict(p, V=Vn, F=F, UV=None, lum=_plum(p))
+
+
 def _decimate(parts, target):
-    """Сетка для подгонки: упрощение каждой части (не меньше 100 граней на часть), затем — если всё ещё много —
-    удаление самых мелких по площади деталей (поручни, болты: на пикселе 10 м не видны), но не больше 2 % площади."""
+    """Сетка для подгонки (растр 1 м, пиксель снимка 10 м): кластеризация вершин с шагом от 0,1 % размера модели, шаг
+    удваивается, пока граней больше target (не крупнее 3 % размера). Части меньше шага исчезают — на снимке их не видно."""
     tot = sum(len(p["F"]) for p in parts)
     if tot <= target:
         return parts
-    import fast_simplification as FS
-    keep = target / tot; out = []
-    for p in parts:
-        n = len(p["F"])
-        k = max(keep, min(1.0, 100.0 / n)) if n else 1.0
-        if n < 200 or k > 0.9:
-            out.append(p); continue
-        try:
-            u, inv = np.unique(p["F"], return_inverse=True)
-            V2, F2 = FS.simplify(p["V"][u].astype(np.float32), inv.reshape(-1, 3).astype(np.int32), target_reduction=float(1 - k))
-            if len(F2):
-                out.append(dict(p, V=np.asarray(V2, float), F=np.asarray(F2, int), UV=None, lum=_plum(p))); continue
-        except Exception:                                                   # noqa: BLE001 — оставить часть как есть
-            pass
-        out.append(p)
-    tot = sum(len(p["F"]) for p in out)
-    if tot > target:
-        def area(p):
-            V, F = p["V"], p["F"]
-            return float(np.linalg.norm(np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]]), axis=1).sum() / 2)
-        A = [area(p) for p in out]; At = sum(A) or 1.0; budget = 0.02 * At
-        drop = set()
-        for i in sorted(range(len(out)), key=lambda i: A[i]):
-            if tot <= target or A[i] > budget or _is_solar(out[i]):
-                continue
-            drop.add(i); tot -= len(out[i]["F"]); budget -= A[i]
-        out = [p for i, p in enumerate(out) if i not in drop]
-    if tot > 2 * target:                                # много мелких частей: второй проход, до 20 граней на часть
-        keep = target / tot; out2 = []
-        for p in out:
-            n = len(p["F"]); k = max(keep, min(1.0, 20.0 / max(n, 1)))
-            if n < 40 or k > 0.9 or _is_solar(p):
-                out2.append(p); continue
-            try:
-                u, inv = np.unique(p["F"], return_inverse=True)
-                V2, F2 = FS.simplify(p["V"][u].astype(np.float32), inv.reshape(-1, 3).astype(np.int32), target_reduction=float(1 - k))
-                out2.append(dict(p, V=np.asarray(V2, float), F=np.asarray(F2, int), UV=None, lum=_plum(p)) if len(F2) else p)
-            except Exception:                                               # noqa: BLE001
-                out2.append(p)
-        out = out2
+    allV = np.vstack([p["V"][np.unique(p["F"])] for p in parts]); size = float(np.max(allV.max(0) - allV.min(0)))
+    h = 0.001 * size; out = parts
+    while h <= 0.03 * size:
+        out = [q for q in (_cluster(p, h) for p in parts) if q is not None]
+        if sum(len(p["F"]) for p in out) <= target:
+            break
+        h *= 2
     return out
 
 
@@ -321,12 +317,30 @@ def _wings(parts, solar, ext):
         Vc = np.vstack([parts[i]["V"][ix] for i, ix in sel])
         p = np.linalg.svd(Vc - Vc.mean(0), full_matrices=False)[2][0]
         t = (Vc - c0) @ p
-        if np.linalg.norm(Vc.mean(0) - c0) < 0.8 * r0 and t.min() < -0.8 * r0 and t.max() > 0.8 * r0 \
+        if len(sel) == 1 and np.linalg.norm(Vc.mean(0) - c0) < 0.8 * r0 and t.min() < -0.8 * r0 and t.max() > 0.8 * r0 \
                 and np.mean(np.abs(t) < 0.3 * r0) < 0.05:
+            # одна часть сетки, оба крыла по разные стороны корпуса — делится по вершинам
             for sgn in (1, -1):
                 groups.append([(i, ix[np.sign((parts[i]["V"][ix] - c0) @ p) == sgn]) for i, ix in sel])
-        else:
-            groups.append(sel)
+            continue
+        # несколько частей: делятся по частям, если вдоль длины между ними есть разрыв (крылья по обе стороны фермы)
+        todo = [sel]
+        while todo:
+            cur = todo.pop()
+            if len(cur) < 2:
+                groups.append(cur); continue
+            Vk = np.vstack([parts[i]["V"][ix] for i, ix in cur]); pk = np.linalg.svd(Vk - Vk.mean(0), full_matrices=False)[2][0]
+            iv = sorted(((float(((parts[i]["V"][ix] - Vk.mean(0)) @ pk).min()), float(((parts[i]["V"][ix] - Vk.mean(0)) @ pk).max()), (i, ix))
+                         for i, ix in cur), key=lambda z: z[0])
+            span = iv[-1][1] - iv[0][0] + 1e-9; hi_ = iv[0][1]; cut = None
+            for k in range(1, len(iv)):
+                if iv[k][0] - hi_ > 0.01 * span:
+                    cut = k; break
+                hi_ = max(hi_, iv[k][1])
+            if cut is None:
+                groups.append(cur)
+            else:
+                todo += [[z[2] for z in iv[:cut]], [z[2] for z in iv[cut:]]]
     wings, nfixed = [], 0
     for sel in groups:
         sel = [(i, ix) for i, ix in sel if len(ix)]
@@ -347,17 +361,13 @@ def _wings(parts, solar, ext):
             u = snap(d)
         else:
             nfixed += 1; continue
-        # панели на корпусе неподвижны: их вершины лежат на корпусе (рядом с несолнечными частями вне габарита крыла)
+        # панели на корпусе неподвижны: раскрывающееся крыло выходит далеко за ядро аппарата (за 2 медианных радиуса
+        # несолнечной части от центра), панель на корпусе — нет
         pw = max(pad, 0.08 * float(np.max(Vc.max(0) - Vc.min(0))))        # допуск для каркаса крыла (тыльные балки)
         lo_, hi_ = Vc.min(0) - pw, Vc.max(0) + pw
-        bodyp = [i for i in nons if np.mean(np.all((parts[i]["V"][used[i]] >= lo_) & (parts[i]["V"][used[i]] <= hi_), axis=1)) < 0.9]
-        if bodyp and not through:
-            from scipy.spatial import cKDTree
-            pts = _surface_samples([parts[i] for i in bodyp], 30000)
-            q = np.vstack([parts[i]["V"][parts[i]["F"]].mean(1) for i, _ in sel if len(parts[i]["F"])])
-            dist = cKDTree(pts).query(q[:: max(1, len(q) // 500)])[0]
-            if np.median(dist) < 0.1 * float(np.max(Vc.max(0) - Vc.min(0))):
-                nfixed += 1; continue
+        dq = np.linalg.norm(Vc - c0, axis=1)
+        if np.quantile(dq, 0.9 if through else 0.75) < 2.0 * r0:            # не выходит за ядро — на корпусе
+            nfixed += 1; continue
         pr = (Vc - c0) @ u
         root = Vc.mean(0) if through else Vc[pr <= pr.min() + 0.1 * (pr.max() - pr.min())].mean(0)
         e1 = np.cross(u, [0.0, 0, 1] if abs(u[2]) < 0.9 else [1.0, 0, 0]); e1 /= np.linalg.norm(e1); e2 = np.cross(u, e1)
@@ -371,8 +381,51 @@ def _wings(parts, solar, ext):
             inb = np.all((Vi >= lo) & (Vi <= hi), axis=1)
             if inb.mean() > 0.9:
                 att.append((i, ix))
-        wings.append(dict(members=sel + att, point=root, axis=u, normal0=n0, lo=lo, hi=hi))
+        # второй привод: первая ось — от корпуса к корню крыла (через корень), вторая — вдоль длины крыла (через его
+        # середину). Если оси совпадают (крыло вытянуто от корпуса) — привод один.
+        w = dict(members=sel + att, point=root, axis=u, normal0=n0, lo=lo, hi=hi, axis2=None, point2=None)
+        if not through:                                    # ферменная схема: корень далеко, крыло поперёк направления на корень
+            near = np.linalg.norm(Vc - c0, axis=1); rt = Vc[near <= np.quantile(near, 0.1)].mean(0)
+            a1 = snap(rt - c0); a2 = snap(W[0]); a2 = a2 * (np.sign(a2 @ (Vc.mean(0) - rt)) or 1.0)
+            length = float(np.ptp((Vc - Vc.mean(0)) @ W[0]))
+            if np.linalg.norm(rt - c0) > 0.5 * length and abs(a1 @ a2) < 0.3 and np.max(np.abs(a1)) > 0.999:
+                n1 = np.linalg.svd(Vc - Vc.mean(0), full_matrices=False)[2][-1]       # нормаль пластины
+                w.update(point=rt, axis=a1, normal0=n1, axis2=a2, point2=Vc.mean(0))
+        wings.append(w)
     return wings, nfixed
+
+
+def _snap(v):
+    v = np.asarray(v, float); v = v / (np.linalg.norm(v) + 1e-12); k = int(np.argmax(np.abs(v)))
+    return np.eye(3)[k] * np.sign(v[k]) if abs(v[k]) > math.cos(math.radians(30)) else v
+
+
+def _joint_wings(parts, solar, c0):
+    """Крылья по кинематическому дереву модели: лист — ближайший к панели узел-шарнир (привод крыла), его родитель-шарнир —
+    общий привод (у МКС BETA_ROT → ALPHA_ROT). Ось привода крыла — длина крыла; ось общего привода — от центра модели
+    к шарниру. None — шарниров над панелями нет."""
+    leaf = {}
+    for i, (p, s) in enumerate(zip(parts, solar)):
+        if s and p.get("joints"):
+            leaf.setdefault(p["joints"][-1][0], (p["joints"], []))[1].append(i)
+    if not leaf:
+        return None
+    wings = []
+    for jn, (chain, sidx) in leaf.items():
+        mem = [(i, np.unique(p["F"])) for i, p in enumerate(parts) if any(n == jn for n, _ in p.get("joints") or [])]
+        Vs = np.vstack([parts[i]["V"][np.unique(parts[i]["F"])] for i in sidx])
+        Vm = np.vstack([parts[i]["V"][ix] for i, ix in mem])
+        piv = chain[-1][1]
+        W = np.linalg.svd(Vs - Vs.mean(0), full_matrices=False)[2]
+        a2 = _snap(W[0]); a2 = a2 * (np.sign(a2 @ (Vs.mean(0) - piv)) or 1.0); n0 = W[-1]
+        w = dict(members=mem, joint=jn, normal0=n0, lo=Vm.min(0), hi=Vm.max(0))
+        if len(chain) >= 2:
+            pp = chain[-2][1]
+            w.update(axis=_snap(pp - c0), point=pp, axis2=a2, point2=piv, joint1=chain[-2][0])
+        else:
+            w.update(axis=a2, point=piv, axis2=None, point2=None)
+        wings.append(w)
+    return wings
 
 
 def load_catalog_model(e, g=None, measure_only=False, fit=True):
@@ -409,17 +462,32 @@ def load_catalog_model(e, g=None, measure_only=False, fit=True):
     allV = np.vstack([p["V"][np.unique(p["F"])] for p in parts]); c = 0.5 * (allV.min(0) + allV.max(0))
     for p in parts:
         p["V"] = p["V"] - c
+        if p.get("joints"):
+            p["joints"] = [(n, M @ o - c) for n, o in p["joints"]]
     ext = allV.max(0) - allV.min(0)
     tri = int(sum(len(p["F"]) for p in parts))
     dp = _decimate(parts, FIT_FACES)                               # шарниры ищутся на упрощённой сетке (одинаково для
-    wings, nfixed = _wings(dp, [_is_solar(p) for p in dp], ext) if e.get("kind") != "rocketbody" else ([], 0)   # подгонки и рендера)
+    dsol = [_is_solar(p) for p in dp]                              # подгонки и рендера)
+    nfixed = 0
+    wings = None
+    if e.get("kind") != "rocketbody":
+        Vn = np.vstack([p["V"][np.unique(p["F"])] for p, s_ in zip(dp, dsol) if not s_] or [np.zeros((1, 3))])
+        wings = _joint_wings(dp, dsol, np.median(Vn, 0))           # кинематическое дерево модели, если есть
+        if wings is None:
+            wings, nfixed = _wings(dp, dsol, ext)                  # иначе — по геометрии
+    wings = wings or []
     fp = dp if fit else parts
     solar = [_is_solar(p) for p in fp]
-    if not fit:                                                    # перенести крылья на полную сетку по габариту крыла
+    if not fit:                                                    # перенести крылья на полную сетку
         for w in wings:
             mem = []
             for i, p in enumerate(fp):
-                ix = np.unique(p["F"]); inb = np.all((p["V"][ix] >= w["lo"]) & (p["V"][ix] <= w["hi"]), axis=1)
+                ix = np.unique(p["F"])
+                if w.get("joint"):                                 # по шарниру — точно
+                    if any(n == w["joint"] for n, _ in p.get("joints") or []):
+                        mem.append((i, ix))
+                    continue
+                inb = np.all((p["V"][ix] >= w["lo"]) & (p["V"][ix] <= w["hi"]), axis=1)   # по габариту крыла
                 if solar[i] and inb.any():
                     mem.append((i, ix[inb]))
                 elif not solar[i] and inb.mean() > 0.9:
@@ -446,7 +514,8 @@ def load_catalog_model(e, g=None, measure_only=False, fit=True):
         mask = np.zeros(len(V), bool)
         for k, ix in w["members"]:
             u, off = gidx[k]; mask[off + np.searchsorted(u, ix)] = True
-        arrays.append(dict(mask=mask, point=w["point"], axis=w["axis"], normal0=w["normal0"]))
+        sub = [] if w.get("axis2") is None else [dict(mask=mask, point=w["point2"], axis=w["axis2"], normal0=w["normal0"])]
+        arrays.append(dict(mask=mask, point=w["point"], axis=w["axis"], normal0=w["normal0"], sub=sub))
     out.update(V=V, F=F, G=G, arrays=arrays, parts=fp, wings=wings, gidx=gidx)
     return out
 
@@ -495,71 +564,44 @@ def resolve(norad, name=""):
     return None
 
 
-# ------------------------------------------------------------------ законы ориентации
-LAWS_PAYLOAD = [dict(name=f"на Землю, рысканье {y}°, панели на Солнце", yaw=y, arrays="sun") for y in (0, 90)]
-LAWS_CAT = [dict(name=f"на Землю, рысканье {y}°, панели {an}", yaw=y, arrays=ar)
-            for y in (0, 180) for ar, an in (("sun", "на Солнце"), ("fixed", "неподвижны"))]
-LAWS_CAT_NOARR = [dict(name=f"на Землю, рысканье {y}°", yaw=y, arrays="fixed") for y in (0, 90, 180, 270)]
-LAWS_STARLINK = [dict(name=f"ось крыльев {'поперёк' if y == 0 else 'вдоль'} полёта, крылья {an}", yaw=y, arrays=ar)
-                 for y in (0, 90) for ar, an in (("sun", "на Солнце"), ("edge", "ребром к Солнцу"), ("flat", "плашмя"))]
-LAWS_FREE = [dict(name="свободная поза (оси модели не выверены)", free3=True)]
-LAWS_TUMBLE = [dict(name="произвольная ось", tumble=True)]
-LAWS_OLD = [dict(name="гравитационная стабилизация: продольная ось к Земле", gg=True),
-            dict(name="кувыркание: произвольная ось", tumble=True)]
+# ------------------------------------------------------------------ законы ориентации (одни на класс, без исключений)
+ARRAY_MODES = (("sun", "панели на Солнце"), ("edge", "панели ребром к Солнцу"), ("flat", "панели плашмя"),
+               ("vertical", "панели перпендикулярно корпусу"), ("fixed", "панели неподвижны"))
+YAWS = (0, 90, 180, 270)
+
+
+def laws_for(kind, has_arrays, frame_ok, year):
+    """Законы ориентации класса. Аппарат с выверенными осями модели: на Землю (оси тела = орбитальные), рысканье
+    0/90/180/270°, режим панелей; запущенные до 2011 г. — ещё гравитационная стабилизация и кувыркание. Оси модели
+    не выверены — только оценка поворота. Ступень, обломок — ось по сфере."""
+    if kind in ("rocketbody", "debris"):
+        return [dict(name="кувыркание: ось по сфере", tumble=True)]
+    if not frame_ok:
+        return [dict(name="поворот оценивается (оси модели не выверены)", free3=True)]
+    modes = ARRAY_MODES if has_arrays else (("fixed", "без приводов панелей"),)
+    laws = [dict(name=f"на Землю, рысканье {y}°, {an}", yaw=y, arrays=ar) for y in YAWS for ar, an in modes]
+    if year < 2011:
+        laws += [dict(name="гравитационная стабилизация: продольная ось к Земле", gg=True),
+                 dict(name="кувыркание: ось по сфере", tumble=True)]
+    return laws
 
 
 def spec_for(norad, name=""):
-    """Модель и законы ориентации для объекта. Возвращает dict(kind, V, F, G, M2B, arrays, laws, source, render)."""
-    norad = int(norad)
-    if norad == 25544 or name.startswith("ISS"):
-        V, F, MAT, OBJ, kd = load_obj(MD / "iss.obj")
-        G = _groups(MAT, kd, {"SolarPanels"})
-        rot = np.isin(OBJ, ["ITSSolarPanels", "ITSPanelBrackets"])
-        pan = np.unique(F[OBJ == "ITSSolarPanels"]); y0, z0 = V[pan, 1].mean(), V[pan, 2].mean()
-        vrot = np.zeros(len(V), bool); vrot[np.unique(F[rot])] = True
-        arrays = [dict(mask=vrot & (np.sign(V[:, 0]) == s), point=np.array([0.0, y0, z0]), axis=np.array([1.0, 0, 0]),
-                       normal0=np.array([0.0, 0, 1.0])) for s in (1, -1)]
-        M2B = np.array([[0, 0, 1.0], [1.0, 0, 0], [0, 1.0, 0]])          # сетка (Z, X, Y) → (вдоль, поперёк, радиус)
-        laws = [dict(name="+XVV (штатная), панели на Солнце", yaw=0, arrays="sun"),
-                dict(name="−XVV (развёрнута на 180°), панели на Солнце", yaw=180, arrays="sun")]
-        return dict(kind="station", V=V, F=F, G=G, M2B=M2B, arrays=arrays, laws=laws, source="KeepTrack iss.obj", render="iss_nasa")
+    """Модель, оси и законы ориентации для любого объекта — один и тот же путь для всех: каталог (NORAD → шина GCAT →
+    имя → правила ступеней), иначе параметрическая модель по размерам GCAT. Возвращает dict(kind, V, F, G, M2B, arrays,
+    laws, source, catalog, gcat)."""
+    norad = int(norad or 0)
+    g = gcat(norad) or {}
+    typ = (g.get("Type") or "P")[:1]
+    year = int((g.get("LDate") or "2026")[:4]) if (g.get("LDate") or "")[:4].isdigit() else 2026
     e = resolve(norad, name)
     if e is not None and not e.get("error"):
-        g = gcat(norad) or {}
         M = load_catalog_model(e, g)
-        typ = (g.get("Type") or "P")[:1]
-        year = int((g.get("LDate") or "2026")[:4]) if (g.get("LDate") or "")[:4].isdigit() else 2026
-        if e["kind"] == "rocketbody":
-            kind, laws = "rocketbody", LAWS_TUMBLE
-        elif e["frame"] != "satvis":
-            kind, laws = "payload_free", LAWS_FREE
-        elif "starlink" in e["key"].lower():
-            kind, laws = "starlink", LAWS_STARLINK
-        else:
-            kind = "station" if e["kind"] == "station" else "payload"
-            laws = LAWS_CAT if M["arrays"] else LAWS_CAT_NOARR
-            if year < 2011 and kind == "payload":
-                laws = laws + LAWS_OLD
-        if typ == "D":
-            kind, laws = "debris", LAWS_TUMBLE
-        return dict(kind=kind, V=M["V"], F=M["F"], G=M["G"], M2B=M["M2B"], arrays=M["arrays"], laws=laws,
-                    source=f"каталог: {e['key']} ({e['source']}; {M['tri']} тр., для подгонки {len(M['F'])})",
-                    render="catalog", catalog=e, gcat=g)
-    if name.startswith("STARLINK"):
-        V, F, MAT, OBJ, kd = load_obj(MD / "starlink-v2mini.obj")
-        G = np.array([0 if m == "solar_cell" else 1 if m == "panel_back" else 2 for m in MAT])
-        wing = np.abs(V[:, 0]) > 2.2
-        arrays = [dict(mask=wing, point=np.zeros(3), axis=np.array([1.0, 0, 0]), normal0=np.array([0.0, 1, 0]))]
-        M2B = np.array([[1.0, 0, 0], [0, 0, -1.0], [0, 1.0, 0]])          # X — ось крыльев, Y — зенит
-        laws = [dict(name=f"ось крыльев {'вдоль' if y == 0 else 'поперёк'} полёта, крылья {an}", yaw=y, arrays=ar)
-                for y in (0, 90) for ar, an in (("sun", "на Солнце"), ("edge", "ребром к Солнцу"), ("flat", "плашмя"))]
-        return dict(kind="starlink", V=V, F=F, G=G, M2B=M2B, arrays=arrays, laws=laws, source="KeepTrack starlink-v2mini.obj", render="starlink_hd")
-    g = gcat(norad) or {}
+        kind = "rocketbody" if e["kind"] == "rocketbody" or typ == "R" else "debris" if typ == "D" else "payload"
+        return dict(kind=kind, V=M["V"], F=M["F"], G=M["G"], M2B=M["M2B"], arrays=M["arrays"],
+                    laws=laws_for(kind, bool(M["arrays"]), e["frame"] == "satvis", year),
+                    source=f"каталог: {e['key']} ({e['source']}; {M['tri']} тр., для подгонки {len(M['F'])})", catalog=e, gcat=g)
     V, F, G, arrays, src = parametric(g)
-    typ = (g.get("Type") or "P")[:1]
-    M2B = np.eye(3)
-    if typ == "P":
-        year = int((g.get("LDate") or "2026")[:4]) if (g.get("LDate") or "")[:4].isdigit() else 2026
-        laws = LAWS_PAYLOAD + (LAWS_OLD if year < 2011 or not arrays else [])
-        return dict(kind="payload", V=V, F=F, G=G, M2B=M2B, arrays=arrays, laws=laws, source=src, render=None, gcat=g)
-    return dict(kind="rocketbody" if typ == "R" else "debris", V=V, F=F, G=G, M2B=M2B, arrays=arrays, laws=LAWS_TUMBLE, source=src, render=None, gcat=g)
+    kind = "payload" if typ == "P" else "rocketbody" if typ == "R" else "debris"
+    return dict(kind=kind, V=V, F=F, G=G, M2B=np.eye(3), arrays=arrays, laws=laws_for(kind, bool(arrays), True, year),
+                source=src, catalog=None, gcat=g)

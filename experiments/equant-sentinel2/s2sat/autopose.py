@@ -1,16 +1,17 @@
 """Автоматическая поза объекта по снимку без ручных решений (THEORY §24).
 
-Вместо свободной подгонки трёх углов (на пикселях 10 м она недоопределена и может уйти в физически невозможную
-позу) — проверка гипотез из законов ориентации класса объекта (modelcat.spec_for):
-  * аппарат: ориентирован на Землю (оси тела = орбитальные), рысканье из набора закона; панели по закону
-    (на Солнце / ребром к Солнцу / плашмя); допускаются малые отклонения с априорным разбросом (рысканье, тангаж,
-    крен σ = 5°, угол панелей σ = 10°) и сдвиг положения (σ = 60 м);
-  * ступень, обломок: ось — любая (перебор по сфере, затем уточнение), без априорного предпочтения.
-Каждая гипотеза: уточнение позы по половине полос A → невязка на половине B, и наоборот (кросс-проверка,
-яркость материалов в каждой полосе — НМНК). Побеждает гипотеза с наименьшей суммой невязок на отложенных полосах.
-Свободная поза (все углы свободны) проверяется так же; если она лучше лучшей штатной на T и больше — объект помечается
-как «нештатная ориентация» (кувыркание, авария, особый режим) и берётся свободная поза. Порог T — по проверке на
-синтетических объектах (inject).
+Поворот штатного объекта ВЫЧИСЛЯЕТСЯ, а не подгоняется:
+  * оси орбиты (вдоль, поперёк, радиус) — из орбиты на момент снимка (rc["sun"], rc["los"] даны в этих осях);
+  * поворот тела относительно них — по опубликованному закону ориентации класса (modelcat.spec_for): рысканье режима и
+    опубликованные углы (у МКС — TEA +XVV/−XVV по NASA), без подбираемых отклонений;
+  * солнечные батареи — наведение на Солнце по эфемериде всеми приводами, найденными в модели (modelcat._wings: первая
+    ось — от корпуса к корню крыла, вторая — вдоль крыла, если не совпадает с первой), либо по режиму («ребром»,
+    «плашмя», «перпендикулярно корпусу», «неподвижны»).
+Снимок только выбирает закон: для каждой гипотезы подбираются положение (ошибка орбиты) и яркость материалов по полосам
+(НМНК); уточнение по половине полос A → невязка на половине B и наоборот. Побеждает наименьшая невязка на отложенных.
+Поворот оценивается только там, где закона нет: ступени и обломки (ось по сфере), объект в нештатной ориентации
+(свободный поворот — вектор поворота относительно штатных осей). Нештатность: свободный поворот лучше лучшего закона
+более чем на T_ANOM в единицах эффективного χ² (невязка, делённая на κ — несоответствие модели снимку) и поза различима.
 """
 from __future__ import annotations
 
@@ -23,8 +24,9 @@ from scipy.optimize import minimize, nnls
 from scipy.signal import fftconvolve
 
 FINE = 1.0
-SIG = dict(yaw=math.radians(5), pitch=math.radians(5), roll=math.radians(5), arr=math.radians(10), pos=60.0)
-T_ANOM = 25.0
+SIG_POS = 60.0         # априорная ошибка положения по орбите, м
+SIG_LIB = math.radians(10)   # либрации при гравитационной стабилизации
+T_ANOM = 25.0          # порог нештатности, эффективный χ²
 
 
 def rot_axis(a, ang):
@@ -33,8 +35,19 @@ def rot_axis(a, ang):
     return np.eye(3) + s * K + (1 - c) * K @ K
 
 
+def rotvec(w):
+    th = float(np.linalg.norm(w))
+    return np.eye(3) if th < 1e-12 else rot_axis(np.asarray(w, float) / th, th)
+
+
 def att(yaw, pitch, roll):
     return rot_axis([0, 0, 1], yaw) @ rot_axis([0, 1, 0], pitch) @ rot_axis([1, 0, 0], roll)
+
+
+def law_attitude(h):
+    """Поворот штатных осей тела в орбитальные по закону: рысканье режима + опубликованные углы (в наших осях)."""
+    a = h.get("att_deg", (0.0, 0.0, 0.0))
+    return att(math.radians(h.get("yaw", 0.0) + a[0]), math.radians(a[1]), math.radians(a[2]))
 
 
 def _align(u, v):
@@ -46,36 +59,60 @@ def _align(u, v):
 
 
 def array_angle(n0, a, target):
+    """Угол поворота вокруг оси a, переводящий нормаль n0 в проекцию target на плоскость, перпендикулярную a."""
     t = target - (target @ a) * a
     return math.atan2(float(t @ np.cross(a, n0)), float(t @ n0))
 
 
+def _turn(V, m, axis, point, ang):
+    Rm = rot_axis(axis, ang); V[m] = (V[m] - point) @ Rm.T + point
+
+
 def pose_body(spec, h, x, sun_b):
-    """Вершины в осях тела (м) для гипотезы h и параметров x; возвращает также матрицу R (сетка → тело) и углы панелей."""
-    if h.get("gg"):
+    """Вершины в орбитальных осях (м), матрица R (сетка → орбитальные оси) и углы приводов панелей.
+    x = [3 параметра поворота (только для оценки: кувыркание / свободный поворот / либрации), угол панелей (только для
+    свободного поворота), сдвиг положения 3]."""
+    sun_b = np.asarray(sun_b, float)
+    if h.get("gg"):                                        # гравитационная стабилизация: продольная ось к Земле
         R = att(x[0], x[1], x[2]) @ _align(spec["M2B"] @ np.array([1.0, 0, 0]), np.array([0.0, 0, 1])) @ spec["M2B"]
         return spec["V"] @ R.T, R, []
-    if h.get("tumble") or h.get("free3"):
-        if h.get("tumble"):
-            az, el = x[0], x[1]; d = np.array([math.cos(el) * math.cos(az), math.cos(el) * math.sin(az), math.sin(el)])
-            R = _align(spec["M2B"] @ np.array([1.0, 0, 0]), d) @ spec["M2B"]
-        else:
-            R = att(x[0], x[1], x[2]) @ spec["M2B"]
+    if h.get("tumble"):                                    # ось ступени по направлению (азимут, высота)
+        az, el = x[0], x[1]; d = np.array([math.cos(el) * math.cos(az), math.cos(el) * math.sin(az), math.sin(el)])
+        R = _align(spec["M2B"] @ np.array([1.0, 0, 0]), d) @ spec["M2B"]
+        return spec["V"] @ R.T, R, []
+    if h.get("free3"):                                     # свободный поворот: вектор поворота относительно штатных осей
+        R = rotvec(x[:3]) @ spec["M2B"]
         V = spec["V"].copy(); angs = []
         for ar in spec["arrays"]:
-            alpha = x[3] if len(x) > 3 and h.get("free3") else 0.0
-            Rm = rot_axis(ar["axis"], alpha); m = ar["mask"]; V[m] = (V[m] - ar["point"]) @ Rm.T + ar["point"]; angs.append(alpha)
+            _turn(V, ar["mask"], ar["axis"], ar["point"], x[3]); angs.append(float(x[3]))
         return V @ R.T, R, angs
-    R = att(math.radians(h["yaw"]) + x[0], x[1], x[2]) @ spec["M2B"]
+    R = law_attitude(h) @ spec["M2B"]
     V = spec["V"].copy(); angs = []
+    mode = h.get("arrays", "fixed")
+    t_m = R.T @ sun_b                                      # Солнце в осях сетки
     for ar in spec["arrays"]:
-        a_b = R @ ar["axis"]; n0_b = R @ ar["normal0"]
-        if h["arrays"] == "fixed":                       # панели в положении модели (не следят за Солнцем)
-            alpha = x[3]
+        a, n0 = np.asarray(ar["axis"], float), np.asarray(ar["normal0"], float)
+        if mode == "fixed":
+            angs.append(0.0); continue
+        if mode == "flat":
+            tgt = R.T @ np.array([0.0, 0, 1])
+        elif mode == "vertical":
+            tg = sun_b.copy(); tg[2] = 0.0
+            tgt = R.T @ (tg if np.linalg.norm(tg) > 1e-6 else np.array([1.0, 0, 0]))
         else:
-            tgt = np.asarray(sun_b, float) if h["arrays"] in ("sun", "edge") else np.array([0.0, 0, 1])
-            alpha = array_angle(n0_b, a_b, tgt) + (math.pi / 2 if h["arrays"] == "edge" else 0.0) + x[3]
-        Rm = rot_axis(ar["axis"], alpha); m = ar["mask"]; V[m] = (V[m] - ar["point"]) @ Rm.T + ar["point"]; angs.append(alpha)
+            tgt = t_m
+        alpha = array_angle(n0, a, tgt) + (math.pi / 2 if mode == "edge" else 0.0)
+        if mode == "sun" and ar.get("sub"):                # два привода: первый ставит длину крыла ⟂ Солнцу,
+            a2 = np.asarray(ar["sub"][0]["axis"], float)    # второй поворачивает крыло вокруг длины нормалью на Солнце
+            d = np.cross(a, t_m)
+            if np.linalg.norm(d) > 1e-6:
+                alpha = array_angle(a2, a, d / np.linalg.norm(d))
+            t1 = rot_axis(a, alpha).T @ t_m                # Солнце в осях крыла до поворота первым приводом
+            for sw in ar["sub"]:
+                b = array_angle(np.asarray(sw["normal0"], float), np.asarray(sw["axis"], float), t1)
+                b = (b + math.pi / 2) % math.pi - math.pi / 2   # ближайшая из двух сторон
+                _turn(V, sw["mask"], sw["axis"], sw["point"], b)
+        _turn(V, ar["mask"], a, ar["point"], alpha); angs.append(alpha)
     return V @ R.T, R, angs
 
 
@@ -137,32 +174,55 @@ def null_loss(d, hub=3.0):
 
 
 class Problem:
-    def __init__(self, rc, spec):
+    def __init__(self, rc, spec, C=None):
+        """C — поворот из инерциальных орбитальных осей (в них законы ориентации) в оси реконструкции (в них записаны
+        якобианы полос, визир и Солнце rc): scenegeom.lvlh_to_fit."""
         self.rc, self.spec = rc, spec
+        self.C = np.eye(3) if C is None else np.asarray(C, float)
         self.sun = np.asarray(rc["sun"], float); self.los = np.asarray(rc["los"], float)
+        self.sun_l = self.C.T @ self.sun                   # Солнце в инерциальных орбитальных осях
         self.ng = int(spec["G"].max()) + 1
         self.bands = sorted(rc["bands"], key=lambda b: rc["bands"][b]["jd"])
         self.cache = {}
 
+    @staticmethod
+    def free_idx(h):
+        """Какие компоненты x подбираются: у закона — только положение; у оценки поворота — поворот и положение."""
+        if h.get("free3"):
+            return [0, 1, 2, 3, 4, 5, 6]
+        if h.get("gg"):
+            return [0, 1, 2, 4, 5, 6]
+        if h.get("tumble"):
+            return [0, 1, 4, 5, 6]
+        return [4, 5, 6]
+
+    def body(self, h, x):
+        """Вершины в осях реконструкции: поза по закону в инерциальных орбитальных осях, затем поворот C."""
+        return pose_body(self.spec, h, x, self.sun_l)[0] @ self.C.T
+
     def loss(self, h, x, bands, prior=True):
-        Vb, _, _ = pose_body(self.spec, h, x, self.sun)
+        Vb = self.body(h, x)
         L = 0.0
-        ak = (h["name"],) + tuple(np.round(np.asarray(x[:4], float), 7))
+        rot_free = h.get("free3") or h.get("gg") or h.get("tumble")
+        ak = (h["name"],) + (tuple(np.round(np.asarray(x[:4], float), 7)) if rot_free else ())
         for b in bands:
             d = self.rc["bands"][b]
             L += band_loss(d, regress(d, Vb, self.spec["F"], self.spec["G"], self.ng, self.los, x[-3:], self.cache, ak + (b,)))[0]
-        if prior and h.get("gg"):
-            L += (x[1] / math.radians(10)) ** 2 + (x[2] / math.radians(10)) ** 2           # либрации ±10°, рысканье свободно
-        elif prior and not (h.get("tumble") or h.get("free3")):
-            L += (x[0] / SIG["yaw"]) ** 2 + (x[1] / SIG["pitch"]) ** 2 + (x[2] / SIG["roll"]) ** 2 + (x[3] / SIG["arr"]) ** 2
         if prior:
-            L += float(np.sum((np.asarray(x[-3:]) / SIG["pos"]) ** 2))
+            L += float(np.sum((np.asarray(x[-3:]) / SIG_POS) ** 2))                         # ошибка орбиты
+            if h.get("gg"):
+                L += (x[1] / SIG_LIB) ** 2 + (x[2] / SIG_LIB) ** 2                          # либрации
         return L
 
     def fit(self, h, bands, x0, maxfev=160):
-        f = lambda x: self.loss(h, x, bands)
-        r = minimize(f, np.asarray(x0, float), method="Powell", options=dict(maxfev=maxfev, xtol=1e-3, ftol=1e-4))
-        return r.x, r.fun
+        x0 = np.asarray(x0, float); idx = self.free_idx(h)
+
+        def f(u):
+            x = x0.copy(); x[idx] = u
+            return self.loss(h, x, bands)
+        r = minimize(f, x0[idx], method="Powell", options=dict(maxfev=maxfev, xtol=1e-3, ftol=1e-4))
+        x = x0.copy(); x[idx] = r.x
+        return x, r.fun
 
     def starts(self, h, bands):
         if h.get("tumble"):
@@ -172,7 +232,7 @@ class Problem:
             sc = [self.loss(h, c, bands) for c in cand]
             return [cand[i] for i in np.argsort(sc)[:3]]
         if h.get("free3"):
-            return [np.array([math.radians(y), 0, 0, math.radians(a_), 0, 0, 0]) for y in (0, 90, 180, 270) for a_ in (0, 90)]
+            return [np.array([0, 0, math.radians(y), math.radians(a_), 0, 0, 0]) for y in (0, 90, 180, 270) for a_ in (0, 90)]
         if h.get("gg"):
             return [np.array([math.radians(y), 0, 0, 0, 0, 0, 0]) for y in (0, 45, 90, 135)]
         return [np.zeros(7)]
@@ -218,32 +278,39 @@ def eq_rms(spec):
     return max(1.0, 0.06 * float(np.max(ext)))
 
 
-def solve(rc, spec, log=print, maxfev=160):
-    P = Problem(rc, spec)
+def solve(rc, spec, log=print, maxfev=160, C=None):
+    P = Problem(rc, spec, C)
     res = []
     for h in spec["laws"]:
         r = P.evaluate(h, maxfev); r["law"] = h; res.append(r)
         log(f"   {h['name']:52s} невязка на отложенных {r['cv']:10.0f}   по всем {r['L']:10.0f}")
+    npix = sum(int(np.isfinite(P.rc["bands"][b]["r"]).sum()) for b in P.bands)
     law_best = min(res, key=lambda r: r["cv"])
     thr = eq_rms(spec)
     for r in res:                                        # насколько поза каждой гипотезы отличается от лучшей
-        r["rms_vs_best_m"] = pose_rms(spec, P.sun, law_best["law"], law_best["x"], r["law"], r["x"])
+        r["rms_vs_best_m"] = pose_rms(spec, P.sun_l, law_best["law"], law_best["x"], r["law"], r["x"])
     equiv = [r["name"] for r in res if r["rms_vs_best_m"] < thr]
     dist = sorted(r["cv"] for r in res if r["rms_vs_best_m"] >= thr)
     free = None
     if spec["kind"] in ("station", "starlink", "payload"):
-        hf = dict(name="свободная поза (все углы)", free3=True)
+        hf = dict(name="свободный поворот (оценка)", free3=True)
         free = P.evaluate(hf, maxfev); free["law"] = hf
-        free["rms_vs_best_m"] = pose_rms(spec, P.sun, law_best["law"], law_best["x"], hf, free["x"])
+        free["rms_vs_best_m"] = pose_rms(spec, P.sun_l, law_best["law"], law_best["x"], hf, free["x"])
         log(f"   {hf['name']:52s} невязка на отложенных {free['cv']:10.0f}   по всем {free['L']:10.0f}   отличие позы {free['rms_vs_best_m']:.1f} м")
+    # κ: средняя невязка на пиксель у лучшей позы — несоответствие модели снимку (яркость, BRDF, смаз) сверх шума.
+    # Разности невязок делятся на κ — «эффективный χ²»; без этого запас и порог нештатности завышены во много раз.
+    kappa = max(1.0, min([r["L"] for r in res] + ([free["L"]] if free else [])) / max(1, npix))
+    margin = float(dist[0] - law_best["cv"]) if dist else None
     out = dict(kind=spec["kind"], source=spec["source"], hypotheses=[{k: v for k, v in r.items() if k != "law"} for r in res],
-               chosen=law_best["name"], equivalent=equiv, eq_rms_m=thr,
-               margin=float(dist[0] - law_best["cv"]) if dist else None, anomalous=False)
+               chosen=law_best["name"], equivalent=equiv, eq_rms_m=thr, kappa=kappa, npix=npix,
+               margin=margin, margin_eff=None if margin is None else margin / kappa, anomalous=False)
     chosen = law_best
     if free is not None:
         out["free"] = {k: v for k, v in free.items() if k != "law"}
-        if free["cv"] < law_best["cv"] - T_ANOM and free["rms_vs_best_m"] >= thr:
+        out["free_gain_eff"] = (law_best["cv"] - free["cv"]) / kappa
+        if (law_best["cv"] - free["cv"]) / kappa > T_ANOM and free["rms_vs_best_m"] >= thr:
             out["anomalous"] = True; out["chosen"] = free["name"]; chosen = free
-    Vb, R, angs = pose_body(spec, chosen["law"], np.asarray(chosen["x"]), P.sun)
+    Vb, R, angs = pose_body(spec, chosen["law"], np.asarray(chosen["x"]), P.sun_l)
+    out["sun_lvlh"] = P.sun_l.tolist(); out["C_lvlh_to_fit"] = P.C.tolist()
     out["R"] = R.tolist(); out["array_angles_deg"] = [math.degrees(a_) for a_ in angs]; out["x"] = chosen["x"]; out["law"] = {k: v for k, v in chosen["law"].items()}
     return out

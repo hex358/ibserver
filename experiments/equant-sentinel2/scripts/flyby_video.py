@@ -134,10 +134,9 @@ def main():
     sen, orb = RV.choose_orbits(e, rc, None)
     band0 = next((b for b in ("green", "red", "blue", "nir") if b in rc["bands"]), next(iter(rc["bands"])))
     db = rc["bands"][band0]; jd0 = float(db["jd"]); anchor = np.asarray(db["meas"][:2] if db.get("meas") else db["p0"], float)
-    is_iss = a.name.startswith("ISS")
-    geo = RV.frame_geometry(sen, orb, jd0, epsg, inertial=is_iss); sun, los = geo["sun"], geo["los"]; vG = geo["vG"]
+    geo = RV.frame_geometry(sen, orb, jd0, epsg); sun, los = geo["sun"], geo["los"]; vG = geo["vG"]
     parts, note, smooth = HDM.parts_for(a.name, sun, int(e.get("cat", 0)))
-    title = "МКС" if is_iss else a.name.split("_")[0]
+    title = e.get("obj") or a.name.split("_")[0]
     Vb = HDM.all_vertices(parts); shapes = HDM.mitsuba_shapes(parts, work / "hd", smooth=smooth)
     right, up, A2, S = RV.camera_basis(geo["Jf"], los); k = float(S.mean())
     proj = Vb - np.outer(Vb @ los, los); ext = float(np.max(np.abs(np.c_[proj @ right, proj @ up]))) + 2.0
