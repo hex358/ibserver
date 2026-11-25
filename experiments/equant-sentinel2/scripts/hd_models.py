@@ -21,7 +21,24 @@ def _mat_props(mat):
     col = (1.0, 1.0, 1.0) if f is None else tuple((np.asarray(f[:3], float) / (255.0 if np.max(f) > 1.0 else 1.0)).tolist())
     tex = getattr(mat, "baseColorTexture", None)
     met = getattr(mat, "metallicFactor", None); rough = getattr(mat, "roughnessFactor", None)
+    mrt = getattr(mat, "metallicRoughnessTexture", None)
+    if met is None and rough is None and mrt is None:
+        # материал без PBR-описания (старые экспорты): по стандарту был бы шероховатый металл, на деле — краска/плёнка
+        return (getattr(mat, "name", None) or "m", col, tex, 0.0, 0.6)
     return (getattr(mat, "name", None) or "m", col, tex, 1.0 if met is None else float(met), 1.0 if rough is None else float(rough))   # умолчания glTF
+
+
+def _mr_maps(mat, met, rough, work, i):
+    """Карты металличности и шероховатости: канал B / G текстуры metallicRoughness × коэффициент материала (glTF 2.0).
+    Возвращает (металл, шероховатость) — числа или словари bitmap для Mitsuba."""
+    mrt = getattr(mat, "metallicRoughnessTexture", None) if mat is not None else None
+    if mrt is None:
+        return float(met), float(max(rough, 0.05))
+    a = np.asarray(mrt.convert("RGB"), np.float32) / 255.0
+    fm, fr = work / f"m{i}.png", work / f"r{i}.png"
+    Image.fromarray((np.clip(a[..., 2] * met, 0, 1) * 255).astype(np.uint8)).save(fm)
+    Image.fromarray((np.clip(a[..., 1] * rough, 0.05, 1) * 255).astype(np.uint8)).save(fr)
+    return ({"type": "bitmap", "filename": str(fm), "raw": True}, {"type": "bitmap", "filename": str(fr), "raw": True})
 
 
 EXTRA = {  # материалы, которых нет в glTF: (цвет, металл, шероховатость, текстура)
@@ -71,12 +88,14 @@ def mitsuba_shapes(parts, work, smooth=True):
                 im = np.asarray(texi.convert("RGB"), np.float32) / 255.0 * np.asarray(col, np.float32)
                 Image.fromarray((np.clip(im, 0, 1) * 255).astype(np.uint8)).save(tex)
         bc = {"type": "bitmap", "filename": str(tex)} if tex is not None else {"type": "rgb", "value": list(map(float, col))}
+        mtl = ps[0].get("mat")
+        metv, roughv = _mr_maps(mtl, met, rough, work, i) if (has_uv and base not in EXTRA) else (float(met), float(max(rough, 0.05)))
         if key.endswith("|cells"):
             # солнечные элементы: диффузная подложка (цвет/текстура модели) под покровным стеклом n = 1.5 с почти
             # зеркальным отражением — на снимках панели отражают Землю и дают блики
             bsdf = {"type": "roughplastic", "distribution": "ggx", "alpha": 0.04, "int_ior": 1.5, "diffuse_reflectance": bc}
         else:
-            bsdf = {"type": "principled", "base_color": bc, "metallic": float(met), "roughness": float(max(rough, 0.05))}
+            bsdf = {"type": "principled", "base_color": bc, "metallic": metv, "roughness": roughv}
         shapes[f"hd{i}"] = {"type": "obj", "filename": str(fn), "face_normals": not smooth, "bsdf": {"type": "twosided", "bsdf": bsdf}}
     return shapes
 
