@@ -95,6 +95,8 @@ def pose_body(spec, h, x, sun_b):
         a, n0 = np.asarray(ar["axis"], float), np.asarray(ar["normal0"], float)
         if mode == "fixed":
             angs.append(0.0); continue
+        if mode == "angle":                                # приводы стоят под углом x[3] (не следят за Солнцем)
+            _turn(V, ar["mask"], a, ar["point"], float(x[3])); angs.append(float(x[3])); continue
         if mode == "flat":
             tgt = R.T @ np.array([0.0, 0, 1])
         elif mode == "vertical":
@@ -197,6 +199,8 @@ class Problem:
             return [0, 1, 2, 4, 5]
         if h.get("tumble"):
             return [0, 1, 4, 5]
+        if h.get("arrays") == "angle":
+            return [3, 4, 5]
         return [4, 5]
 
     def body(self, h, x):
@@ -206,7 +210,7 @@ class Problem:
     def loss(self, h, x, bands, prior=True):
         Vb = self.body(h, x)
         L = 0.0
-        rot_free = h.get("free3") or h.get("gg") or h.get("tumble")
+        rot_free = h.get("free3") or h.get("gg") or h.get("tumble") or h.get("arrays") == "angle"
         ak = (h["name"],) + (tuple(np.round(np.asarray(x[:4], float), 7)) if rot_free else ())
         for b in bands:
             d = self.rc["bands"][b]
@@ -239,6 +243,9 @@ class Problem:
             return [np.array([0, 0, math.radians(y), math.radians(a_), 0, 0, 0]) for y in (0, 90, 180, 270) for a_ in (0, 90)]
         if h.get("gg"):
             return [np.array([math.radians(y), 0, 0, 0, 0, 0, 0]) for y in (0, 45, 90, 135)]
+        if h.get("arrays") == "angle":                     # угол панелей: перебор 0…150° через 30°, лучший — старт
+            cand = [np.array([0, 0, 0, math.radians(t), 0, 0, 0]) for t in range(0, 180, 30)]
+            return [min(cand, key=lambda c: self.loss(h, c, bands))]
         return [np.zeros(7)]
 
     def ground_scale(self):
@@ -314,7 +321,7 @@ def decide(out, spec, sun_l, law_best, free, kappa, thr):
 def solve(rc, spec, log=print, maxfev=160, C=None):
     P = Problem(rc, spec, C)
     npix = sum(int(np.isfinite(P.rc["bands"][b]["r"]).sum()) for b in P.bands)
-    exact = [h for h in spec["laws"] if not (h.get("gg") or h.get("tumble") or h.get("free3"))]
+    exact = [h for h in spec["laws"] if not (h.get("gg") or h.get("tumble") or h.get("free3") or h.get("arrays") == "angle")]
     est = [h for h in spec["laws"] if h not in exact]
     res = []
     for h in exact:                                        # проход 1: точные законы (подбираются только положение и яркость)
