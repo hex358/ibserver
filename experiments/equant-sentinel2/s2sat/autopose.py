@@ -26,7 +26,8 @@ from scipy.signal import fftconvolve
 FINE = 1.0
 SIG_POS = 60.0         # априорная ошибка положения по орбите, м
 SIG_LIB = math.radians(10)   # либрации при гравитационной стабилизации
-T_ANOM = 25.0          # порог нештатности, эффективный χ²
+T_ANOM = 25.0          # порог значимости свободного поворота над законом, эффективный χ²
+ANOM_DEG = 30.0        # нештатный режим — поворот относительно лучшего закона больше этого; меньше — отклонение в режиме
 
 
 def rot_axis(a, ang):
@@ -278,6 +279,22 @@ def eq_rms(spec):
     return max(1.0, 0.06 * float(np.max(ext)))
 
 
+def decide(out, spec, sun_l, law_best, free, kappa, thr):
+    """Штатно или нет. Свободный поворот значимо лучше закона (T_ANOM в эффективном χ²) и поза различима:
+    поворот > ANOM_DEG — нештатный режим (кувыркание, авария); меньше — штатный режим с измеренным отклонением."""
+    Rb = pose_body(spec, law_best["law"], np.asarray(law_best["x"]), sun_l)[1]
+    Rf = pose_body(spec, free["law"], np.asarray(free["x"]), sun_l)[1]
+    dev = math.degrees(math.acos(np.clip((np.trace(Rf @ Rb.T) - 1) / 2, -1, 1)))
+    gain = (law_best["cv"] - free["cv"]) / kappa
+    sig = gain > T_ANOM and free["rms_vs_best_m"] >= thr
+    out["free_gain_eff"] = gain
+    out["deviation_deg"] = dev if sig else None              # измеренное отклонение от закона (только если значимо)
+    out["anomalous"] = bool(sig and dev > ANOM_DEG)
+    if out["anomalous"]:
+        out["chosen"] = free["name"]
+    return out
+
+
 def solve(rc, spec, log=print, maxfev=160, C=None):
     P = Problem(rc, spec, C)
     res = []
@@ -307,9 +324,9 @@ def solve(rc, spec, log=print, maxfev=160, C=None):
     chosen = law_best
     if free is not None:
         out["free"] = {k: v for k, v in free.items() if k != "law"}
-        out["free_gain_eff"] = (law_best["cv"] - free["cv"]) / kappa
-        if (law_best["cv"] - free["cv"]) / kappa > T_ANOM and free["rms_vs_best_m"] >= thr:
-            out["anomalous"] = True; out["chosen"] = free["name"]; chosen = free
+        decide(out, spec, P.sun_l, law_best, free, kappa, thr)
+        if out["anomalous"]:
+            chosen = free
     Vb, R, angs = pose_body(spec, chosen["law"], np.asarray(chosen["x"]), P.sun_l)
     out["sun_lvlh"] = P.sun_l.tolist(); out["C_lvlh_to_fit"] = P.C.tolist()
     out["R"] = R.tolist(); out["array_angles_deg"] = [math.degrees(a_) for a_ in angs]; out["x"] = chosen["x"]; out["law"] = {k: v for k, v in chosen["law"].items()}

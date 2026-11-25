@@ -63,16 +63,18 @@ def main():
         # оракул: невязка при истинных параметрах — если меньше найденной, оптимизатор недоискал
         P = AP.Problem(rc2, spec, C); L_true = P.loss(h, x, P.bands, prior=False)
         hyp = {r["name"]: r["cv"] for r in res["hypotheses"]}
-        row = dict(kind=kind, true=h["name"], chosen=res["chosen"], equivalent=res.get("equivalent"), anomalous=res["anomalous"],
+        indist = (not ok) and min(r["L"] for r in res["hypotheses"]) <= L_true     # данные не различают: найденная поза не хуже истинной
+        row = dict(kind=kind, true=h["name"], indistinguishable=bool(indist), chosen=res["chosen"], equivalent=res.get("equivalent"), anomalous=res["anomalous"],
                    ok=bool(ok), label_ok=bool(label_ok), pose_rms_m=rms, eq_rms_m=thr, rot_err_deg=ang, margin=res["margin"],
                    cv=hyp, cv_free=(res.get("free") or {}).get("cv"), L_true=L_true,
                    L_found=min(r["L"] for r in res["hypotheses"]), seconds=round(time.time() - t0))
         out.append(row)
-        print(f"{kind:4s} истина: {h['name'][:40]:40s} → {res['chosen'][:40]:40s} {'ВЕРНО' if ok else 'НЕВЕРНО'}  поза ±{rms:4.1f} м "
+        print(f"{kind:4s} истина: {h['name'][:40]:40s} → {res['chosen'][:40]:40s} {'ВЕРНО' if ok else ('НЕРАЗЛИЧИМО' if indist else 'НЕВЕРНО')}  поза ±{rms:4.1f} м "
               f"(порог {thr:.1f})  поворот {ang:5.1f}°  своб−закон {((res.get('free') or {}).get('cv', float('nan')) - min(hyp.values())):+7.0f}  "
               f"L ист {L_true:.0f} / найд {row['L_found']:.0f}  {row['seconds']} с", flush=True)
     good = [r for r in out if r["kind"] == "law"]; bad = [r for r in out if r["kind"] == "anom"]
-    summ = dict(base=a.base, noise=a.noise, law_ok=sum(r["ok"] for r in good), law_n=len(good), anom_ok=sum(r["ok"] for r in bad), anom_n=len(bad),
+    summ = dict(base=a.base, noise=a.noise, law_ok=sum(r["ok"] for r in good), law_n=len(good),
+                law_indistinguishable=sum(r["indistinguishable"] for r in good), anom_ok=sum(r["ok"] for r in bad), anom_n=len(bad),
                 rot_err_median_deg=float(np.median([r["rot_err_deg"] for r in good])) if good else None,
                 pose_rms_median_m=float(np.median([r["pose_rms_m"] for r in good])) if good else None, trials=out)
     Path(ROOT / "results/auto").mkdir(parents=True, exist_ok=True)
