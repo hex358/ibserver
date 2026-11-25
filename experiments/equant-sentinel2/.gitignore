@@ -101,3 +101,4 @@ data/models/catalog/nasa/
 data/models/catalog/nasa_extra/
 data/models/catalog/satvis/
 results/catalog/*.png
+data/models/catalog/gltf/

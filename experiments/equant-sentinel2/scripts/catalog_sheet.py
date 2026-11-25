@@ -13,7 +13,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 ap = argparse.ArgumentParser()
-ap.add_argument("--only", default=""); ap.add_argument("--px", type=int, default=512); ap.add_argument("--spp", type=int, default=64)
+ap.add_argument("--only", default=""); ap.add_argument("--skip", default="ISS-(ZARYA)"); ap.add_argument("--px", type=int, default=512); ap.add_argument("--spp", type=int, default=64)
 ap.add_argument("--work", default="/tmp/catalog_work"); ap.add_argument("--out", default=str(ROOT / "results/catalog"))
 a = ap.parse_args()
 sys.argv = [sys.argv[0], "CATALOG"]
@@ -32,7 +32,7 @@ def main():
     G = MC._gcat()
     for e in MC._manifest():
         k = e["key"]
-        if (only and k not in only) or e.get("error"):
+        if (only and k not in only) or e.get("error") or (not only and k in a.skip.split(",")):
             continue
         if not only and (out / f"{k}.png").exists() and k in rows:
             continue

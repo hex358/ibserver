@@ -80,9 +80,9 @@
     99.3,
     30.63
    ],
-   "arrays": 8,
-   "fixed_panels": 0,
-   "solar_faces": 1864
+   "arrays": 0,
+   "fixed_panels": 8,
+   "solar_faces": 2171
   },
   {
    "key": "LANDSAT-8",
@@ -119,7 +119,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 545
+   "solar_faces": 1104
   },
   {
    "key": "CLOUDSAT",
@@ -187,7 +187,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 41
+   "solar_faces": 128
   },
   {
    "key": "GRACE-FO-1",
@@ -319,7 +319,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 723
+   "solar_faces": 761
   },
   {
    "key": "CYGFM01",
@@ -427,7 +427,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 2929
+   "solar_faces": 3074
   },
   {
    "key": "TERRA",
@@ -457,9 +457,9 @@
     13.03,
     5.14
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 4
+   "solar_faces": 60
   },
   {
    "key": "AURA",
@@ -552,9 +552,9 @@
     2.05,
     2.9
    ],
-   "arrays": 1,
-   "fixed_panels": 0,
-   "solar_faces": 606
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 1114
   },
   {
    "key": "TESS",
@@ -608,7 +608,7 @@
    ],
    "arrays": 2,
    "fixed_panels": 0,
-   "solar_faces": 4193
+   "solar_faces": 4360
   },
   {
    "key": "GPM-CORE",
@@ -638,9 +638,9 @@
     11.23,
     6.98
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 307
+   "solar_faces": 922
   },
   {
    "key": "OCO-2",
@@ -678,9 +678,9 @@
     6.5,
     1.24
    ],
-   "arrays": 0,
-   "fixed_panels": 3,
-   "solar_faces": 4450
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 4487
   },
   {
    "key": "SDO",
@@ -705,9 +705,9 @@
     6.26,
     5.2
    ],
-   "arrays": 2,
-   "fixed_panels": 0,
-   "solar_faces": 193
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 739
   },
   {
    "key": "SENTINEL-6A",
@@ -738,9 +738,9 @@
     4.37,
     2.32
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
-   "solar_faces": 545
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 587
   },
   {
    "key": "JASON-3",
@@ -776,7 +776,7 @@
    ],
    "arrays": 2,
    "fixed_panels": 0,
-   "solar_faces": 482
+   "solar_faces": 551
   },
   {
    "key": "MMS-1",
@@ -804,9 +804,9 @@
     28.88,
     16.93
    ],
-   "arrays": 0,
-   "fixed_panels": 2,
-   "solar_faces": 149
+   "arrays": 1,
+   "fixed_panels": 1,
+   "solar_faces": 493
   },
   {
    "key": "THEMIS-A",
@@ -869,9 +869,9 @@
     2.29,
     2.09
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
-   "solar_faces": 26627
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 27029
   },
   {
    "key": "CSS-(TIANHE)",
@@ -1059,7 +1059,7 @@
     4.91,
     1.19
    ],
-   "arrays": 4,
+   "arrays": 2,
    "fixed_panels": 0,
    "solar_faces": 24
   },
@@ -1086,8 +1086,8 @@
     9.96,
     1.08
    ],
-   "arrays": 0,
-   "fixed_panels": 5,
+   "arrays": 5,
+   "fixed_panels": 0,
    "solar_faces": 300
   },
   {
@@ -1143,7 +1143,7 @@
     9.76,
     1.04
    ],
-   "arrays": 4,
+   "arrays": 2,
    "fixed_panels": 0,
    "solar_faces": 96
   },
@@ -1360,8 +1360,8 @@
     14.96,
     4.3
    ],
-   "arrays": 4,
-   "fixed_panels": 0,
+   "arrays": 2,
+   "fixed_panels": 2,
    "solar_faces": 72
   },
   {
@@ -1442,8 +1442,8 @@
     0.77,
     1.33
    ],
-   "arrays": 0,
-   "fixed_panels": 2,
+   "arrays": 1,
+   "fixed_panels": 0,
    "solar_faces": 120
   },
   {
@@ -1539,7 +1539,7 @@
     7.66,
     1.52
    ],
-   "arrays": 4,
+   "arrays": 2,
    "fixed_panels": 0,
    "solar_faces": 72
   },
@@ -1700,7 +1700,7 @@
     0.11,
     0.36
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
    "solar_faces": 36
   },
@@ -1730,8 +1730,8 @@
     0.82,
     1.47
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
+   "arrays": 1,
+   "fixed_panels": 0,
    "solar_faces": 12
   },
   {
@@ -1757,7 +1757,7 @@
     2.74,
     0.71
    ],
-   "arrays": 4,
+   "arrays": 2,
    "fixed_panels": 0,
    "solar_faces": 48
   },
@@ -1795,7 +1795,7 @@
     5.49,
     2.6
    ],
-   "arrays": 4,
+   "arrays": 2,
    "fixed_panels": 0,
    "solar_faces": 96
   },
@@ -1820,7 +1820,7 @@
     5.49,
     2.6
    ],
-   "arrays": 4,
+   "arrays": 2,
    "fixed_panels": 0,
    "solar_faces": 96
   },
@@ -1875,8 +1875,8 @@
     0.1,
     0.1
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
+   "arrays": 1,
+   "fixed_panels": 0,
    "solar_faces": 48
   },
   {
@@ -1902,8 +1902,8 @@
     0.1,
     0.1
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
+   "arrays": 1,
+   "fixed_panels": 0,
    "solar_faces": 48
   },
   {
@@ -1930,8 +1930,8 @@
     0.3,
     0.1
    ],
-   "arrays": 6,
-   "fixed_panels": 0,
+   "arrays": 4,
+   "fixed_panels": 2,
    "solar_faces": 72
   },
   {
@@ -1957,8 +1957,8 @@
     0.1,
     0.1
    ],
-   "arrays": 2,
-   "fixed_panels": 0,
+   "arrays": 0,
+   "fixed_panels": 2,
    "solar_faces": 48
   },
   {
@@ -1986,8 +1986,8 @@
     0.67,
     0.1
    ],
-   "arrays": 0,
-   "fixed_panels": 2,
+   "arrays": 2,
+   "fixed_panels": 0,
    "solar_faces": 72
   },
   {
@@ -2013,8 +2013,8 @@
     0.23,
     0.1
    ],
-   "arrays": 2,
-   "fixed_panels": 0,
+   "arrays": 0,
+   "fixed_panels": 2,
    "solar_faces": 48
   },
   {
@@ -2042,8 +2042,8 @@
     1.58,
     0.23
    ],
-   "arrays": 2,
-   "fixed_panels": 0,
+   "arrays": 0,
+   "fixed_panels": 2,
    "solar_faces": 120
   },
   {
@@ -2071,8 +2071,8 @@
     1.58,
     0.23
    ],
-   "arrays": 2,
-   "fixed_panels": 0,
+   "arrays": 0,
+   "fixed_panels": 2,
    "solar_faces": 120
   },
   {
@@ -2553,9 +2553,9 @@
     22.7,
     16.21
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
-   "solar_faces": 3040
+   "arrays": 1,
+   "fixed_panels": 0,
+   "solar_faces": 3118
   },
   {
    "key": "HST",
@@ -2584,7 +2584,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 72
+   "solar_faces": 400
   },
   {
    "key": "AQUA",
@@ -2610,7 +2610,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 2974
+   "solar_faces": 3268
   },
   {
    "key": "LANDSAT-7",
@@ -2636,7 +2636,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 394
+   "solar_faces": 643
   },
   {
    "key": "LANDSAT-5",
@@ -2661,9 +2661,9 @@
     3.01,
     3.39
    ],
-   "arrays": 1,
-   "fixed_panels": 0,
-   "solar_faces": 143
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 320
   },
   {
    "key": "LANDSAT-1",
@@ -2715,9 +2715,9 @@
     9.7,
     2.47
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 1214
+   "solar_faces": 1276
   },
   {
    "key": "NOAA-POES",
@@ -2742,9 +2742,9 @@
     7.8,
     5.27
    ],
-   "arrays": 1,
-   "fixed_panels": 0,
-   "solar_faces": 33
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 228
   },
   {
    "key": "QUIKSCAT",
@@ -2794,9 +2794,9 @@
     11.5,
     8.54
    ],
-   "arrays": 1,
-   "fixed_panels": 0,
-   "solar_faces": 967
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 1082
   },
   {
    "key": "JASON-1",
@@ -2822,7 +2822,7 @@
    ],
    "arrays": 2,
    "fixed_panels": 0,
-   "solar_faces": 570
+   "solar_faces": 699
   },
   {
    "key": "JASON-2",
@@ -2848,7 +2848,7 @@
    ],
    "arrays": 2,
    "fixed_panels": 0,
-   "solar_faces": 483
+   "solar_faces": 551
   },
   {
    "key": "SORCE",
@@ -2874,7 +2874,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 728
+   "solar_faces": 730
   },
   {
    "key": "RADARSAT-1",
@@ -2898,8 +2898,8 @@
     15.0,
     2.63
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
+   "arrays": 1,
+   "fixed_panels": 0,
    "solar_faces": 4244
   },
   {
@@ -2924,8 +2924,8 @@
     3.83,
     1.65
    ],
-   "arrays": 0,
-   "fixed_panels": 1,
+   "arrays": 1,
+   "fixed_panels": 0,
    "solar_faces": 388
   },
   {
@@ -2950,9 +2950,9 @@
     8.0,
     6.1
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 4571
+   "solar_faces": 4737
   },
   {
    "key": "EO-1",
@@ -2978,7 +2978,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 1389
+   "solar_faces": 1884
   },
   {
    "key": "ACRIMSAT",
@@ -3054,9 +3054,9 @@
     0.53,
     0.79
    ],
-   "arrays": 2,
-   "fixed_panels": 0,
-   "solar_faces": 1359
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 1443
   },
   {
    "key": "AIM",
@@ -3080,9 +3080,9 @@
     2.0,
     0.83
    ],
-   "arrays": 2,
-   "fixed_panels": 0,
-   "solar_faces": 310
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 766
   },
   {
    "key": "AQUARIUS",
@@ -3108,7 +3108,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 589
+   "solar_faces": 1176
   },
   {
    "key": "ICESAT",
@@ -3132,8 +3132,8 @@
     6.5,
     1.91
    ],
-   "arrays": 2,
-   "fixed_panels": 0,
+   "arrays": 0,
+   "fixed_panels": 1,
    "solar_faces": 138
   },
   {
@@ -3263,9 +3263,9 @@
     5.02,
     2.08
    ],
-   "arrays": 1,
-   "fixed_panels": 0,
-   "solar_faces": 2740
+   "arrays": 0,
+   "fixed_panels": 1,
+   "solar_faces": 3052
   },
   {
    "key": "CGRO",
@@ -3289,7 +3289,7 @@
     10.16,
     8.12
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
    "solar_faces": 128
   },
@@ -3317,7 +3317,7 @@
    ],
    "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 281
+   "solar_faces": 342
   },
   {
    "key": "IBEX",
@@ -3365,9 +3365,9 @@
     0.3,
     0.19
    ],
-   "arrays": 2,
+   "arrays": 1,
    "fixed_panels": 0,
-   "solar_faces": 3874
+   "solar_faces": 3999
   },
   {
    "key": "CUBESAT-ICECUBE",
@@ -3389,9 +3389,9 @@
     0.14,
     0.5
    ],
-   "arrays": 1,
-   "fixed_panels": 1,
-   "solar_faces": 6402
+   "arrays": 2,
+   "fixed_panels": 0,
+   "solar_faces": 6646
   },
   {
    "key": "CUBESAT-MIRATA",
@@ -3413,9 +3413,9 @@
     0.09,
     0.3
    ],
-   "arrays": 4,
-   "fixed_panels": 0,
-   "solar_faces": 6913
+   "arrays": 0,
+   "fixed_panels": 2,
+   "solar_faces": 7495
   },
   {
    "key": "AGENA",
@@ -3489,6 +3489,32 @@
     27.82,
     36.1,
     10.98
+   ],
+   "arrays": 0,
+   "fixed_panels": 0,
+   "solar_faces": 0
+  },
+  {
+   "key": "ENVISAT",
+   "file": "gltf/ENVISAT/scene.gltf",
+   "source": "Sketchfab: tashtego, «Envisat» (sketchfab.com/3d-models/envisat-65b0ec49681a44f68dfc8bd4efe95839)",
+   "license": "CC-BY-4.0",
+   "frame": "unverified",
+   "rotate": [],
+   "mirror": null,
+   "scale": "gcat",
+   "match": {
+    "norad": [
+     27386
+    ]
+   },
+   "kind": "payload",
+   "matched_gcat": 1,
+   "tri": 12442,
+   "dims_m": [
+    26.0,
+    9.66,
+    7.47
    ],
    "arrays": 0,
    "fixed_panels": 0,

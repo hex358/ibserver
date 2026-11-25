@@ -223,6 +223,11 @@ def _is_solar(p):
     return bool((SOLAR_RE.search(p["node"]) or SOLAR_RE.search(p["mname"])) and not NONCELL_RE.search(p["node"]))
 
 
+def _plum(p):
+    """Яркость части после упрощения: медиана яркостей граней по текстуре, иначе — цвет материала."""
+    return float(np.median(p["flum"])) if p.get("flum") is not None and len(p["flum"]) else p.get("lum", 0.5)
+
+
 def _decimate(parts, target):
     """Сетка для подгонки: упрощение каждой части (не меньше 100 граней на часть), затем — если всё ещё много —
     удаление самых мелких по площади деталей (поручни, болты: на пикселе 10 м не видны), но не больше 2 % площади."""
@@ -240,7 +245,7 @@ def _decimate(parts, target):
             u, inv = np.unique(p["F"], return_inverse=True)
             V2, F2 = FS.simplify(p["V"][u].astype(np.float32), inv.reshape(-1, 3).astype(np.int32), target_reduction=float(1 - k))
             if len(F2):
-                out.append(dict(p, V=np.asarray(V2, float), F=np.asarray(F2, int), UV=None)); continue
+                out.append(dict(p, V=np.asarray(V2, float), F=np.asarray(F2, int), UV=None, lum=_plum(p))); continue
         except Exception:                                                   # noqa: BLE001 — оставить часть как есть
             pass
         out.append(p)
@@ -265,7 +270,7 @@ def _decimate(parts, target):
             try:
                 u, inv = np.unique(p["F"], return_inverse=True)
                 V2, F2 = FS.simplify(p["V"][u].astype(np.float32), inv.reshape(-1, 3).astype(np.int32), target_reduction=float(1 - k))
-                out2.append(dict(p, V=np.asarray(V2, float), F=np.asarray(F2, int), UV=None) if len(F2) else p)
+                out2.append(dict(p, V=np.asarray(V2, float), F=np.asarray(F2, int), UV=None, lum=_plum(p)) if len(F2) else p)
             except Exception:                                               # noqa: BLE001
                 out2.append(p)
         out = out2
@@ -383,6 +388,12 @@ def load_catalog_model(e, g=None, measure_only=False, fit=True):
         parts = _scene_parts(path)
         for p in parts:
             p["lum"] = _lum(p["mat"])
+            tex = getattr(p["mat"], "baseColorTexture", None)
+            if tex is not None and p["UV"] is not None and len(p["F"]):          # яркость граней по текстуре
+                T = np.asarray(tex.convert("RGB"), np.float32) / 255.0
+                uv = p["UV"][p["F"]].mean(1); h, w = T.shape[:2]
+                cx = np.clip((uv[:, 0] % 1.0) * (w - 1), 0, w - 1).astype(int); cy = np.clip((1 - uv[:, 1] % 1.0) * (h - 1), 0, h - 1).astype(int)
+                p["flum"] = (T[cy, cx] @ np.array([0.2126, 0.7152, 0.0722])) * p["lum"]
     allV = np.vstack([p["V"][np.unique(p["F"])] for p in parts]); ext0 = allV.max(0) - allV.min(0)
     if e.get("frame") == "rb":                                    # ступень: ось — Y сетки; длина и диаметр — из GCAT
         L = _num((g or {}).get("Length")); D = _num((g or {}).get("Diameter"))
@@ -422,7 +433,12 @@ def load_catalog_model(e, g=None, measure_only=False, fit=True):
     for k, (p, s) in enumerate(zip(fp, solar)):
         u, inv = np.unique(p["F"], return_inverse=True); off = len(V)
         V += list(p["V"][u]); F += list(inv.reshape(-1, 3) + off)
-        G += [0 if s else (1 if p["lum"] > 0.45 else 2)] * len(p["F"])
+        if s:
+            G += [0] * len(p["F"])
+        elif "flum" in p and len(p["flum"]) == len(p["F"]):
+            G += list(np.where(p["flum"] > 0.45, 1, 2))
+        else:
+            G += [1 if p["lum"] > 0.45 else 2] * len(p["F"])
         gidx[k] = (u, off)                                        # исходный индекс вершины части → общий индекс
     V = np.array(V, float); F = np.array(F, int); G = np.array(G, int)
     arrays = []

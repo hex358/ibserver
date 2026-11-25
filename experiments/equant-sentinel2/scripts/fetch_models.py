@@ -74,6 +74,16 @@ EXTRA_NASA = {
     "SKYLAB": ("Skylab/Skylab.glb", dict(norad=[6633]), "station"),
 }
 
+# Модели Sketchfab, выложенные в открытых репозиториях GitHub (лицензия — у автора на Sketchfab).
+EXTRA_GLTF = {
+    "ENVISAT": dict(base="https://raw.githubusercontent.com/DominicwalterLOF/singularity/main/website/models/envisat",
+                    files=["scene.gltf", "scene.bin", "textures/Envisat_GoldFoil_metallicRoughness.png", "textures/Envisat_GoldFoil_normal.png",
+                           "textures/Envisat_color_baseColor.png", "textures/Envisat_color_metallicRoughness.png", "textures/Envisat_color_normal.png"],
+                    match=dict(norad=[27386]), kind="payload",
+                    source="Sketchfab: tashtego, «Envisat» (sketchfab.com/3d-models/envisat-65b0ec49681a44f68dfc8bd4efe95839)",
+                    license="CC-BY-4.0"),
+}
+
 # Ступени KeepTrack (data/models/rb-*.obj): ось ступени — Y сетки, метры. Правила — как в resolver KeepTrack:
 # силуэт по форме GCAT, затем семейство ракеты по имени, затем размер.
 RB_SHAPES = {"cyl+cone": "rb-cylcone-soviet", "stepcyl": "rb-stepcyl-soviet", "cyl+cyl": "rb-stepcyl-soviet",
@@ -179,6 +189,10 @@ def fetch():
     generate_satvis(src, [m["source"]["generator"] for m in models if m.get("source", {}).get("generator")], CAT / "satvis")
     for k, (p, _, _) in EXTRA_NASA.items():
         curl(nasa_url("3D Models/" + p), CAT / "nasa_extra" / f"{k}.glb"); print("NASA+", k)
+    for k, d in EXTRA_GLTF.items():
+        for f in d["files"]:
+            curl(d["base"] + "/" + f, CAT / "gltf" / k / f)
+        print("glTF", k)
     (CAT / "satvis_build.yaml").write_text((src / "build.yaml").read_text())
     shutil.copy(src / "LICENSE", CAT / "satvis_LICENSE")
 
@@ -212,6 +226,11 @@ def manifest():
         if f.exists():
             ent.append(dict(key=k, file=str(f.relative_to(CAT)), source=f"NASA-3D-Resources@{NASA_COMMIT[:7]}: 3D Models/{p}",
                             license=NASA_LICENSE, frame="unverified", rotate=[], mirror=None, scale="gcat", match=match, kind=kind))
+    for k, d in EXTRA_GLTF.items():
+        f = CAT / "gltf" / k / "scene.gltf"
+        if f.exists():
+            ent.append(dict(key=k, file=str(f.relative_to(CAT)), source=d["source"], license=d["license"], frame="unverified",
+                            rotate=[], mirror=None, scale="gcat", match=d["match"], kind=d["kind"]))
     for f in sorted((ROOT / "data/models").glob("rb-*.obj")):
         ent.append(dict(key=f.stem, file="../" + f.name, source="KeepTrack (keeptrack.space) scripts/mesh-gen", license="AGPL-3.0 (KeepTrack)",
                         frame="rb", rotate=[], mirror=None, scale="gcat", match=dict(rb=True), kind="rocketbody"))

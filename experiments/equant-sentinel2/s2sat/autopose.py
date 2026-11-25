@@ -177,10 +177,23 @@ class Problem:
             return [np.array([math.radians(y), 0, 0, 0, 0, 0, 0]) for y in (0, 45, 90, 135)]
         return [np.zeros(7)]
 
+    def pos_grid(self, h, bands, x0, half=60.0, step=15.0):
+        """Положение — перебор по сетке (вдоль, поперёк) ±60 м с шагом 15 м: маски не перерисовываются (только сдвиг
+        выборки), поэтому дёшево; без него оптимизатор застревает, если объект смещён на десятки метров."""
+        best, bl = np.asarray(x0, float), self.loss(h, x0, bands)
+        g = np.arange(-half, half + 1e-6, step)
+        for dx in g:
+            for dy in g:
+                x = np.array(x0, float); x[-3] += dx; x[-2] += dy
+                L = self.loss(h, x, bands)
+                if L < bl:
+                    best, bl = x, L
+        return best
+
     def evaluate(self, h, maxfev=160):
         """Кросс-проверка: поза по A → невязка на B и наоборот; затем поза по всем полосам."""
         A, B = self.bands[0::2], self.bands[1::2]
-        st = self.starts(h, A)
+        st = [self.pos_grid(h, A, s) for s in self.starts(h, A)]
         if len(st) > 1:
             best = min(st, key=lambda s: self.loss(h, s, A)); xa, _ = self.fit(h, A, best, maxfev)
         else:
