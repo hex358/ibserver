@@ -302,17 +302,37 @@ def eq_rms(spec):
     return max(1.0, 0.06 * float(np.max(ext)))
 
 
-def decide(out, spec, sun_l, law_best, free, kappa, thr):
-    """Штатно или нет. Свободный поворот значимо лучше закона (T_ANOM в эффективном χ²) и поза различима:
-    поворот > ANOM_DEG — нештатный режим (кувыркание, авария); меньше — штатный режим с измеренным отклонением."""
-    Rb = pose_body(spec, law_best["law"], np.asarray(law_best["x"]), sun_l)[1]
+def _t_anom():
+    """Порог значимости свободного поворота: 95 % штатных объектов в проверке на синтетике с несоответствием модели
+    (results/auto/inject_*_mismatch.json); если проверки нет — T_ANOM."""
+    import glob, json, os
+    v = []
+    for f in glob.glob(os.path.join(os.path.dirname(__file__), "..", "results", "auto", "inject_*_mismatch.json")):
+        t = json.load(open(f)).get("T_anom_95")
+        if t is not None:
+            v.append(float(t))
+    return max(v) if v else T_ANOM
+
+
+def decide(out, spec, sun_l, res, free, thr):
+    """Штатно или нет. Свободный поворот значимо лучше лучшего закона (порог — из калибровки) и поза различима:
+    отклонение от БЛИЖАЙШЕГО закона (по повороту корпуса) > ANOM_DEG — нештатный режим; иначе — режим ближайшего закона
+    с измеренным отклонением."""
+    best = min(res, key=lambda r: r["cv"])
+    gain = best["cv"] - free["cv"]
+    T = _t_anom()
+    sig = gain > T and free["rms_vs_best_m"] >= thr
     Rf = pose_body(spec, free["law"], np.asarray(free["x"]), sun_l)[1]
-    dev = math.degrees(math.acos(np.clip((np.trace(Rf @ Rb.T) - 1) / 2, -1, 1)))
-    gain = (law_best["cv"] - free["cv"]) / kappa
-    sig = gain > T_ANOM and free["rms_vs_best_m"] >= thr
-    out["free_gain_eff"] = gain
-    out["deviation_deg"] = dev if sig else None              # измеренное отклонение от закона (только если значимо)
-    out["anomalous"] = bool(sig and dev > ANOM_DEG)
+    near, dev = None, 1e9
+    for r in res:
+        Rr = pose_body(spec, r["law"], np.asarray(r["x"]), sun_l)[1]
+        d = math.degrees(math.acos(np.clip((np.trace(Rf @ Rr.T) - 1) / 2, -1, 1)))
+        if d < dev:
+            near, dev = r, d
+    out.update(free_gain_eff=gain, T_anom=T, nearest_law=near["name"], deviation_deg=dev if sig else None,
+               anomalous=bool(sig and dev > ANOM_DEG))
+    if sig and not out["anomalous"]:
+        out["chosen"] = near["name"]                     # режим — ближайший закон, отклонение измерено свободной оценкой
     if out["anomalous"]:
         out["chosen"] = free["name"]
     return out
@@ -359,7 +379,7 @@ def solve(rc, spec, log=print, maxfev=160, C=None):
     chosen = law_best
     if free is not None:
         out["free"] = {k: v for k, v in free.items() if k != "law"}
-        decide(out, spec, P.sun_l, law_best, free, 1.0, thr)
+        decide(out, spec, P.sun_l, res, free, thr)
         if out["anomalous"]:
             chosen = free
     Vb, R, angs = pose_body(spec, chosen["law"], np.asarray(chosen["x"]), P.sun_l)
