@@ -2150,5 +2150,628 @@
   "gcat_bus_objects": 0,
   "scale_m_per_px": 0.0134,
   "seconds": 8.5
+ },
+ "LANDSAT-1": {
+  "key": "LANDSAT-1",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Landsat 1, 2, and 3/Landsat 1, 2, and 3.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 26738,
+  "dims_m": [
+   3.07,
+   1.63,
+   3.7
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [
+   6126,
+   7615,
+   10702
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.008,
+  "seconds": 7.3
+ },
+ "CALIPSO": {
+  "key": "CALIPSO",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Cloud-Aerosol Lidar and Infrared Pathfinder Satellite (CALIPSO)/Cloud-Aerosol Lidar and Infrared Pathfinder Satellite (CALIPSO).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 101051,
+  "dims_m": [
+   1.94,
+   9.7,
+   2.47
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   29108
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0133,
+  "seconds": 10.2
+ },
+ "NOAA-POES": {
+  "key": "NOAA-POES",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Polar Operational Environmental Satellite (POES)/Polar Operational Environmental Satellite (POES).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 122917,
+  "dims_m": [
+   8.0,
+   7.8,
+   5.27
+  ],
+  "wings": 0,
+  "fixed_panels": 1,
+  "norad": [],
+  "bus": [
+   "ATN",
+   "TIROS-N"
+  ],
+  "name_re": null,
+  "gcat_bus_objects": 11,
+  "scale_m_per_px": 0.0202,
+  "seconds": 9.6
+ },
+ "QUIKSCAT": {
+  "key": "QUIKSCAT",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Quick Scatterometer (QuikSCAT)/Quick Scatterometer (QuikSCAT).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 67793,
+  "dims_m": [
+   1.46,
+   3.8,
+   2.57
+  ],
+  "wings": 0,
+  "fixed_panels": 2,
+  "norad": [
+   25789
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0091,
+  "seconds": 29.9
+ },
+ "TOPEX": {
+  "key": "TOPEX",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/TOPEX-Poseidon/TOPEX-Poseidon.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 20926,
+  "dims_m": [
+   7.09,
+   11.5,
+   8.54
+  ],
+  "wings": 0,
+  "fixed_panels": 1,
+  "norad": [
+   22076
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0255,
+  "seconds": 8.5
+ },
+ "JASON-1": {
+  "key": "JASON-1",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Jason 1/Jason 1.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 83229,
+  "dims_m": [
+   6.0,
+   1.44,
+   2.39
+  ],
+  "wings": 2,
+  "fixed_panels": 0,
+  "norad": [
+   26997
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0133,
+  "seconds": 9.8
+ },
+ "JASON-2": {
+  "key": "JASON-2",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Ocean Surface Topography Mission (OSTM Jason-2)/Ocean Surface Topography Mission (OSTM Jason-2).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 65314,
+  "dims_m": [
+   9.7,
+   4.26,
+   2.32
+  ],
+  "wings": 2,
+  "fixed_panels": 0,
+  "norad": [
+   33105
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0223,
+  "seconds": 6.6
+ },
+ "SORCE": {
+  "key": "SORCE",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Solar Radiation and Climate Experiment (SORCE)/Solar Radiation and Climate Experiment (SORCE).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 115513,
+  "dims_m": [
+   4.0,
+   3.78,
+   1.99
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   27651
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0084,
+  "seconds": 8.7
+ },
+ "RADARSAT-1": {
+  "key": "RADARSAT-1",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Radar Satellite-1 (RADARSAT-1)/Radar Satellite-1 (RADARSAT-1).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 6028,
+  "dims_m": [
+   4.04,
+   15.0,
+   2.63
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   23710
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0285,
+  "seconds": 5.0
+ },
+ "ORBVIEW-2": {
+  "key": "ORBVIEW-2",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/SeaStar/SeaStar.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 1839,
+  "dims_m": [
+   4.3,
+   3.83,
+   1.65
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   24883
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0082,
+  "seconds": 4.0
+ },
+ "SAC-C": {
+  "key": "SAC-C",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Satellite for Scientific Applications (SAC-C)/Satellite for Scientific Applications (SAC-C).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 14931,
+  "dims_m": [
+   3.12,
+   8.0,
+   6.1
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   26620
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0149,
+  "seconds": 7.2
+ },
+ "EO-1": {
+  "key": "EO-1",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Earth Observing-1 (EO-1)/Earth Observing-1 (EO-1).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 37775,
+  "dims_m": [
+   5.0,
+   4.22,
+   1.66
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   26619
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.01,
+  "seconds": 12.2
+ },
+ "ACRIMSAT": {
+  "key": "ACRIMSAT",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Active Cavity Irradiance Monitor Satellite (AcrimSAT) (A)/Active Cavity Irradiance Monitor Satellite (AcrimSAT) (A).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 11551,
+  "dims_m": [
+   2.2,
+   2.2,
+   0.9
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [
+   26033
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.005,
+  "seconds": 6.4
+ },
+ "ICON": {
+  "key": "ICON",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Ionospheric Connection Explorer (ICON)/Ionospheric Connection Explorer (ICON).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 321251,
+  "dims_m": [
+   3.6,
+   0.98,
+   1.98
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   44628
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.008,
+  "seconds": 16.9
+ },
+ "SWAS": {
+  "key": "SWAS",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Submillimeter Wave Astronomy Satellite (SWAS)/Submillimeter Wave Astronomy Satellite (SWAS).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 12908,
+  "dims_m": [
+   2.0,
+   0.53,
+   0.79
+  ],
+  "wings": 0,
+  "fixed_panels": 1,
+  "norad": [
+   25560
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0044,
+  "seconds": 7.4
+ },
+ "AIM": {
+  "key": "AIM",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Aeronomy of Ice in the Mesosphere/Aeronomy of Ice in the Mesosphere.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 132276,
+  "dims_m": [
+   0.9,
+   2.0,
+   0.83
+  ],
+  "wings": 0,
+  "fixed_panels": 1,
+  "norad": [
+   31304
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0037,
+  "seconds": 11.7
+ },
+ "AQUARIUS": {
+  "key": "AQUARIUS",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Aquarius (A)/Aquarius (A).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 121163,
+  "dims_m": [
+   6.0,
+   4.42,
+   2.55
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   37673
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0156,
+  "seconds": 15.3
+ },
+ "ICESAT": {
+  "key": "ICESAT",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Ice, Clouds, and Land Elevation Satellite (ICESat) (A)/Ice, Clouds, and Land Elevation Satellite (ICESat) (A).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 976,
+  "dims_m": [
+   2.13,
+   6.5,
+   1.91
+  ],
+  "wings": 0,
+  "fixed_panels": 1,
+  "norad": [
+   27642
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0107,
+  "seconds": 7.6
+ },
+ "GRACE": {
+  "key": "GRACE",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Gravity Recovery and Climate Experiment (GRACE) (A)/Gravity Recovery and Climate Experiment (GRACE) (A).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 3459,
+  "dims_m": [
+   1.22,
+   1.79,
+   3.1
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [
+   27391,
+   27392
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0077,
+  "seconds": 4.1
+ },
+ "TRMM": {
+  "key": "TRMM",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Tropical Rainfall Measuring Mission (TRMM)/Tropical Rainfall Measuring Mission (TRMM).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 52320,
+  "dims_m": [
+   5.39,
+   5.11,
+   14.5
+  ],
+  "wings": 2,
+  "fixed_panels": 0,
+  "norad": [
+   25063
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0318,
+  "seconds": 8.3
+ },
+ "CNOFS": {
+  "key": "CNOFS",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Communication and Navigation Outage Forecast System (CNOFS)/Communication and Navigation Outage Forecast System (CNOFS).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 302963,
+  "dims_m": [
+   13.11,
+   12.97,
+   20.0
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   32765
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0359,
+  "seconds": 16.7
+ },
+ "RHESSI": {
+  "key": "RHESSI",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/HESSI-RHESSI/HESSI-RHESSI.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 23384,
+  "dims_m": [
+   2.26,
+   5.7,
+   5.7
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   27370
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0108,
+  "seconds": 7.5
+ },
+ "SUZAKU": {
+  "key": "SUZAKU",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Suzaku/Suzaku.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 40725,
+  "dims_m": [
+   6.5,
+   5.02,
+   2.08
+  ],
+  "wings": 0,
+  "fixed_panels": 1,
+  "norad": [
+   28773
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0142,
+  "seconds": 9.9
+ },
+ "CGRO": {
+  "key": "CGRO",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Gamma Ray Observatory/Gamma Ray Observatory.glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 4244,
+  "dims_m": [
+   21.3,
+   10.16,
+   8.12
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   21225
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0292,
+  "seconds": 6.2
+ },
+ "WIRE": {
+  "key": "WIRE",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Wide-Field Infrared Explorer (WIRE)/Wide-Field Infrared Explorer (WIRE).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 35482,
+  "dims_m": [
+   1.11,
+   1.7,
+   1.8
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [
+   25646
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0048,
+  "seconds": 13.4
+ },
+ "IBEX": {
+  "key": "IBEX",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Interstellar Boundary Explorer (IBEX)/Interstellar Boundary Explorer (IBEX).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 8976,
+  "dims_m": [
+   0.95,
+   1.0,
+   0.83
+  ],
+  "wings": 0,
+  "fixed_panels": 0,
+  "norad": [
+   33401
+  ],
+  "bus": [],
+  "name_re": null,
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0025,
+  "seconds": 7.3
+ },
+ "TOMS-EP": {
+  "key": "TOMS-EP",
+  "source": "NASA-3D-Resources@11ebb4e: 3D Models/Total Ozone Mapping Spectrometer (TOMS)/Total Ozone Mapping Spectrometer (TOMS).glb",
+  "license": "NASA media usage guidelines (public domain, без логотипов NASA как одобрения)",
+  "frame": "unverified",
+  "kind": "payload",
+  "tri": 22842,
+  "dims_m": [
+   12.37,
+   38.92,
+   24.22
+  ],
+  "wings": 1,
+  "fixed_panels": 0,
+  "norad": [],
+  "bus": [],
+  "name_re": "^TOMS",
+  "gcat_bus_objects": 0,
+  "scale_m_per_px": 0.0878,
+  "seconds": 5.8
  }
 }
