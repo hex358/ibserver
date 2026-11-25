@@ -16,7 +16,7 @@ from s2sat import autopose as AP, modelcat as MC, scenegeom as SG, spin as SP
 
 ap = argparse.ArgumentParser()
 ap.add_argument("base"); ap.add_argument("--norad", type=int, default=22220); ap.add_argument("--rates", default="0,20,60,120")
-ap.add_argument("--seed", type=int, default=3); ap.add_argument("--noise", type=float, default=1.5); ap.add_argument("--maxfev", type=int, default=300)
+ap.add_argument("--tag", default=""); ap.add_argument("--seed", type=int, default=3); ap.add_argument("--noise", type=float, default=1.5); ap.add_argument("--maxfev", type=int, default=300)
 a = ap.parse_args()
 
 
@@ -46,13 +46,15 @@ def main():
         if rate > 0 and np.linalg.norm(w_est) > 1e-6:
             ang_ax = math.degrees(math.acos(min(1.0, abs(float(w_est @ ax) / np.linalg.norm(w_est)))))
         row = dict(true_rate=rate, est_rate=res["rate_deg_s"], sigma=res["rate_sigma_deg_s"], axis_err_deg=ang_ax,
+                   sigma_curv=res.get("rate_sigma_curv_deg_s"), sigma_jk=res.get("rate_sigma_jackknife_deg_s"),
+                   axis_sigma_jk=res.get("axis_sigma_jackknife_deg"),
                    spinning=res["spinning"], gain=res["gain"], span_s=res["span_s"], seconds=round(time.time() - t0))
         rows.append(row)
         print(f"истина {rate:5.0f} °/с → найдено {res['rate_deg_s']:6.1f} ± {res['rate_sigma_deg_s']:5.1f} °/с, ось ±"
               f"{'—' if ang_ax is None else f'{ang_ax:.0f}°'}, вращение {'да' if res['spinning'] else 'нет'} "
               f"(выигрыш {res['gain']:.1f}), полосы за {res['span_s']:.2f} с, {row['seconds']} с", flush=True)
     (ROOT / "results/auto").mkdir(parents=True, exist_ok=True)
-    (ROOT / "results/auto" / f"inject_spin_{a.norad}_{a.base}.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1))
+    (ROOT / "results/auto" / f"inject_spin_{a.norad}_{a.base}{a.tag}.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1))
 
 
 if __name__ == "__main__":

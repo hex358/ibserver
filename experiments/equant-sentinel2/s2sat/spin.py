@@ -8,7 +8,8 @@
 между полосами — это вращение, а не свободный параметр.
 
 Параметры: R₀ — вектор поворота (3), ω — угловая скорость в орбитальных осях (3, рад/с), сдвиг положения (2).
-Сравнение «вращается / не вращается» — та же функция потерь при ω = 0; погрешность ω — по кривизне невязки.
+Сравнение «вращается / не вращается» — та же функция потерь при ω = 0; погрешность ω — большая из двух: по кривизне
+невязки и по разбросу ω при выбросе одной полосы (jackknife; кривизна видит только шум, выброс — и несоответствие модели).
 """
 from __future__ import annotations
 
@@ -83,8 +84,9 @@ class Spin:
         sc = [self.loss(c)[0] for c in cand]
         return [cand[i] for i in np.argsort(sc)[:3]]
 
-    def solve(self, maxfev=400, log=print):
-        """Поза без вращения и с вращением; значимость вращения (Δ эфф. χ²), ω и погрешность."""
+    def solve(self, maxfev=400, log=print, jackknife=True):
+        """Поза без вращения и с вращением; значимость вращения (Δ эфф. χ²), ω и погрешность (большая из двух:
+        по кривизне невязки и по выбросу полосы)."""
         best0 = None
         for s in self.starts():
             x, L = self.fit(s, [0, 1, 2, 6, 7], maxfev)
@@ -111,12 +113,31 @@ class Spin:
             xp, xm = x1.copy(), x1.copy(); xp[3 + k] += h; xm[3 + k] -= h
             H = (self.loss(xp)[0] - 2 * L1 + self.loss(xm)[0]) / h ** 2
             sig.append(math.degrees(math.sqrt(2 / H)) if H > 1e-9 else float("inf"))
-        sig_rate = float(np.sqrt(np.sum((np.asarray(sig) * (w / (np.linalg.norm(w) + 1e-12))) ** 2))) if rate > 0 else float("inf")
+        sig_curv = float(np.sqrt(np.sum((np.asarray(sig) * (w / (np.linalg.norm(w) + 1e-12))) ** 2))) if rate > 0 else float("inf")
+        # погрешность выбросом полосы (jackknife): ω заново по всем полосам, кроме одной; разброс — честнее кривизны,
+        # потому что учитывает несоответствие модели снимку, а не только шум
+        jk_w = []
+        if jackknife and len(self.bands) >= 4:
+            for b in self.bands:
+                rest = [c for c in self.bands if c != b]
+                xj, _ = self.fit(x1, [0, 1, 2, 3, 4, 5, 6, 7], max(60, maxfev // 3), bands=rest)
+                jk_w.append(np.asarray(xj[3:6]))
+        if jk_w:
+            W = np.degrees(np.asarray(jk_w)); n = len(W)
+            sig_jk = math.sqrt((n - 1) / n * float(((np.linalg.norm(W, axis=1) - np.linalg.norm(W, axis=1).mean()) ** 2).sum()))
+            ax_jk = [math.degrees(math.acos(min(1.0, abs(float(v @ w)) / (np.linalg.norm(v) * np.linalg.norm(w) + 1e-12))))
+                     for v in W] if rate > 1e-6 else []
+            sig_ax = math.sqrt((n - 1) / n * float(np.sum(np.square(ax_jk)))) if ax_jk else None
+        else:
+            sig_jk, sig_ax = 0.0, None
+        sig_rate = max(sig_curv, sig_jk)
         axis = (w / np.linalg.norm(w)).tolist() if rate > 1e-6 else None
-        out = dict(L_static=L0, L_spin=L1, gain=L0 - L1, rate_deg_s=rate, rate_sigma_deg_s=sig_rate, axis_lvlh=axis,
-                   omega_sigma_deg_s=sig, x=x1.tolist(), x_static=x0.tolist(),
+        out = dict(L_static=L0, L_spin=L1, gain=L0 - L1, rate_deg_s=rate, rate_sigma_deg_s=sig_rate,
+                   rate_sigma_curv_deg_s=sig_curv, rate_sigma_jackknife_deg_s=sig_jk, axis_sigma_jackknife_deg=sig_ax,
+                   axis_lvlh=axis, omega_sigma_deg_s=sig, x=x1.tolist(), x_static=x0.tolist(),
                    spinning=bool(L0 - L1 > 10.0 and rate > 2 * sig_rate),
                    span_s=float(max(self.t.values()) - min(self.t.values())))
-        log(f"   с вращением: невязка {L1:.1f} (выигрыш {L0 - L1:.1f}), скорость {rate:.1f} ± {sig_rate:.1f} °/с, "
+        log(f"   с вращением: невязка {L1:.1f} (выигрыш {L0 - L1:.1f}), скорость {rate:.1f} ± {sig_rate:.1f} °/с "
+            f"(кривизна ±{sig_curv:.1f}, выброс полосы ±{sig_jk:.1f}), ось ±{'—' if sig_ax is None else f'{sig_ax:.0f}°'}, "
             f"съёмка полос за {out['span_s']:.2f} с")
         return out
