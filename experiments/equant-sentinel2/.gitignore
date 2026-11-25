@@ -95,5 +95,5 @@ results/close_search/*.npy
 data/models/sr/
 data/models/hd/ISS_stationary.glb
 results/realistic/*_nasa.jpg
-experiments/equant-sentinel2/data/models/hd/starlink_malacodart/textures/
-experiments/equant-sentinel2/data/models/hd/starlink_malacodart/scene.bin
+data/models/hd/starlink_malacodart/textures/
+data/models/hd/starlink_malacodart/scene.bin
