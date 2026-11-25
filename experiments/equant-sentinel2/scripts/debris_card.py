@@ -145,6 +145,7 @@ def card(name, a):
         out["spin"] = dict(spinning=sp["spinning"], rate_deg_s=r(sp["rate_deg_s"], 1), sigma_deg_s=r(sp["rate_sigma_deg_s"], 1),
                            axis_lvlh=None if ax is None else [r(v, 3) for v in ax], axis_sigma_deg=r(sp["axis_sigma_jackknife_deg"], 0),
                            gain_eff_chi2=r(sp["gain"], 1), band_span_s=r(sp["span_s"], 2),
+                           family_rates_deg_s=sp.get("family_rates_deg_s"), ambiguous=sp.get("ambiguous"),
                            angle_to_major_axis_deg=None if (ax is None or major is None) else
                            r(math.degrees(math.acos(min(1.0, abs(float(ax @ major))))), 0))
     else:

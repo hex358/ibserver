@@ -94,7 +94,7 @@ class Spin:
                 best0 = (x, L)
         x0, L0 = best0
         log(f"   без вращения: невязка {L0:.1f}")
-        best = (x0, L0)
+        best = (x0, L0); sols = []
         long_axis = AP.rotvec(x0[0:3]) @ self.spec["M2B"] @ np.array([1.0, 0, 0])
         perp = np.cross(long_axis, [0.0, 0, 1]); perp = perp / (np.linalg.norm(perp) + 1e-12); perp2 = np.cross(long_axis, perp)
         for axis in (perp, perp2, long_axis):
@@ -102,9 +102,17 @@ class Spin:
                 for sg in (1, -1):
                     s = x0.copy(); s[3:6] = axis * math.radians(rate) * sg
                     x, L = self.fit(s, [0, 1, 2, 3, 4, 5, 6, 7], maxfev)
+                    sols.append((x, L))
                     if L < best[1]:
                         best = (x, L)
         x1, L1 = best
+        # семейство решений, совместимых со снимком (Δ эфф. χ² < 4 от лучшего): полосы сняты группами с разрывом в
+        # секунды, и у симметричного тела разные скорости дают почти одинаковые снимки — тогда выдаётся весь диапазон
+        fam = [x for x, L in sols if L - L1 < 4.0]
+        fam_rates = [math.degrees(np.linalg.norm(x[3:6])) for x in fam]
+        w1 = x1[3:6] / (np.linalg.norm(x1[3:6]) + 1e-12)
+        fam_ax = [math.degrees(math.acos(min(1.0, abs(float(x[3:6] @ w1)) / (np.linalg.norm(x[3:6]) + 1e-12)))) for x in fam
+                  if np.linalg.norm(x[3:6]) > 1e-6]
         w = x1[3:6]; rate = math.degrees(np.linalg.norm(w))
         # погрешность компонент ω по кривизне (Δχ² = 1)
         sig = []
@@ -130,14 +138,18 @@ class Spin:
             sig_ax = math.sqrt((n - 1) / n * float(np.sum(np.square(ax_jk)))) if ax_jk else None
         else:
             sig_jk, sig_ax = 0.0, None
-        sig_rate = max(sig_curv, sig_jk)
+        sig_fam = (max(fam_rates) - min(fam_rates)) / 2 if len(fam_rates) > 1 else 0.0
+        sig_rate = max(sig_curv, sig_jk, sig_fam)
         axis = (w / np.linalg.norm(w)).tolist() if rate > 1e-6 else None
         out = dict(L_static=L0, L_spin=L1, gain=L0 - L1, rate_deg_s=rate, rate_sigma_deg_s=sig_rate,
                    rate_sigma_curv_deg_s=sig_curv, rate_sigma_jackknife_deg_s=sig_jk, axis_sigma_jackknife_deg=sig_ax,
+                   family_rates_deg_s=[round(v, 1) for v in sorted(fam_rates)], family_axis_spread_deg=max(fam_ax, default=0.0),
+                   ambiguous=bool(len(fam_rates) > 1 and sig_fam > 0.2 * max(rate, 1e-6)),
                    axis_lvlh=axis, omega_sigma_deg_s=sig, x=x1.tolist(), x_static=x0.tolist(),
                    spinning=bool(L0 - L1 > 10.0 and rate > 2 * sig_rate),
                    span_s=float(max(self.t.values()) - min(self.t.values())))
         log(f"   с вращением: невязка {L1:.1f} (выигрыш {L0 - L1:.1f}), скорость {rate:.1f} ± {sig_rate:.1f} °/с "
-            f"(кривизна ±{sig_curv:.1f}, выброс полосы ±{sig_jk:.1f}), ось ±{'—' if sig_ax is None else f'{sig_ax:.0f}°'}, "
+            f"(кривизна ±{sig_curv:.1f}, выброс полосы ±{sig_jk:.1f}, семейство {[round(v) for v in sorted(fam_rates)]}), "
+            f"ось ±{'—' if sig_ax is None else f'{sig_ax:.0f}°'}, "
             f"съёмка полос за {out['span_s']:.2f} с")
         return out
