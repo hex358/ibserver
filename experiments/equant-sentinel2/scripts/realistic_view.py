@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 from s2sat import passgeom as PG, geometry as G, orbits as O, imagery as I
 from s2sat.orbits import dt_from_jd
+from s2sat.scenegeom import ground_utm, choose_orbits, frame_geometry   # общая геометрия кадра (оси орбиты — инерциальные)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("name")
