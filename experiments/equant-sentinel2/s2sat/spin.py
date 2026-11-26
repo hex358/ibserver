@@ -126,6 +126,27 @@ class Spin:
                     out.append(np.r_[Ro.from_matrix(R0).as_rotvec(), w, 0.5 * (xa[6:8] + xb[6:8])])
         return out, dt
 
+    def omega_grid(self, grp, n_dir=48, rates=None, keep_anchor=2, top=6):
+        """Плотный перебор ω: поза опорной группы (больше всего пикселей 10 м — лучше всего определена) фиксируется,
+        ω — по сфере направлений × скоростям до 180 °/с; поза в моменты остальных полос R(t) = exp([ω]× (t − t_a)) R_a
+        проверяется по их невязке. Возвращает лучшие старты для полной подгонки."""
+        rates = np.arange(4.0, 181.0, 6.0) if rates is None else rates
+        wgt = lambda g: sum(1.0 / float(self.rc["bands"][b]["res"]) ** 2 for b in g)
+        anc = max(grp, key=wgt); others = [b for g in grp if g is not anc for b in g]
+        ta = float(np.mean([self.t[b] for b in anc]))
+        k = np.arange(n_dir) + 0.5; th = np.arccos(1 - 2 * k / n_dir); ph = math.pi * (1 + 5 ** 0.5) * k
+        dirs = np.c_[np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)]
+        cand = []
+        for xa, _ in self.group_poses(anc, keep=keep_anchor):
+            Ra = AP.rotvec(xa[0:3])
+            for d in dirs:
+                for rt in rates:
+                    w = d * math.radians(rt)
+                    x = np.r_[_Ro.from_matrix(AP.rotvec(-w * ta) @ Ra).as_rotvec(), w, xa[6:8]]
+                    cand.append((self.loss(x, others)[0], x))
+        cand.sort(key=lambda q: q[0])
+        return [x for _, x in cand[:top]], len(cand)
+
     def solve(self, maxfev=400, log=print, jackknife=True):
         """Поза без вращения и с вращением; значимость вращения (Δ эфф. χ²), ω и погрешность (большая из двух:
         по кривизне невязки и по выбросу полосы)."""
@@ -145,8 +166,11 @@ class Spin:
             # (с наложениями ±360°/Δt) → лучшие кандидаты по всем полосам → подгонка всех параметров
             cands, dt = self.omega_candidates(grp)
             sc = [self.loss(c)[0] for c in cands]
-            starts = [cands[i] for i in np.argsort(sc)[:8]]
-            log(f"   групп полос {len(grp)}, разрыв {dt:.2f} с; кандидатов ω {len(cands)}, уточняются 8")
+            starts = [cands[i] for i in np.argsort(sc)[:4]]
+            gstarts, ng = self.omega_grid(grp)
+            starts += gstarts
+            log(f"   групп полос {len(grp)}, разрыв {dt:.2f} с; кандидатов ω: {len(cands)} по позам групп + {ng} перебором, "
+                f"уточняются {len(starts)}")
         else:
             starts = []
             for axis in (perp, perp2, long_axis):

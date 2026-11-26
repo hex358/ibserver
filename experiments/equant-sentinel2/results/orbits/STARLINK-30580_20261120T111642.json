@@ -1,0 +1,275 @@
+{
+ "name": "STARLINK-30580_20261120T111642",
+ "object": "STARLINK-30580",
+ "norad": 58115,
+ "jd": 2461364.969926157,
+ "sentinel": "SENTINEL-2A",
+ "image": "S2A_T29QMU_20261120T111605_L2A",
+ "detection_tle": {
+  "line1": "1 58115C 23161U   26324.00118056  .00024552  00000+0  72601-3 0  3249",
+  "line2": "2 58115  53.1595  54.9996 0001257  88.6296 359.2048 15.34351779    13",
+  "age_days": 0.469
+ },
+ "bands_used": 6,
+ "sentinel_orbit": "GPS",
+ "fits": {
+  "tle": {
+   "theta_km": [
+    -1.2553478208092765,
+    -0.6649786893416835,
+    -0.37053164967446217
+   ],
+   "sigma_m": [
+    11.487737027021648,
+    17.860450133186042,
+    369.54650863710606
+   ],
+   "sigma_ls_m": [
+    11.487737027021648,
+    17.860450133186042,
+    369.54650863710606
+   ],
+   "sigma_jackknife_m": [
+    2.258223696997903,
+    1.6997000776066253,
+    43.71582549515783
+   ],
+   "spot_sigma_m": 44.86483010594476,
+   "bands": [
+    "blue",
+    "green",
+    "rededge1",
+    "rededge2",
+    "nir",
+    "swir16"
+   ],
+   "residual_m": {
+    "blue": [
+     -72.2,
+     25.3
+    ],
+    "green": [
+     9.3,
+     -5.7
+    ],
+    "rededge1": [
+     -22.4,
+     5.0
+    ],
+    "rededge2": [
+     60.6,
+     -16.1
+    ],
+    "nir": [
+     -18.7,
+     5.5
+    ],
+    "swir16": [
+     69.9,
+     -16.2
+    ]
+   }
+  },
+  "gps": {
+   "theta_km": [
+    -1.1172564626192094,
+    -0.6128010898608628,
+    -0.22584718107198054
+   ],
+   "sigma_m": [
+    13.670344604495272,
+    20.84864241374508,
+    424.7134099772322
+   ],
+   "sigma_ls_m": [
+    13.670344604495272,
+    20.84864241374508,
+    424.7134099772322
+   ],
+   "sigma_jackknife_m": [
+    2.692167114470958,
+    2.3373240073345123,
+    41.84436909592018
+   ],
+   "spot_sigma_m": 51.7227083809014,
+   "bands": [
+    "blue",
+    "green",
+    "rededge1",
+    "rededge2",
+    "nir",
+    "swir16"
+   ],
+   "residual_m": {
+    "blue": [
+     -77.3,
+     25.4
+    ],
+    "green": [
+     2.6,
+     -5.6
+    ],
+    "rededge1": [
+     -12.6,
+     4.2
+    ],
+    "rededge2": [
+     72.5,
+     -17.3
+    ],
+    "nir": [
+     -23.6,
+     5.2
+    ],
+    "swir16": [
+     81.2,
+     -17.2
+    ]
+   }
+  }
+ },
+ "sentinel_tle_effect_m": [
+  -138.1,
+  -52.2,
+  -144.7
+ ],
+ "position_ecef_km": [
+  6458.76083307235,
+  -1033.3056972633046,
+  1996.528070266521
+ ],
+ "sigma_m": [
+  13.670344604495272,
+  20.84864241374508,
+  424.7134099772322
+ ],
+ "note": "положение фотоцентра (пятна) на момент jd; радиус по одному ракурсу — с априорным условием 1,9 км",
+ "celestrak": [
+  {
+   "source": "GP",
+   "epoch_age_days": -3.033,
+   "when": "после снимка",
+   "d_along_km": 10.391,
+   "d_cross_km": 1.655,
+   "d_radial_km": 0.418,
+   "d_time_s": 1.414
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": -2.707,
+   "when": "после снимка",
+   "d_along_km": 0.668,
+   "d_cross_km": 1.108,
+   "d_radial_km": 0.313,
+   "d_time_s": 0.091
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": -2.447,
+   "when": "после снимка",
+   "d_along_km": 4.742,
+   "d_cross_km": 1.222,
+   "d_radial_km": 0.352,
+   "d_time_s": 0.645
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": -1.795,
+   "when": "после снимка",
+   "d_along_km": 4.939,
+   "d_cross_km": 1.112,
+   "d_radial_km": 0.34,
+   "d_time_s": 0.672
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": -0.753,
+   "when": "после снимка",
+   "d_along_km": 1.603,
+   "d_cross_km": 0.7,
+   "d_radial_km": 0.424,
+   "d_time_s": 0.218
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": 0.029,
+   "when": "до снимка",
+   "d_along_km": -4.252,
+   "d_cross_km": 0.349,
+   "d_radial_km": -0.127,
+   "d_time_s": -0.579
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": 1.787,
+   "when": "до снимка",
+   "d_along_km": 28.786,
+   "d_cross_km": 1.981,
+   "d_radial_km": 0.206,
+   "d_time_s": 3.917
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -3.286,
+   "when": "после снимка",
+   "d_along_km": 49.53,
+   "d_cross_km": 3.67,
+   "d_radial_km": 0.494,
+   "d_time_s": 6.74
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -2.699,
+   "when": "после снимка",
+   "d_along_km": 184.937,
+   "d_cross_km": 10.181,
+   "d_radial_km": -1.269,
+   "d_time_s": 25.167
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -2.581,
+   "when": "после снимка",
+   "d_along_km": 209.178,
+   "d_cross_km": 11.383,
+   "d_radial_km": -1.795,
+   "d_time_s": 28.465
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -2.345,
+   "when": "после снимка",
+   "d_along_km": -13.289,
+   "d_cross_km": 0.371,
+   "d_radial_km": 0.128,
+   "d_time_s": -1.808
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -1.484,
+   "when": "после снимка",
+   "d_along_km": 9.601,
+   "d_cross_km": 1.314,
+   "d_radial_km": 0.378,
+   "d_time_s": 1.307
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -0.445,
+   "when": "после снимка",
+   "d_along_km": -1.083,
+   "d_cross_km": 0.649,
+   "d_radial_km": 0.198,
+   "d_time_s": -0.147
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": 0.469,
+   "when": "до снимка",
+   "d_along_km": 1.118,
+   "d_cross_km": 0.613,
+   "d_radial_km": 0.227,
+   "d_time_s": 0.152
+  }
+ ]
+}
