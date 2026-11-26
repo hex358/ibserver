@@ -958,7 +958,8 @@
    ],
    "arrays": 2,
    "fixed_panels": 0,
-   "solar_faces": 768
+   "solar_faces": 768,
+   "render_file": "hd/starlink-v2-mini-hd.glb"
   },
   {
    "key": "STARLINK-V2-MINI-DTC",

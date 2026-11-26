@@ -249,6 +249,13 @@ def parts_for(name, sun_b, norad=None):
         parts = [dict(node=f"g{g}", V=Vb, F=F[G == g], UV=None, mat=None, mname="backsheet" if g == 0 else "frame") for g in np.unique(G)]
         return parts, note + f"; модель: {spec['source']}", False
     M = MC.load_catalog_model(e, spec.get("gcat"), fit=False)
+    if e.get("render_file"):                                   # детальная модель для рендера в тех же осях и шарнирах
+        try:
+            Mh = MC.load_catalog_model(dict(e, file=e["render_file"]), spec.get("gcat"), fit=False)
+            if len(Mh["arrays"]) == len(M["arrays"]) and AP.n_drives(dict(arrays=Mh["arrays"])) == AP.n_drives(dict(arrays=M["arrays"])):
+                M = Mh; e = dict(e, source="hd:" + e["render_file"])
+        except Exception:                                      # noqa: BLE001 — остаётся модель каталога
+            pass
     full = dict(V=M["V"], F=M["F"], G=M["G"], M2B=M["M2B"], arrays=M["arrays"])
     Vb, _, _ = AP.pose_body(full, law, x, sun_b)
     parts = []

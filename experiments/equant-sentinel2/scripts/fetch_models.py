@@ -90,6 +90,10 @@ KT_EXTRA = {
     "KT-TORUS-TANK": ("deb-torus-01.obj", dict(bus=["Briz tank"]), "debris"),          # тороидальный бак «Бриз-М»
 }
 # Шины, которые по открытым данным построены на шине другого класса: назначается модель этого класса
+# Детальные модели для рендера (scripts/build_hd_assets.py) — в осях и размерах модели каталога; подгонка идёт по
+# модели каталога, рендер — по этой, с той же позой и теми же шарнирами.
+RENDER_FILES = {"STARLINK-V2-MINI": "hd/starlink-v2-mini-hd.glb"}
+
 # Масса сборок: модель изображает весь комплекс, а номер NORAD в GCAT — модуль, к которому привязана орбита
 # (у МКС — «Заря», 19 т). Масса комплекса — из открытых данных агентств.
 ASSEMBLY_MASS = {
@@ -238,6 +242,8 @@ def manifest():
                   match=dict(norad=norad, bus=list(m.get("buses") or [])), kind=kind)
         if key in ASSEMBLY_MASS:                     # модель — весь комплекс, а номер в каталоге — один модуль
             e_["mass_kg"], e_["mass_note"] = ASSEMBLY_MASS[key]
+        if key in RENDER_FILES and (CAT / RENDER_FILES[key]).exists():
+            e_["render_file"] = RENDER_FILES[key]
         ent.append(e_)
     for k, (p, match, kind) in EXTRA_NASA.items():
         f = CAT / "nasa_extra" / f"{k}.glb"
