@@ -94,11 +94,27 @@ def card(name, a):
     # поправка к орбите для центра масс: θ реконструкции (сдвиг орбиты по положениям пятен полос, км) + сдвиг начала
     # модели при подгонке позы (x[4:6], м) + центр масс модели — всё в осях реконструкции (вдоль, поперёк, радиус)
     com_fit = C @ com; th = np.asarray(rc.get("theta", [0, 0, 0]), float) * 1e3
+    ofile = ROOT / "results/orbits" / f"{name}.json"            # точнее: орбита Sentinel по GPS, углы полос в 3D
+    if ofile.exists():
+        q = json.loads(ofile.read_text()); f_ = q["fits"].get("gps3d") or q["fits"].get("gps") or q["fits"].get("tle")
+        th = np.asarray(f_["theta_km"], float) * 1e3
     along, cross = float(th[0] + x[4] + com_fit[0]), float(th[1] + x[5] + com_fit[1])
     v_orb = float(np.linalg.norm(orb.teme([jd])[1][0])) * 1e3           # инерциальная скорость, м/с
 
-    # яркость групп материалов по полосам в найденной позе
-    P = AP.Problem(rc, spec, C); P.kappa = float(au.get("kappa") or 1.0); refl = {}
+    # точки захвата (досье увода): торцы вдоль оси наименьшего момента инерции (у ступени — сопло и переходник),
+    # центр масс; для каждой — расстояние до центра масс и радиус торца
+    grasp = []
+    if Iax is not None:
+        a_min = Iax[:, 0]; proj = (Vb - com) @ a_min
+        for sgn, lab in ((1, "торец +"), (-1, "торец −")):
+            sel = (sgn * proj) > (np.max(sgn * proj) - 0.05 * np.ptp(proj))
+            if sel.any():
+                c_end = Vb[sel].mean(0); rad = float(np.linalg.norm((Vb[sel] - c_end) - np.outer((Vb[sel] - c_end) @ a_min, a_min), axis=1).max())
+                grasp.append(dict(point=lab, lvlh_from_com_m=[r(v) for v in (c_end - com)], dist_com_m=r(float(np.linalg.norm(c_end - com))),
+                                  radius_m=r(rad)))
+
+    # яркость групп материалов по полосам в найденной позе; остаток для поиска фрагментов
+    P = AP.Problem(rc, spec, C); P.kappa = float(au.get("kappa") or 1.0); refl = {}; resid = {}
     Vfit = P.body(law, x)
     for b in P.bands:
         d = rc["bands"][b]
@@ -106,6 +122,34 @@ def card(name, a):
         _, cc = AP.band_loss(d, occ)
         gm = float(np.nanmedian(d["g"]))
         refl[b] = [round(float(v) / gm, 3) if gm else None for v in cc]
+        O = np.stack(occ, -1); resid[b] = (d["r"] - (O @ cc - d["g"] * O.sum(-1))) / float(d["s"])
+
+    # фрагменты: пятна в остатке после модели, повторяющиеся в ≥ 3 полосах на одном и том же смещении в осях объекта
+    # (в полосе b смещение Δ объекта → на снимке J_b·Δ/1000); перебор Δ по сетке, счёт — сумма |z| по полосам
+    frags = []
+    bands_f = [b for b in P.bands if b in resid]
+    if len(bands_f) >= 3:
+        k_img = float(np.median([np.linalg.norm(np.asarray(rc["bands"][b]["J"]) / 1000.0, 2) for b in bands_f]))
+        lim = 140.0 / max(k_img, 1e-6); step = max(1.0, 8.0 / max(k_img, 1e-6))
+        grid = np.arange(-lim, lim + step, step)
+        best = []
+        for dx in grid:
+            for dy in grid:
+                if math.hypot(dx, dy) < 1.5 * float(np.ptp(spec["V"], 0).max()):
+                    continue                                       # сам объект
+                zs = []
+                for b in bands_f:
+                    d = rc["bands"][b]; base = np.asarray(d["meas"][:2] if d.get("meas") else d["p0"], float)
+                    p = base + (np.asarray(d["J"]) / 1000.0) @ (C @ np.array([dx, dy, 0.0]) + np.r_[x[4:6], 0.0])
+                    i = np.unravel_index(np.argmin((d["X"] - p[0]) ** 2 + (d["Y"] - p[1]) ** 2), d["X"].shape)
+                    if (d["X"][i] - p[0]) ** 2 + (d["Y"][i] - p[1]) ** 2 < (d["res"]) ** 2:
+                        zs.append(abs(float(resid[b][i])))
+                if len(zs) >= 3:
+                    best.append((float(np.sum(sorted(zs)[-3:])), dx, dy, len(zs), int(np.sum(np.array(zs) > 4))))
+        best.sort(reverse=True)
+        thr = 3 * 5.0                                               # ≥ 5σ в трёх полосах в среднем
+        frags = [dict(offset_lvlh_m=[r(dx, 1), r(dy, 1)], score=r(sc, 1), bands=n, bands_over_4sigma=n4)
+                 for sc, dx, dy, n, n4 in best[:3] if sc > thr and n4 >= 3]
 
     out = dict(name=name, norad=norad, object=rc.get("obj"), gcat_name=g.get("Name"), type=spec["kind"], active=bool(active),
                model=spec["source"], dims_m=[r(v) for v in np.ptp(spec["V"], 0)], mass_kg=mass, mass_source=mass_src,
@@ -128,7 +172,9 @@ def card(name, a):
                                principal_axes_lvlh=None if Iax is None else np.round(Iax.T, 3).tolist(),
                                major_axis_lvlh=None if major is None else [r(v, 3) for v in major],
                                model="тонкостенная оболочка: масса по площади поверхности"),
-               protrusions=wings,
+               protrusions=wings, grasp_points=grasp,
+               fragments=dict(found=frags, note="поиск в окнах ±140 м снимка вокруг объекта; пятна ≥ 5σ в ≥ 3 полосах "
+                                                 "на одном смещении в осях объекта"),
                orbit_correction=dict(along_m=r(along, 1), cross_m=r(cross, 1), radial_prior_m=r(th[2], 1), time_s=r(along / v_orb, 4),
                                      parts_m=dict(spots_theta=[r(v, 1) for v in th[:2]], pose_shift=[r(x[4], 1), r(x[5], 1)],
                                                   com=[r(v) for v in com_fit[:2]]),
