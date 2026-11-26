@@ -37,6 +37,10 @@ for rate in [0.0, 20.0, 60.0, 120.0]:                       # тот же роз
         continue
     t0 = time.time(); D = DiffSpin(rc2, spec, C, seed=a.seed)
     res = D.solve(B=a.B, iters=a.iters, log=lambda s: print(s, flush=True))
+    import torch
+    xt_d, Lt_d = D.polish(xt, iters=60)                      # дно ямы вокруг истины в той же модели
+    print(f"   невязка: найдено {res['L_spin']:.1f}, дно ямы истины {Lt_d:.1f} → "
+          f"{'ПОИСК (истина глубже)' if Lt_d < res['L_spin'] - 1 else 'ИНФОРМАЦИЯ (снимок не различает)'}", flush=True)
     # видимая часть вращения: поперёк продольной оси (вокруг оси симметрии ступени вращение на снимке не видно)
     Vb_ = spec["V"] @ np.asarray(spec["M2B"]).T; e_long = np.eye(3)[int(np.argmax(np.ptp(Vb_, 0)))]
     Lt = AP.rotvec(R0) @ e_long; wt = ax * rate; wt_p = wt - (wt @ Lt) * Lt

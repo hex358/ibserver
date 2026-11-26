@@ -134,6 +134,35 @@ class DiffSpin:
                 break
         return out
 
+    @staticmethod
+    def so3_grid(n):
+        """Почти равномерная сетка поворотов (super-Fibonacci, Alexa 2022): n кватернионов → векторы поворота."""
+        from scipy.spatial.transform import Rotation as Ro
+        phi, psi = math.sqrt(2.0), 1.533751168755204288118041
+        s = np.arange(n) + 0.5; r = np.sqrt(s / n); R = np.sqrt(1.0 - s / n)
+        al, be = 2 * math.pi * s / phi, 2 * math.pi * s / psi
+        q = np.c_[r * np.sin(al), r * np.cos(al), R * np.sin(be), R * np.cos(be)]
+        return Ro.from_quat(q).as_rotvec()
+
+    def grid_poses(self, bands, t0, pos, n=3000, top=48, keep=12, iters=40):
+        """Поза группы по ВСЕЙ сетке поворотов (а не по нескольким минимумам): невязка группы в n поз одним пакетом,
+        лучшие top ячеек — короткий градиентный дожим, различные минимумы (> 15°)."""
+        from scipy.spatial.transform import Rotation as Ro
+        G = self.so3_grid(n); X = np.c_[G, np.zeros((n, 3)), np.tile(pos, (n, 1))]
+        with torch.no_grad():
+            L = np.concatenate([self.loss_batch(torch.tensor(X[i:i + 128], dtype=torch.float32), bands=bands, t0=t0).numpy()
+                                for i in range(0, n, 128)])
+        sel = X[np.argsort(L)[:top]]
+        xs, Ls = self.fit(sel, iters, bands=bands, t0=t0, mask=[1, 1, 1, 0, 0, 0, 1, 1])
+        out = []
+        for i in np.argsort(Ls):
+            Rr = Ro.from_rotvec(xs[i, 0:3])
+            if all((Rr * Ro.from_rotvec(y[0:3]).inv()).magnitude() > math.radians(15) for y, _ in out):
+                out.append((xs[i], float(Ls[i])))
+            if len(out) >= keep:
+                break
+        return out
+
     def alias_candidates(self, log=print, kmax=2):
         """Раскрытие фазы вращения: поза первой и последней группы → поворот между ними за Δt → ω с точностью до
         целого числа оборотов: ω_k = û (θ + 2πk)/Δt; плюс симметрии тела (развороты на 180° вокруг осей тела —
@@ -142,7 +171,12 @@ class DiffSpin:
         grp = self.groups()
         ga, gb = grp[0], grp[-1]
         ta = float(np.mean([self.t[b] for b in ga])); tb = float(np.mean([self.t[b] for b in gb])); dt = tb - ta
-        A = self.group_poses(ga, ta); Bp = self.group_poses(gb, tb)
+        # опорная группа — с большим числом пикселей 10 м (поза определена лучше); вторая — по всей сетке поворотов
+        wgt = lambda g: sum(1.0 / self.sc.B[b].res ** 2 for b in g)
+        if wgt(ga) >= wgt(gb):
+            A = self.group_poses(ga, ta); Bp = self.grid_poses(gb, tb, A[0][0][6:8])
+        else:
+            Bp = self.group_poses(gb, tb); A = self.grid_poses(ga, ta, Bp[0][0][6:8])
         self._wg = [x[3:6] for x, _ in A[:2] + Bp[:2] if np.linalg.norm(x[3:6]) > 0]
         sym = [Ro.identity()] + [Ro.from_rotvec(math.pi * e) for e in np.eye(3)]
         cands = []
