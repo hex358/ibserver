@@ -1,0 +1,3 @@
+name,sentinel_orbit,sig_along_m,sig_cross_m,sig_radial_m,GP_before_age_d,GP_before_along_km,GP_before_cross_km,GP_after_age_d,GP_after_along_km,GP_after_cross_km,SupGP_before_age_d,SupGP_before_along_km,SupGP_before_cross_km,SupGP_after_age_d,SupGP_after_along_km,SupGP_after_cross_km
+ISS_20261118T222808,GPS,78,57,991,,,,0.785,-2.146,-0.715,,,,,,
+STARLINK-30245_20261120T110322,GPS,10,15,481,0.09,1.703,1.284,0.825,2.351,1.274,0.441,1.999,1.368,0.476,-2.79,1.36
