@@ -62,15 +62,22 @@ class Spin:
             L += float(x[6] ** 2 + x[7] ** 2) / AP.SIG_POS ** 2
         return L, a
 
-    def fit(self, x0, idx, maxfev=400, bands=None):
-        x0 = np.asarray(x0, float)
+    def fit(self, x0, idx, maxfev=400, bands=None, restarts=0):
+        """Powell; restarts > 0 — повторный запуск из достигнутой точки (сброс направлений), пока невязка падает > 0,5:
+        яма вращения узкая и вытянутая, один проход Powell останавливается на склоне."""
+        x = np.asarray(x0, float).copy(); L = None
+        for _ in range(restarts + 1):
+            base = x.copy()
 
-        def f(u):
-            x = x0.copy(); x[idx] = u
-            return self.loss(x, bands)[0]
-        r = minimize(f, x0[idx], method="Powell", options=dict(maxfev=maxfev, xtol=1e-3, ftol=1e-5))
-        x = x0.copy(); x[idx] = r.x
-        return x, r.fun
+            def f(u):
+                y = base.copy(); y[idx] = u
+                return self.loss(y, bands)[0]
+            r = minimize(f, base[idx], method="Powell", options=dict(maxfev=maxfev, xtol=1e-3, ftol=1e-5))
+            x = base.copy(); x[idx] = r.x
+            if L is not None and L - r.fun < 0.5:
+                L = min(L, r.fun); break
+            L = r.fun
+        return x, L
 
     def starts(self, n_dir=40, top=3, bands=None):
         """Стартовые R₀: направления оси тела по сфере (лучшие по невязке при ω = 0); ω: 0 и перебор
@@ -180,6 +187,11 @@ class Spin:
         for s in starts:
             x, L = self.fit(s, [0, 1, 2, 3, 4, 5, 6, 7], maxfev)
             sols.append((x, L))
+        # лучшие кандидаты дожимаются перезапусками (дно узкой ямы)
+        sols.sort(key=lambda q: q[1])
+        for k in range(min(4, len(sols))):
+            sols[k] = self.fit(sols[k][0], [0, 1, 2, 3, 4, 5, 6, 7], maxfev, restarts=3)
+        for x, L in sols:
             if L < best[1]:
                 best = (x, L)
         x1, L1 = best
