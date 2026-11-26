@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 from s2sat import geometry as G, orbits as O, passgeom as PG
 
 ap = argparse.ArgumentParser(); ap.add_argument("--out", default=str(ROOT / "results/orbits"))
+ap.add_argument("--base", default="fresh", choices=["fresh", "supgp"], help="основа: свежайший TLE до снимка или SupGP (план оператора с манёврами)")
 a = ap.parse_args()
 
 
@@ -55,6 +56,8 @@ for f in sorted(Path(a.out).glob("*.json")):
     before = [(k, o) for k, o in pool if 0 < jd - o.epoch_jd <= 3]
     if not before:
         continue
+    if a.base == "supgp" and any(k == "SupGP" for k, _ in before):
+        before = [(k, o) for k, o in before if k == "SupGP"]
     kb, ob = max(before, key=lambda q: q[1].epoch_jd)
     r, v = ob.ecef([jd]); A = axes(r[0], v[0]); d0 = A @ (r[0] - rm)
     delta = float(d0[0]) / float(np.linalg.norm(ob.teme([jd])[1][0]))          # с: TLE впереди на Δвдоль → назад на δ
@@ -68,7 +71,7 @@ for f in sorted(Path(a.out).glob("*.json")):
                          old_along_km=float(e_old[0]), new_along_km=float(e_new[0]), old_km=float(np.linalg.norm(e_old)),
                          new_km=float(np.linalg.norm(e_new)), meas_sigma_along_m=sig[0]))
 
-out = Path(a.out); (out / "improve.json").write_text(json.dumps(dict(predictions=rows, public_vs_image=ages), ensure_ascii=False, indent=1))
+out = Path(a.out); (out / f"improve{'' if a.base == 'fresh' else '_supgp'}.json").write_text(json.dumps(dict(predictions=rows, public_vs_image=ages), ensure_ascii=False, indent=1))
 print(f"прогнозов: {len(rows)} (объектов {len({r['name'] for r in rows})})")
 for name in sorted({r["name"] for r in rows}):
     rr = [r for r in rows if r["name"] == name]
@@ -101,4 +104,4 @@ if rows:
     ax[1].scatter(h, [r["new_km"] * 1e3 for r in rows], s=16, color="#1e8449", label="стало: тот же TLE + поправка по снимку")
     ax[1].set_yscale("log"); ax[1].set_xlabel("горизонт прогноза после снимка, сут"); ax[1].set_ylabel("ошибка прогноза против более поздней публичной орбиты, м")
     ax[1].set_title("Прогноз орбиты: было → стало"); ax[1].legend(fontsize=8)
-fig.tight_layout(); fig.savefig(out / "improve.png", dpi=120); print(out / "improve.png")
+fig.tight_layout(); fig.savefig(out / f"improve{'' if a.base == 'fresh' else '_supgp'}.png", dpi=120)

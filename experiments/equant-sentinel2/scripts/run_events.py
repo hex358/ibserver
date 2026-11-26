@@ -67,7 +67,7 @@ a = ap.parse_args()
 snaps = sorted(p_ for p_ in (ROOT / "data/tle_snapshots").iterdir() if p_.is_dir())
 if a.snapshot == "all":
     snap_list = snaps            # объединить все снимки: для каждого объекта самая свежая эпоха
-elif a.snapshot.startswith("until:"):
+elif a.snapshot and a.snapshot.startswith("until:"):
     snap_list = [x for x in snaps if x.name <= a.snapshot[6:]]   # воспроизводимый набор: снимки не позже указанного
 else:
     snap_list = [(ROOT / "data/tle_snapshots" / a.snapshot) if a.snapshot else snaps[-1]]

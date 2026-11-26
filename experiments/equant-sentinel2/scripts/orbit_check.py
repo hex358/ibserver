@@ -21,7 +21,8 @@ sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 from s2sat import geometry as G, passgeom as PG, s2orbit as S2O, scenegeom as SG
 
 ap = argparse.ArgumentParser(); ap.add_argument("names", nargs="*"); ap.add_argument("--out", default=str(ROOT / "results/orbits"))
-PRIOR_KM = np.array([np.inf, 1.1, 1.9])            # σ априорного условия: вдоль — нет, поперёк 1,1 км, радиус 1,9 км
+PRIOR_KM = np.array([np.inf, 1.1, 1.9])
+MIN_BANDS = 2                                      # 2 полосы — 4 уравнения на вдоль/поперёк (радиус — априорно)            # σ априорного условия: вдоль — нет, поперёк 1,1 км, радиус 1,9 км
 
 
 def fit_theta(P, meas, th0, iters=5):
@@ -30,7 +31,7 @@ def fit_theta(P, meas, th0, iters=5):
     for _ in range(iters):
         P0, J = P.jacobian(th)
         bs = [b for b in meas if b in P0 and b in J]
-        if len(bs) < 3:
+        if len(bs) < MIN_BANDS:
             return None
         A = np.concatenate([J[b] for b in bs]); rv = np.concatenate([np.array(meas[b]) - np.array(P0[b][:2]) for b in bs])
         w = np.repeat([min(1.0, 30.0 / max(math.hypot(*(np.array(meas[b]) - np.array(P0[b][:2]))), 1e-6)) for b in bs], 2)

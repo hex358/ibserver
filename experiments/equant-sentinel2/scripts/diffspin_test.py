@@ -37,12 +37,17 @@ for rate in [0.0, 20.0, 60.0, 120.0]:                       # тот же роз
         continue
     t0 = time.time(); D = DiffSpin(rc2, spec, C, seed=a.seed)
     res = D.solve(B=a.B, iters=a.iters, log=lambda s: print(s, flush=True))
-    w = np.asarray(res["x"][3:6]); err_ax = None
-    if rate > 0 and np.linalg.norm(w) > 1e-6:
-        err_ax = math.degrees(math.acos(min(1.0, abs(float(w @ ax)) / np.linalg.norm(w))))
-    print(f"истина {rate:.0f} °/с → градиент: {res['rate_deg_s']:.1f} ± {res['rate_sigma_deg_s']:.1f} °/с, ось ±"
-          f"{'—' if err_ax is None else f'{err_ax:.0f}°'}, вращение {'да' if res['spinning'] else 'нет'} (выигрыш {res['gain']:.1f}), "
-          f"{time.time() - t0:.0f} с", flush=True)
-    rows.append(dict(true_rate=rate, est_rate=res["rate_deg_s"], sigma=res["rate_sigma_deg_s"], axis_err_deg=err_ax, gain=res["gain"],
+    # видимая часть вращения: поперёк продольной оси (вокруг оси симметрии ступени вращение на снимке не видно)
+    Vb_ = spec["V"] @ np.asarray(spec["M2B"]).T; e_long = np.eye(3)[int(np.argmax(np.ptp(Vb_, 0)))]
+    Lt = AP.rotvec(R0) @ e_long; wt = ax * rate; wt_p = wt - (wt @ Lt) * Lt
+    xe = np.asarray(res["x"]); Le = AP.rotvec(xe[0:3]) @ e_long; we = np.degrees(xe[3:6]); we_p = we - (we @ Le) * Le
+    err_ax = None
+    if np.linalg.norm(wt_p) > 1e-6 and np.linalg.norm(we_p) > 1e-6:
+        err_ax = math.degrees(math.acos(min(1.0, abs(float(we_p @ wt_p)) / np.linalg.norm(we_p) / np.linalg.norm(wt_p))))
+    print(f"истина {rate:.0f} °/с (видимая часть {np.linalg.norm(wt_p):.1f}) → найдено {res['rate_deg_s']:.1f} ± {res['rate_sigma_deg_s']:.1f} °/с "
+          f"(видимая часть {np.linalg.norm(we_p):.1f}), ось видимой части ±{'—' if err_ax is None else f'{err_ax:.0f}°'}, "
+          f"вращение {'да' if res['spinning'] else 'нет'} (выигрыш {res['gain']:.1f}), {time.time() - t0:.0f} с", flush=True)
+    rows.append(dict(true_rate=rate, true_visible=float(np.linalg.norm(wt_p)), est_visible=float(np.linalg.norm(we_p)),
+                     est_rate=res["rate_deg_s"], sigma=res["rate_sigma_deg_s"], axis_err_deg=err_ax, gain=res["gain"],
                      spinning=res["spinning"], family=res["family_rates_deg_s"]))
 (ROOT / "results/auto" / f"inject_diffspin_{a.norad}_{a.base}.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1))
