@@ -221,9 +221,19 @@ class Scene:
 
     @staticmethod
     def _robust(A, y):
-        AtA = A.transpose(1, 2) @ A + 1e-9 * torch.eye(A.shape[2]); Aty = (A.transpose(1, 2) @ y[..., None])
-        a = torch.linalg.solve(AtA, Aty).clamp_min(0.0)
-        z = y - (A @ a)[..., 0]
+        """Яркости групп ≥ 0 — ТОЧНЫЕ неотрицательные НК (перебор активных множеств, групп ≤ 4–5: 2^k решений пакетом),
+        а не «НК, затем обрезать отрицательные» (обрезка давала модель хуже пустой: объект рисовался чёрным силуэтом)."""
+        Bn, n, k = A.shape
+        AtA = A.transpose(1, 2) @ A + 1e-9 * torch.eye(k); Aty = A.transpose(1, 2) @ y[..., None]
+        best_a = torch.zeros(Bn, k, 1, dtype=A.dtype); best_sse = (y * y).sum(1)
+        for mask in range(1, 2 ** k):
+            idx = [j for j in range(k) if (mask >> j) & 1]
+            a_s = torch.linalg.solve(AtA[:, idx][:, :, idx], Aty[:, idx])
+            a_f = torch.zeros(Bn, k, 1, dtype=A.dtype); a_f[:, idx] = a_s
+            z = y - (A @ a_f)[..., 0]; sse = (z * z).sum(1)
+            take = (a_s[..., 0] >= 0).all(1) & (sse < best_sse)
+            best_a = torch.where(take[:, None, None], a_f, best_a); best_sse = torch.where(take, sse, best_sse)
+        z = y - (A @ best_a)[..., 0]
         return (2 * HUB ** 2 * (torch.sqrt(1 + (z / HUB) ** 2) - 1)).sum(1)
 
 

@@ -226,7 +226,8 @@ class DiffPose:
             bd = self.sc.B[b]; occ, cols = self.columns(x, b)
             A.append(cols.T * bd.gm / bd.s); y.append((bd.r.numpy() + bd.g.numpy() * occ.sum(0)) / bd.s)
         A = np.concatenate(A); y = np.concatenate(y)
-        rho = np.clip(np.linalg.lstsq(A, y, rcond=None)[0], 0, None)
+        from scipy.optimize import nnls
+        rho = nnls(A, y)[0]                                 # точные неотрицательные НК (как в невязке)
         out = {}
         for b in test:
             bd = self.sc.B[b]; occ, cols = self.columns(x, b); r = bd.r.numpy(); g = bd.g.numpy()
