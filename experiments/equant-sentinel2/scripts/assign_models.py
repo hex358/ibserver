@@ -45,7 +45,8 @@ def main():
         detect = size >= 2.0 or (rcs is not None and rcs >= 1.0)
         typ = (g.get("Type") or r["OBJECT_TYPE"] or "?")[:1]
         if e is None:
-            cls = "параметрическая (размеры GCAT)" if (L and D) else "нет данных"
+            cls = ("параметрическая (размеры GCAT)" if ((L or 0) > 0 or (D or 0) > 0)
+                   else "обломок: пластина по ЭПР (SATCAT)" if (rcs or 0) > 0 else "нет данных")
             model, frame, wings, two = "", "", 0, 0
         else:
             m = man[e["key"]]

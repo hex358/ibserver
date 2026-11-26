@@ -116,8 +116,17 @@ def _cyl(L, D, n=20, steps=None):
     return np.array(V, float), np.array(F, int)
 
 
-def parametric(g):
-    """Модель по строке GCAT. Ось тела X — длина; Y — поперёк (вдоль панелей); Z — третья ось."""
+def parametric(g, rcs=None):
+    """Модель по строке GCAT. Ось тела X — длина; Y — поперёк (вдоль панелей); Z — третья ось.
+    Размеров в GCAT нет (обломки) — плоский обломок по ЭПР из SATCAT: в оптической области (размер ≫ длины радиоволны)
+    ЭПР ≈ площади сечения, сторона d = √(4·ЭПР/π), толщина 0,1·d (обломки разрушений — в основном пластины)."""
+    if not (_num(g.get("Length"), 0.0) or 0.0) > 0 and not (_num(g.get("Diameter"), 0.0) or 0.0) > 0:   # в GCAT 0 = неизвестно
+        if rcs:
+            d = math.sqrt(4.0 * float(rcs) / math.pi)
+            V, F = _box(0, 0, 0, d, d, max(0.02, 0.1 * d))
+            return V, F, np.ones(len(F), int), [], f"обломок: пластина {d:.2f} м по ЭПР {float(rcs):.3g} м² (SATCAT)"
+        V, F = _box(0, 0, 0, 2.0, 1.0, 1.0)
+        return V, F, np.ones(len(F), int), [], "нет данных о размерах (ни GCAT, ни ЭПР): блок 2 × 1 × 1 м — только для положения"
     shape = (g.get("Shape") or "Cyl").lower()
     L = _num(g.get("Length"), 2.0) or 2.0; D = _num(g.get("Diameter"), 1.0) or 1.0; S = _num(g.get("Span"), L) or L
     parts = []
@@ -607,18 +616,55 @@ YAWS = (0, 90, 180, 270)
 def _ops():
     """Статус работы из CelesTrak SATCAT: '+' работает, 'P' частично, 'B' резерв, 'S' запасной, 'X' продлён, '-' не работает,
     '?' неизвестно."""
+    return {k: r.get("OPS_STATUS_CODE", "") for k, r in _satcat().items()}
+
+
+@lru_cache(maxsize=1)
+def _satcat():
+    """SATCAT CelesTrak (data/catalogs) плюс самый свежий снимок data/tle_snapshots/*/satcat.csv: непустые поля снимка
+    дополняют/обновляют (в архивной копии ЭПР у многих объектов пустая)."""
+    out = {}
     f = CAT / "celestrak_satcat.csv.gz"
-    if not f.exists():
-        return {}
-    return {int(r["NORAD_CAT_ID"]): r["OPS_STATUS_CODE"] for r in csv.DictReader(io.TextIOWrapper(gzip.open(f), encoding="utf-8"))}
+    if f.exists():
+        out = {int(r["NORAD_CAT_ID"]): r for r in csv.DictReader(io.TextIOWrapper(gzip.open(f), encoding="utf-8"))}
+    snaps = sorted((ROOT / "data/tle_snapshots").glob("*/satcat.csv")) if (ROOT / "data/tle_snapshots").exists() else []
+    if snaps:
+        for r in csv.DictReader(open(snaps[-1], encoding="utf-8")):
+            k = int(r["NORAD_CAT_ID"]); base = dict(out.get(k, {}))
+            base.update({c: v for c, v in r.items() if v not in (None, "")}); out[k] = base
+    return out
 
 
-def is_active(norad, year=2026):
-    """Работает ли аппарат (управляемая ориентация): по SATCAT; если статуса нет — моложе 15 лет."""
-    st = _ops().get(int(norad or 0), "")
+def rcs_of(norad):
+    """ЭПР из SATCAT, м² (или None)."""
+    v = _satcat().get(int(norad or 0), {}).get("RCS")
+    try:
+        return float(v) if v not in (None, "") else None
+    except ValueError:
+        return None
+
+
+def obj_type(norad):
+    """Тип объекта: 'P' аппарат, 'R' ступень, 'D' обломок — по GCAT, иначе по SATCAT (PAY / R/B / DEB), иначе 'P'."""
+    g = gcat(int(norad or 0)) or {}
+    t = (g.get("Type") or "").strip()[:1]
+    if t in ("P", "R", "D"):
+        return t
+    st = (_satcat().get(int(norad or 0), {}).get("OBJECT_TYPE") or "").upper()
+    return {"PAY": "P", "R/B": "R", "DEB": "D"}.get(st, "P")
+
+
+def is_active(norad, at_year=2026):
+    """Работает ли аппарат (управляемая ориентация) на год at_year: статус SATCAT; ступени и обломки — никогда; статуса
+    нет — аппарат моложе 15 лет на этот год (дата запуска — SATCAT или GCAT)."""
+    norad = int(norad or 0)
+    st = _ops().get(norad, "")
     if st:
         return st in "+PBSX"
-    return year >= 2011
+    if obj_type(norad) in ("R", "D"):
+        return False
+    ld = (_satcat().get(norad, {}).get("LAUNCH_DATE") or (gcat(norad) or {}).get("LDate") or "")[:4]
+    return ld.isdigit() and at_year - int(ld) < 15
 
 
 def laws_for(kind, has_arrays, frame_ok, year, active=True):
@@ -648,16 +694,16 @@ def spec_for(norad, name=""):
     laws, source, catalog, gcat)."""
     norad = int(norad or 0)
     g = gcat(norad) or {}
-    typ = (g.get("Type") or "P")[:1]
+    typ = obj_type(norad)
     year = int((g.get("LDate") or "2026")[:4]) if (g.get("LDate") or "")[:4].isdigit() else 2026
     e = resolve(norad, name)
     if e is not None and not e.get("error"):
         M = load_catalog_model(e, g)
         kind = "rocketbody" if e["kind"] == "rocketbody" or typ == "R" else "debris" if typ == "D" else "payload"
         return dict(kind=kind, V=M["V"], F=M["F"], G=M["G"], M2B=M["M2B"], arrays=M["arrays"],
-                    laws=laws_for(kind, bool(M["arrays"]), e["frame"] == "satvis", year, is_active(norad, year)),
+                    laws=laws_for(kind, bool(M["arrays"]), e["frame"] == "satvis", year, is_active(norad)),
                     source=f"каталог: {e['key']} ({e['source']}; {M['tri']} тр., для подгонки {len(M['F'])})", catalog=e, gcat=g)
-    V, F, G, arrays, src = parametric(g)
+    V, F, G, arrays, src = parametric(g, rcs_of(norad))
     kind = "payload" if typ == "P" else "rocketbody" if typ == "R" else "debris"
-    return dict(kind=kind, V=V, F=F, G=G, M2B=np.eye(3), arrays=arrays, laws=laws_for(kind, bool(arrays), True, year, is_active(norad, year)),
+    return dict(kind=kind, V=V, F=F, G=G, M2B=np.eye(3), arrays=arrays, laws=laws_for(kind, bool(arrays), True, year, is_active(norad)),
                 source=src, catalog=None, gcat=g)
