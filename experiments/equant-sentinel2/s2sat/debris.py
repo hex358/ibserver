@@ -57,15 +57,24 @@ def lifetime_days(h_km, B, k=1.0, h_end=120.0, dh=0.5):
     return float(np.sum(dh / np.maximum(v, 1e-30)))
 
 
-def proj_area(V, d):
-    """Площадь проекции (выпуклая оболочка силуэта) на плоскость ⟂ d, м²."""
+def proj_area(V, d, F=None, npx=512):
+    """Площадь силуэта на плоскости ⟂ d, м². С гранями F — растеризация проекций всех граней (настоящий силуэт:
+    просветы между панелями, фермой и корпусом не считаются); без F — выпуклая оболочка (только для выпуклых тел)."""
     d = np.asarray(d, float); d = d / np.linalg.norm(d)
     e1 = np.cross(d, [0.0, 0, 1] if abs(d[2]) < 0.9 else [1.0, 0, 0]); e1 /= np.linalg.norm(e1)
     e2 = np.cross(d, e1); P = np.c_[V @ e1, V @ e2]
-    try:
-        return float(ConvexHull(P).volume)
-    except Exception:                                           # noqa: BLE001
-        return 0.0
+    if F is None:
+        try:
+            return float(ConvexHull(P).volume)
+        except Exception:                                       # noqa: BLE001
+            return 0.0
+    from PIL import Image, ImageDraw
+    lo = P.min(0); ext = float(np.max(P.max(0) - lo)) or 1e-6; px = ext / (npx - 2)
+    Q = (P - lo) / px + 1.0
+    img = Image.new("1", (npx, npx), 0); dr = ImageDraw.Draw(img)
+    for tri in Q[np.asarray(F)]:
+        dr.polygon([tuple(v) for v in tri], fill=1)
+    return float(np.count_nonzero(np.asarray(img))) * px * px
 
 
 def sphere_dirs(n=400):
@@ -73,9 +82,10 @@ def sphere_dirs(n=400):
     return np.c_[np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)]
 
 
-def tumbling_area(V, n=400):
-    """Средняя площадь сечения при беспорядочном вращении, м² (для выпуклого тела = ¼ площади поверхности оболочки)."""
-    return float(np.mean([proj_area(V, d) for d in sphere_dirs(n)]))
+def tumbling_area(V, F=None, n=100):
+    """Средняя площадь силуэта при беспорядочном вращении, м² (по n направлениям сферы; у выпуклого тела = ¼ площади
+    поверхности)."""
+    return float(np.mean([proj_area(V, d, F) for d in sphere_dirs(n)]))
 
 
 def shell_mass_props(V, F, mass):

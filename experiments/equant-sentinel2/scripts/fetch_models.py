@@ -90,6 +90,13 @@ KT_EXTRA = {
     "KT-TORUS-TANK": ("deb-torus-01.obj", dict(bus=["Briz tank"]), "debris"),          # тороидальный бак «Бриз-М»
 }
 # Шины, которые по открытым данным построены на шине другого класса: назначается модель этого класса
+# Масса сборок: модель изображает весь комплекс, а номер NORAD в GCAT — модуль, к которому привязана орбита
+# (у МКС — «Заря», 19 т). Масса комплекса — из открытых данных агентств.
+ASSEMBLY_MASS = {
+    "ISS-(ZARYA)": (419725.0, "NASA, ISS Facts and Figures: 419 725 кг (без учёта прибывающих кораблей)"),
+    "CSS-(TIANHE)": (68700.0, "CMSA: «Тяньхэ» 22,5 т + «Вэньтянь» 23,2 т + «Мэнтянь» 23,0 т, без кораблей"),
+}
+
 BUS_ALIASES = {"STARLINK-V2-MINI": ["Starshield"]}                                    # Starshield — производная Starlink
 
 # Ступени KeepTrack (data/models/rb-*.obj): ось ступени — Y сетки, метры. Правила — как в resolver KeepTrack:
@@ -226,9 +233,12 @@ def manifest():
         key = Path(m["file"]).stem
         norad = [int(v["noradId"]) for v in m.get("satellites", []) if v.get("noradId")]
         kind = "station" if key in ("ISS-(ZARYA)", "CSS-(TIANHE)") else "payload"
-        ent.append(dict(key=key, file=str(f.relative_to(CAT)), source=src, license=lic, frame="satvis",
-                        rotate=m.get("rotate") or [], mirror=m.get("mirror"), scale=m.get("scale") or 1.0,
-                        match=dict(norad=norad, bus=list(m.get("buses") or [])), kind=kind))
+        e_ = dict(key=key, file=str(f.relative_to(CAT)), source=src, license=lic, frame="satvis",
+                  rotate=m.get("rotate") or [], mirror=m.get("mirror"), scale=m.get("scale") or 1.0,
+                  match=dict(norad=norad, bus=list(m.get("buses") or [])), kind=kind)
+        if key in ASSEMBLY_MASS:                     # модель — весь комплекс, а номер в каталоге — один модуль
+            e_["mass_kg"], e_["mass_note"] = ASSEMBLY_MASS[key]
+        ent.append(e_)
     for k, (p, match, kind) in EXTRA_NASA.items():
         f = CAT / "nasa_extra" / f"{k}.glb"
         if f.exists():

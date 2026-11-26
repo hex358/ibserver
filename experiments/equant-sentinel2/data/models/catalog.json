@@ -82,7 +82,9 @@
    ],
    "arrays": 8,
    "fixed_panels": 0,
-   "solar_faces": 620
+   "solar_faces": 620,
+   "mass_kg": 419725.0,
+   "mass_note": "NASA, ISS Facts and Figures: 419 725 кг (без учёта прибывающих кораблей)"
   },
   {
    "key": "LANDSAT-8",
@@ -898,7 +900,9 @@
    ],
    "arrays": 4,
    "fixed_panels": 2,
-   "solar_faces": 1248
+   "solar_faces": 1248,
+   "mass_kg": 68700.0,
+   "mass_note": "CMSA: «Тяньхэ» 22,5 т + «Вэньтянь» 23,2 т + «Мэнтянь» 23,0 т, без кораблей"
   },
   {
    "key": "STARLINK-V1",

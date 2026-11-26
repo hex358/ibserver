@@ -54,10 +54,15 @@ def card(name, a):
     sun_l = np.asarray(au["sun_lvlh"]) if au.get("sun_lvlh") else C.T @ np.asarray(rc["sun"])
     law, x = au["law"], np.asarray(au["x"], float)
     Vb, R, _ = AP.pose_body(spec, law, x, sun_l)                  # вершины в найденной позе, оси орбиты (вдоль, поперёк, радиус)
-    mass = num(g.get("DryMass")) or num(g.get("Mass"))
+    # масса — того, что изображает модель: у сборок (станций) модель — весь комплекс, а номер в каталоге — один модуль;
+    # тогда масса берётся из описания модели (catalog.json: mass_kg), иначе — сухая масса GCAT
+    cat_mass = num((spec.get("catalog") or {}).get("mass_kg"))
+    mass = cat_mass or num(g.get("DryMass")) or num(g.get("Mass"))
+    mass_src = "модель (весь комплекс)" if cat_mass else "GCAT" if mass else None
 
     # площади и баллистика
-    a_tumble = D.tumbling_area(Vb); a_sun = D.proj_area(Vb, sun_l); a_ram = D.proj_area(Vb, [1.0, 0, 0])
+    F = spec["F"]
+    a_tumble = D.tumbling_area(Vb, F); a_sun = D.proj_area(Vb, sun_l, F); a_ram = D.proj_area(Vb, [1.0, 0, 0], F)
     tumbling = (not active) or spec["kind"] in ("rocketbody", "debris")
     a_drag = a_tumble if tumbling else a_ram                     # стабилизированный — сечение по потоку в позе
     B_model = None if not mass else D.CD * a_drag / mass
@@ -73,7 +78,7 @@ def card(name, a):
     life_model = None if B_model is None else D.lifetime_days(h, B_model)
 
     # масса-инерционные свойства тонкостенной оболочки в позе (оси орбиты)
-    com, I, Ip, Iax = D.shell_mass_props(Vb, spec["F"], mass)
+    com, I, Ip, Iax = D.shell_mass_props(Vb, F, mass)
     major = None if Iax is None else Iax[:, 2]
 
     # выступающие элементы
@@ -103,12 +108,15 @@ def card(name, a):
         refl[b] = [round(float(v) / gm, 3) if gm else None for v in cc]
 
     out = dict(name=name, norad=norad, object=rc.get("obj"), gcat_name=g.get("Name"), type=spec["kind"], active=bool(active),
-               model=spec["source"], dims_m=[r(v) for v in np.ptp(spec["V"], 0)], mass_kg=mass,
+               model=spec["source"], dims_m=[r(v) for v in np.ptp(spec["V"], 0)], mass_kg=mass, mass_source=mass_src,
                area=dict(tumbling_m2=r(a_tumble), sun_m2=r(a_sun), ram_m2=r(a_ram), used_for_drag="tumbling" if tumbling else "ram"),
                A_over_m=None if not mass else dict(tumbling=r(a_tumble / mass, 5), ram=r(a_ram / mass, 5)),
                ballistic=dict(Cd=D.CD, B_model_m2_kg=r(B_model, 5), B_tle_m2_kg=r(tle["B_tle"], 5), bstar=tle["bstar"],
-                              ratio_tle_to_model=None if not B_model else r(tle["B_tle"] / B_model, 2),
-                              note="B* в SGP4 поглощает и ошибку плотности атмосферы — отношение ≠ 1 не значит неверную площадь"),
+                              ratio_tle_to_model=None if (not B_model or tle["bstar"] <= 0) else r(tle["B_tle"] / B_model, 2),
+                              mass_from_drag_kg=None if (active or tle["bstar"] <= 0) else r(D.CD * a_drag / tle["B_tle"], 0),
+                              note=("B* ≤ 0 — нефизично (подгонка орбиты оператора или манёвры); " if tle["bstar"] <= 0 else "")
+                                   + ("работает: B* включает тягу двигателей; " if active else "")
+                                   + "B* в SGP4 поглощает и ошибку плотности атмосферы — отношение ≠ 1 не значит неверную площадь"),
                decay=dict(h_mean_km=r(h, 1), perigee_km=r(tle["perigee_km"], 1), apogee_km=r(tle["apogee_km"], 1), e=r(tle["e"], 5),
                           adot_tle_km_day=r(adot_obs, 4), adot_model_km_day=r(adot_model, 4), k_atm=r(k_atm, 2),
                           lifetime_days_from_tle=r(life_obs, 0), lifetime_days_model_mean_atm=r(life_model, 0),
