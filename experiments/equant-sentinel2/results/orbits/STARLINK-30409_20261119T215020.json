@@ -11,7 +11,7 @@
   "age_days": -0.528
  },
  "bands_used": 8,
- "sentinel_orbit": "GPS",
+ "sentinel_orbit": "GPS+3D",
  "fits": {
   "tle": {
    "theta_km": [
@@ -146,6 +146,73 @@
      3.4
     ]
    }
+  },
+  "gps3d": {
+   "theta_km": [
+    18.934212539021647,
+    -0.48452771636782066,
+    -0.3956387538905294
+   ],
+   "sigma_m": [
+    34.14110947184463,
+    51.06975184198407,
+    360.91122112344874
+   ],
+   "sigma_ls_m": [
+    34.14110947184463,
+    51.06975184198407,
+    360.91122112344874
+   ],
+   "sigma_jackknife_m": [
+    27.503960459952506,
+    37.35996316528301,
+    270.9046509720723
+   ],
+   "spot_sigma_m": 14.45182136060578,
+   "bands": [
+    "blue",
+    "green",
+    "red",
+    "rededge1",
+    "rededge2",
+    "rededge3",
+    "nir",
+    "swir16"
+   ],
+   "residual_m": {
+    "blue": [
+     2.0,
+     -1.4
+    ],
+    "green": [
+     1.5,
+     -6.9
+    ],
+    "red": [
+     -0.1,
+     -4.8
+    ],
+    "rededge1": [
+     -12.2,
+     -22.4
+    ],
+    "rededge2": [
+     10.3,
+     19.6
+    ],
+    "rededge3": [
+     -92.6,
+     213.8
+    ],
+    "nir": [
+     10.2,
+     -1.6
+    ],
+    "swir16": [
+     16.0,
+     6.4
+    ]
+   }
   }
  },
  "sentinel_tle_effect_m": [
@@ -154,14 +221,14 @@
   1155.4
  ],
  "position_ecef_km": [
-  -6523.764272528173,
-  -897.5123829083861,
-  -1925.2002327124667
+  -6524.759925593896,
+  -896.7672758358028,
+  -1926.4583217010352
  ],
  "sigma_m": [
-  28.859482423142364,
-  57.638985800879695,
-  389.4278920582426
+  34.14110947184463,
+  51.06975184198407,
+  360.91122112344874
  ],
  "note": "положение фотоцентра (пятна) на момент jd; радиус по одному ракурсу — с априорным условием 1,9 км",
  "celestrak": [
@@ -169,109 +236,109 @@
    "source": "GP",
    "epoch_age_days": -3.208,
    "when": "после снимка",
-   "d_along_km": -30.168,
-   "d_cross_km": 0.259,
-   "d_radial_km": 1.991,
-   "d_time_s": -4.153
+   "d_along_km": -28.878,
+   "d_cross_km": 0.368,
+   "d_radial_km": 0.785,
+   "d_time_s": -3.975
   },
   {
    "source": "GP",
    "epoch_age_days": -2.489,
    "when": "после снимка",
-   "d_along_km": 1.322,
-   "d_cross_km": -0.859,
-   "d_radial_km": 1.876,
-   "d_time_s": 0.182
+   "d_along_km": 2.612,
+   "d_cross_km": -0.75,
+   "d_radial_km": 0.67,
+   "d_time_s": 0.36
   },
   {
    "source": "GP",
    "epoch_age_days": -1.508,
    "when": "после снимка",
-   "d_along_km": -1.833,
-   "d_cross_km": -0.531,
-   "d_radial_km": 1.802,
-   "d_time_s": -0.252
+   "d_along_km": -0.543,
+   "d_cross_km": -0.422,
+   "d_radial_km": 0.596,
+   "d_time_s": -0.075
   },
   {
    "source": "GP",
    "epoch_age_days": -0.528,
    "when": "после снимка",
-   "d_along_km": -20.224,
-   "d_cross_km": 0.375,
-   "d_radial_km": 1.608,
-   "d_time_s": -2.784
+   "d_along_km": -18.934,
+   "d_cross_km": 0.485,
+   "d_radial_km": 0.402,
+   "d_time_s": -2.607
   },
   {
    "source": "GP",
    "epoch_age_days": 0.257,
    "when": "до снимка",
-   "d_along_km": 10.798,
-   "d_cross_km": -0.868,
-   "d_radial_km": 2.067,
-   "d_time_s": 1.486
+   "d_along_km": 12.088,
+   "d_cross_km": -0.759,
+   "d_radial_km": 0.861,
+   "d_time_s": 1.664
   },
   {
    "source": "SupGP",
    "epoch_age_days": -3.941,
    "when": "после снимка",
-   "d_along_km": -199.875,
-   "d_cross_km": 7.322,
-   "d_radial_km": -0.943,
-   "d_time_s": -27.515
+   "d_along_km": -198.585,
+   "d_cross_km": 7.432,
+   "d_radial_km": -2.149,
+   "d_time_s": -27.338
   },
   {
    "source": "SupGP",
    "epoch_age_days": -3.238,
    "when": "после снимка",
-   "d_along_km": 341.697,
-   "d_cross_km": -15.354,
-   "d_radial_km": -6.591,
-   "d_time_s": 47.039
+   "d_along_km": 342.987,
+   "d_cross_km": -15.245,
+   "d_radial_km": -7.797,
+   "d_time_s": 47.216
   },
   {
    "source": "SupGP",
    "epoch_age_days": -3.116,
    "when": "после снимка",
-   "d_along_km": 106.406,
-   "d_cross_km": -5.461,
-   "d_radial_km": 0.985,
-   "d_time_s": 14.648
+   "d_along_km": 107.696,
+   "d_cross_km": -5.351,
+   "d_radial_km": -0.221,
+   "d_time_s": 14.826
   },
   {
    "source": "SupGP",
    "epoch_age_days": -2.88,
    "when": "после снимка",
-   "d_along_km": -37.514,
-   "d_cross_km": 0.742,
-   "d_radial_km": 1.724,
-   "d_time_s": -5.164
+   "d_along_km": -36.224,
+   "d_cross_km": 0.851,
+   "d_radial_km": 0.518,
+   "d_time_s": -4.987
   },
   {
    "source": "SupGP",
    "epoch_age_days": -2.063,
    "when": "после снимка",
-   "d_along_km": -25.295,
-   "d_cross_km": 0.293,
-   "d_radial_km": 1.82,
-   "d_time_s": -3.482
+   "d_along_km": -24.005,
+   "d_cross_km": 0.403,
+   "d_radial_km": 0.614,
+   "d_time_s": -3.305
   },
   {
    "source": "SupGP",
    "epoch_age_days": -1.025,
    "when": "после снимка",
-   "d_along_km": -26.863,
-   "d_cross_km": 0.566,
-   "d_radial_km": 1.642,
-   "d_time_s": -3.698
+   "d_along_km": -25.573,
+   "d_cross_km": 0.676,
+   "d_radial_km": 0.436,
+   "d_time_s": -3.52
   },
   {
    "source": "SupGP",
    "epoch_age_days": -0.107,
    "when": "после снимка",
-   "d_along_km": -1.165,
-   "d_cross_km": -0.365,
-   "d_radial_km": 1.796,
-   "d_time_s": -0.16
+   "d_along_km": 0.125,
+   "d_cross_km": -0.256,
+   "d_radial_km": 0.59,
+   "d_time_s": 0.017
   }
  ]
 }
