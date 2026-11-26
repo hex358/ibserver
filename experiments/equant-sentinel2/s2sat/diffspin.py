@@ -72,12 +72,59 @@ class DiffSpin:
             (out[-1].append(b) if self.t[b] - self.t[out[-1][-1]] <= gap else out.append([b]))
         return out
 
-    def group_poses(self, bands, t0, B=24, iters=120, keep=4):
-        """Поза в момент группы (полосы сняты за доли секунды — поза однозначна, вращение за это время мало):
-        градиентный спуск из B стартов по сфере, ω = 0; различные минимумы (> 15°)."""
+    def moment_starts(self, bands, n_roll=8):
+        """Замкнутый старт позы группы по моментам пятна: главная ось пятна в полосе b — проекция оси тела J_b·L (2D).
+        Каждая полоса даёт плоскость для L: L·(J_bᵀ n_b) = 0 (n_b — нормаль к оси пятна); наклон к лучу — из удлинения
+        (видимая длина / длина тела). Два знака наклона × повороты вокруг оси (крен не виден у осесимметричных тел)."""
         from scipy.spatial.transform import Rotation as Ro
-        x0 = np.c_[Ro.random(B, random_state=int(self.rng.integers(1 << 30))).as_rotvec(), np.zeros((B, 5))]
+        Vb = (self.sc.c.numpy()); ext = np.ptp(Vb, 0); iax = int(np.argmax(ext)); e_long = np.eye(3)[iax]; Lbody = float(ext[iax])
+        rows, ratio = [], []
+        for b in bands:
+            bd = self.sc.B[b]; z = (bd.r.numpy() / bd.s); w = np.clip(np.abs(z) - 2.0, 0, None)
+            if w.sum() <= 0:
+                continue
+            X, Y = bd.X, bd.Y; mx, my = (w * X).sum() / w.sum(), (w * Y).sum() / w.sum()
+            Cxy = np.cov(np.vstack([X - mx, Y - my]), aweights=w)
+            ev, evec = np.linalg.eigh(Cxy); u = evec[:, 1]; nrm = np.array([-u[1], u[0]])
+            Cf = self.sc.C.numpy()
+            rows.append((bd.M @ Cf).T @ nrm)                                   # ограничение на L в осях орбиты
+            Lim = math.sqrt(max(12 * (ev[1] - ev[0] - 0.5 * bd.res ** 2 / 12), 1.0))   # видимая длина (м снимка)
+            ratio.append(Lim / max(np.linalg.norm(bd.M, 2) * Lbody, 1e-6))
+        if len(rows) < 2:
+            return None
+        A = np.array(rows); _, _, vt = np.linalg.svd(A)
+        a1, a2 = vt[-1], vt[-2]                                               # L — в плоскости, слабо задаваемой A
+        los = self.sc.C.numpy().T @ self.sc.los; los = los / np.linalg.norm(los)
+        cosd = float(np.clip(np.median(ratio), 0.05, 1.0)); sin_t = math.sqrt(max(0.0, 1 - cosd ** 2))
+        cands = []
+        for ph in np.linspace(0, math.pi, 36, endpoint=False):
+            L = math.cos(ph) * a1 + math.sin(ph) * a2
+            if abs(abs(float(L @ los)) - sin_t) < 0.15:
+                cands.append(L / np.linalg.norm(L))
+        if not cands:
+            cands = [a1]
+        out = []
+        for L in cands[:4]:
+            for sg in (1, -1):
+                Ra = Ro.align_vectors([sg * L], [e_long])[0]
+                for k in range(n_roll):
+                    out.append((Ra * Ro.from_rotvec(e_long * (2 * math.pi * k / n_roll))).as_rotvec())
+        return np.array(out)
+
+    def group_poses(self, bands, t0, B=24, iters=120, keep=4, spin=True):
+        """Поза и угловая скорость в средний момент группы (полосы сняты за доли секунды — без неоднозначности):
+        старты по моментам пятна (moment_starts), иначе по сфере; сначала ω = 0, затем ω свободна (короткая база)."""
+        from scipy.spatial.transform import Rotation as Ro
+        ms = self.moment_starts(bands)
+        if ms is not None and len(ms) >= 4:
+            x0 = np.c_[ms, np.zeros((len(ms), 5))]
+        else:
+            x0 = np.c_[Ro.random(B, random_state=int(self.rng.integers(1 << 30))).as_rotvec(), np.zeros((B, 5))]
         xs, Ls = self.fit(x0, iters, bands=bands, t0=t0, mask=[1, 1, 1, 0, 0, 0, 1, 1])
+        if spin:                                        # угловая скорость по короткой базе группы
+            order = np.argsort(Ls)[:max(keep * 2, 4)]
+            xs2, Ls2 = self.fit(xs[order], iters // 2, bands=bands, t0=t0)
+            xs = np.concatenate([xs, xs2]); Ls = np.concatenate([Ls, Ls2])
         out = []
         for i in np.argsort(Ls):
             R = Ro.from_rotvec(xs[i, 0:3])
@@ -96,6 +143,7 @@ class DiffSpin:
         ga, gb = grp[0], grp[-1]
         ta = float(np.mean([self.t[b] for b in ga])); tb = float(np.mean([self.t[b] for b in gb])); dt = tb - ta
         A = self.group_poses(ga, ta); Bp = self.group_poses(gb, tb)
+        self._wg = [x[3:6] for x, _ in A[:2] + Bp[:2] if np.linalg.norm(x[3:6]) > 0]
         sym = [Ro.identity()] + [Ro.from_rotvec(math.pi * e) for e in np.eye(3)]
         cands = []
         for xa, _ in A:
@@ -131,6 +179,12 @@ class DiffSpin:
         with torch.no_grad():
             Lc = np.concatenate([self.loss_batch(torch.tensor(cands[i:i + 64], dtype=torch.float32)).numpy()
                                  for i in range(0, len(cands), 64)])
+        # согласие с угловыми скоростями групп (короткая база): штраф (|ω − ω_g|/σ_g)², σ_g ≈ 25 °/с — грубо, но
+        # однозначно; выбирает число оборотов k между группами, как кодовые измерения — неоднозначность фазы в GNSS
+        if getattr(self, "_wg", None):
+            sg = math.radians(25.0)
+            pen = np.min([np.sum(((cands[:, 3:6] - w) / sg) ** 2, 1) for w in self._wg], 0)
+            Lc = Lc + pen
         top = cands[np.argsort(Lc)[:8]]
         xs, Ls = self.fit(top, iters // 2)
         sols = [self.polish(xs[i]) for i in np.argsort(Ls)[:4]]
@@ -141,9 +195,11 @@ class DiffSpin:
         g = w / (np.linalg.norm(w) + 1e-12)
         sig_h = math.degrees(math.sqrt(max(float(g @ Cv[3:6, 3:6] @ g), 0.0))) if np.all(np.isfinite(Cv)) else float("nan")
         fam = sorted(math.degrees(np.linalg.norm(x[3:6])) for x, L in sols if L - L1 < 4.0)
+        wts = np.exp(-0.5 * (np.array([L for _, L in sols]) - L1)); wts /= wts.sum()
+        post = [dict(rate_deg_s=round(math.degrees(np.linalg.norm(x[3:6])), 1), prob=round(float(p_), 3)) for (x, _), p_ in zip(sols, wts)]
         sig = max(sig_h if math.isfinite(sig_h) else 0.0, (fam[-1] - fam[0]) / 2 if len(fam) > 1 else 0.0)
         out = dict(L_static=L0, L_spin=L1, gain=L0 - L1, rate_deg_s=rate, rate_sigma_deg_s=sig, rate_sigma_hessian=sig_h,
-                   family_rates_deg_s=fam, axis_lvlh=(g).tolist() if rate > 1e-6 else None, x=x1.tolist(),
+                   family_rates_deg_s=fam, alias_posterior=post, axis_lvlh=(g).tolist() if rate > 1e-6 else None, x=x1.tolist(),
                    omega_cov_deg2=(np.degrees(np.degrees(Cv[3:6, 3:6]))).tolist() if np.all(np.isfinite(Cv)) else None,
                    spinning=bool(L0 - L1 > 10.0 and rate > 2 * max(sig, 0.5)), span_s=float(max(self.t.values()) - min(self.t.values())),
                    method="раскрытие фазы между группами полос + градиент")

@@ -71,6 +71,89 @@ EXTRA = {  # материалы, которых нет в glTF: (цвет, ме�
 }
 
 
+# ---- процедурные текстуры для моделей каталога без текстур (satvis, параметрические): общее правило по классу
+# покрытия — панели солнечных батарей (ячейки под стеклом), светлое — краска/фольга со швами, серое — алюминий
+# со швами и крепежом, тёмное — палуба. Позу и геометрию не меняют.
+def _save_srgb(img, path):
+    Image.fromarray((np.clip(img, 0, 1) ** (1 / 2.2) * 255 + 0.5).astype(np.uint8)).save(path)
+    return path
+
+
+def _box_uv(L, F, scale):
+    """UV по граням коробки, в метрах / scale: проекция на две оси, перпендикулярные нормали грани."""
+    n = np.cross(L[F[:, 1]] - L[F[:, 0]], L[F[:, 2]] - L[F[:, 0]])
+    ax = np.argmax(np.abs(n), 1)
+    UV = np.zeros((len(L), 2))
+    for f, a_ in zip(F, ax):
+        i, j = [(1, 2), (0, 2), (0, 1)][a_]
+        UV[f] = np.c_[L[f, i], L[f, j]] / scale
+    return UV
+
+
+def cell_texture2(path, seed, tile=(0.76, 2.01), cell=(0.07, 0.04), px=0.0025):
+    """Панель солнечной батареи вблизи: почти чёрные ячейки (своя небольшая разница тона у каждой), тёмные щели
+    подложки 1.5 мм, тонкие серебристые шины, едва заметные пальцы токосъёма, алюминиевая рамка 5 мм; у каждой панели
+    свой лёгкий сдвиг оттенка."""
+    W, H = int(tile[0] / px), int(tile[1] / px)
+    rng = np.random.default_rng(seed)
+    nx, ny = int(round(tile[0] / cell[0])), int(round(tile[1] / cell[1]))
+    base = np.array([0.010, 0.014, 0.034]) * (1 + 0.07 * rng.standard_normal(3) * np.array([1, 1, 1.6]))
+    per = base[None, None, :] * (1 + 0.10 * rng.standard_normal((ny, nx, 1)))
+    yy = (np.arange(H) * ny // H).clip(0, ny - 1); xx = (np.arange(W) * nx // W).clip(0, nx - 1)
+    img = per[yy][:, xx].copy()
+    cxp, cyp = np.arange(W) % (W / nx), np.arange(H) % (H / ny)
+    img[:, cxp < 0.0015 / px] = [0.022, 0.022, 0.025]; img[cyp < 0.0015 / px, :] = [0.022, 0.022, 0.025]
+    bb_ = (np.abs(cxp - 0.1 * W / nx) < 0.6) | (np.abs(cxp - 0.9 * W / nx) < 0.6)
+    img[:, bb_] = img[:, bb_] * 0.3 + 0.16
+    fy = (np.arange(H) % max(2, int(0.003 / px))) == 0
+    img[fy, :] = img[fy, :] * 0.85 + 0.008
+    b = max(1, int(0.005 / px)); img[:b] = img[-b:] = img[:, :b] = img[:, -b:] = [0.30, 0.31, 0.33]
+    return _save_srgb(img, path)
+
+
+def metal_texture(path, seed=3, size=1.0, px=0.0025, base=0.42, seam=0.5):
+    """Алюминиевая обшивка: пятнистость, следы шлифовки, швы панелей каждые seam м, крепёж вдоль швов."""
+    from scipy.ndimage import gaussian_filter
+    rng = np.random.default_rng(seed); N = int(size / px)
+    mott = gaussian_filter(rng.standard_normal((N, N)), 40, mode="wrap"); mott /= np.abs(mott).max()
+    brush = gaussian_filter(rng.standard_normal((N, N)), (0.5, 30), mode="wrap"); brush /= np.abs(brush).max()
+    g = base * (1 + 0.05 * mott + 0.03 * brush)
+    k = int(seam / px)
+    for o in range(0, N, k):
+        g[:, o:o + 2] *= 0.35; g[o:o + 2, :] *= 0.35
+        for t in range(k // 2 // 10, N, max(1, int(0.05 / px))):
+            for (yy_, xx_) in ((t, o + 6), (o + 6, t)):
+                g[max(0, yy_ - 2):yy_ + 2, max(0, xx_ - 2):xx_ + 2] *= 0.6
+    img = np.stack([g, g * 1.005, g * 1.02], -1)
+    return _save_srgb(img, path)
+
+
+def deck_texture(path, seed=5, size=1.0, px=0.0025):
+    """Тёмные панели палубы: почти чёрное покрытие с пятнистостью и светлыми швами каждые 0.33 м."""
+    from scipy.ndimage import gaussian_filter
+    rng = np.random.default_rng(seed); N = int(size / px)
+    mott = gaussian_filter(rng.standard_normal((N, N)), 25, mode="wrap"); mott /= np.abs(mott).max()
+    g = 0.035 * (1 + 0.15 * mott)
+    k = int(0.333 / px)
+    for o in range(0, N, k):
+        g[:, o:o + 2] = 0.10; g[o:o + 2, :] = 0.10
+    return _save_srgb(np.stack([g, g, g * 1.08], -1), path)
+
+
+
+def _proc_texture(key, col, work, i):
+    """Путь к процедурной текстуре 1 × 1 м для группы без текстуры (или None)."""
+    lum = float(np.dot(np.asarray(col, float)[:3], [0.2126, 0.7152, 0.0722]))
+    f = Path(work) / f"proc{i}.png"
+    if f.exists():
+        return f
+    if key.endswith("|cells"):
+        return cell_texture2(f, seed=11 + i, tile=(1.0, 1.0))
+    if lum < 0.12:
+        return deck_texture(f, seed=5 + i)
+    return metal_texture(f, seed=3 + i, base=min(0.9, max(0.15, lum)), seam=0.5 if lum < 0.6 else 1.0)
+
+
 def mitsuba_shapes(parts, work, smooth=True):
     """OBJ по материалам (v, vt) + principled BSDF; текстуры glTF — PNG рядом."""
     work = Path(work); work.mkdir(parents=True, exist_ok=True)
@@ -89,6 +172,13 @@ def mitsuba_shapes(parts, work, smooth=True):
     shapes = {}
     for i, (key, ps) in enumerate(sorted(groups.items())):
         has_uv = all(p["UV"] is not None for p in ps)
+        proc = False
+        if not has_uv and key.split("|")[0] not in EXTRA:
+            texi0 = _mat_props(ps[0]["mat"])[2] if ps[0].get("mat") is not None else None
+            if texi0 is None:                                 # модель без текстур — процедурная текстура по UV коробки
+                for p in ps:
+                    p["UV"] = _box_uv(p["V"], p["F"], 1.0)
+                has_uv = True; proc = True
         lines_v, lines_t, lines_f = [], [], []; off = 0
         for p in ps:
             u_idx, inv = np.unique(p["F"], return_inverse=True)
@@ -111,6 +201,8 @@ def mitsuba_shapes(parts, work, smooth=True):
                 tex = work / f"t{i}.png"
                 im = np.asarray(texi.convert("RGB"), np.float32) / 255.0 * np.asarray(col, np.float32)
                 Image.fromarray((np.clip(im, 0, 1) * 255).astype(np.uint8)).save(tex)
+        if proc:
+            tex = _proc_texture(key, col, work, i)
         bc = {"type": "bitmap", "filename": str(tex)} if tex is not None else {"type": "rgb", "value": list(map(float, col))}
         mtl = ps[0].get("mat")
         if base in EXTRA:
