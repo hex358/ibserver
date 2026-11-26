@@ -27,11 +27,11 @@ from s2sat.diffpose import DiffPose, rot_angle
 
 ap = argparse.ArgumentParser()
 ap.add_argument("name"); ap.add_argument("--n-rot", type=int, default=3000); ap.add_argument("--checks", action="store_true")
-ap.add_argument("--write", action="store_true"); ap.add_argument("--shade", action="store_true"); ap.add_argument("--threads", type=int, default=2); ap.add_argument("--seed", type=int, default=0)
+ap.add_argument("--write", action="store_true"); ap.add_argument("--shade", action="store_true"); ap.add_argument("--band-off", type=float, default=0.0); ap.add_argument("--threads", type=int, default=2); ap.add_argument("--seed", type=int, default=0)
 a = ap.parse_args()
 torch.set_num_threads(a.threads)
 n = a.name; t_start = time.time(); rng = np.random.default_rng(a.seed)
-OUT = ROOT / ("results/pose_pix_shade" if "--shade" in sys.argv else "results/pose_pix"); OUT.mkdir(parents=True, exist_ok=True)
+OUT = ROOT / (("results/pose_pix_shade" if "--shade" in sys.argv else "results/pose_pix") + ("_off" if "--band-off" in sys.argv else "")); OUT.mkdir(parents=True, exist_ok=True)
 
 
 def log(*s):
@@ -54,7 +54,7 @@ log(f"{n}: опоры полос — {anchors}")
 MR.prepare(rc)
 spec = MC.spec_for(int(rc["cat"]), n); C = SG.lvlh_to_fit(n, rc)
 sun_l = C.T @ np.asarray(rc["sun"], float)
-Df = DiffPose(rc, spec, C, shade=a.shade); Dc = DiffPose(rc, spec, C, coarse=True, shade=a.shade)
+Df = DiffPose(rc, spec, C, shade=a.shade, band_off=a.band_off or None); Dc = DiffPose(rc, spec, C, coarse=True, shade=a.shade, band_off=a.band_off or None)
 log(f"   параметры: поворот корпуса 3 + приводы {Df.nd} + сдвиг 2; пикселей {Df.npix}; невязка без объекта {Df.null():.0f}")
 
 # --- 1. поиск по всей SO(3) × приводам ---
@@ -69,7 +69,7 @@ log(f"   найдено за {time.time() - t0:.0f} с: невязка {best['L'
 for k, m in enumerate(modes[:6]):
     log(f"   минимум {k}: невязка {m['L']:.0f} (+{m['dL']:.0f}), вероятность {m['p'] / Z:.3f}, поворот от лучшего "
         f"{rot_angle(m['R'], best['R']):.0f}°, приводы {np.round(np.degrees(m['drives']) % 180).tolist()}°")
-sd = np.degrees(sig[:3]); sdd = np.degrees(sig[3:3 + Df.nd]); sp = sig[-2:]
+sd = np.degrees(sig[:3]); sdd = np.degrees(sig[3:3 + Df.nd]); sp = sig[Df.o0 - 2:Df.o0]
 log(f"   σ поворота (оси: вдоль, поперёк, радиус) {np.round(sd, 1).tolist()}°; σ приводов {np.round(sdd, 1).tolist()}°; σ сдвига {np.round(sp, 2).tolist()} м")
 near, yaw = Df.nearest_nadir(best["R"]); drv_sun = Df.drive_report(xb, sun_l)
 log(f"   описание: до ближайшей ориентации «на Землю» {near:.1f}° (рысканье {yaw:.1f}°); нормали крыльев от Солнца {np.round(drv_sun, 1).tolist()}°")
@@ -88,7 +88,7 @@ if au and not au["law"].get("pix"):
     else:
         ang = AP.mode_angles(spec, Rm, h.get("arrays", "fixed"), sun_l, x)
     from scipy.spatial.transform import Rotation as Ro
-    xo = np.r_[Ro.from_matrix(Rb).as_rotvec(), ang, x[4], x[5]]
+    xo = np.r_[Ro.from_matrix(Rb).as_rotvec(), ang, x[4], x[5], np.zeros(Df.P - 5 - Df.nd)]
     Lo = float(Df.L(xo)[0])
     xo_loc, Lo_loc = Df.polish(xo)
     old = dict(name=au["chosen"], L=Lo, L_local=Lo_loc, angle_to_new_deg=rot_angle(Rb, best["R"]),
@@ -102,7 +102,10 @@ out = dict(name=n, anchors=anchors, x=xb.tolist(), L=best["L"], null=Df.null(), 
            modes=[dict(L=m["L"], dL=m["dL"], prob=m["p"] / Z, angle_deg=rot_angle(m["R"], best["R"]),
                        drives_deg=np.degrees(m["drives"]).tolist()) for m in modes],
            nearest_nadir=dict(angle_deg=near, yaw_deg=yaw), wing_normal_from_sun_deg=drv_sun, old=old, C_lvlh_to_fit=C.tolist(),
-           sun_lvlh=sun_l.tolist())
+           sun_lvlh=sun_l.tolist(),
+           band_offsets_m=({b: xb[Df.o0 + 2 * k:Df.o0 + 2 * k + 2].tolist() for k, b in enumerate(Df.sc.bands)} if Df.band_off else None))
+if Df.band_off:
+    log("   сдвиги опор полос, м: " + ", ".join(f"{b} ({v[0]:+.0f}, {v[1]:+.0f})" for b, v in out["band_offsets_m"].items()))
 
 # --- 3. проверки ---
 if a.checks:
@@ -136,14 +139,14 @@ if a.checks:
     _, rho = Df.predict(xb, bs, bs[:1]); inj = []
     from scipy.spatial.transform import Rotation as Ro
     truths = [("найденная поза", xb)] + [(f"случайная поза {k + 1}", np.r_[Ro.random(random_state=int(rng.integers(1 << 30))).as_rotvec(),
-                                                                       rng.uniform(0, math.pi, Df.nd), rng.normal(0, 2.0, 2)]) for k in range(2)]
+                                                                       rng.uniform(0, math.pi, Df.nd), rng.normal(0, 2.0, 2), np.zeros(Df.P - 5 - Df.nd)]) for k in range(2)]
     for lab, xt in truths:
         o1 = Df.synth(xt, rho, math.sqrt(kap), rng); o2 = {b: Dc.sc.B[b].r for b in Dc.sc.bands}; transfer_r(Df.sc, Dc.sc)
         mi, _ = Dc.search(n_rot=max(1000, a.n_rot // 2), top=128, fine=Df, n_polish=8, log=lambda s: None)
         xe = mi[0]["x"]; Lt = float(Df.L(xt)[0]); Le = mi[0]["L"]
         dd = (np.degrees(xe[3:3 + Df.nd] - xt[3:3 + Df.nd]) + 90) % 180 - 90
         r_ = dict(truth=lab, angle_err_deg=rot_angle(Df.R_of(xe), AP.rotvec(xt[:3])), drive_err_deg=dd.tolist(), L_found=Le, L_truth=Lt,
-                  pos_err_m=(xe[-2:] - xt[-2:]).tolist())
+                  pos_err_m=(xe[Df.o0 - 2:Df.o0] - xt[Df.o0 - 2:Df.o0]).tolist())
         inj.append(r_)
         Df.restore(o1); Dc.restore(o2)
         log(f"   подстановка ({lab}): ошибка поворота {r_['angle_err_deg']:.1f}°, приводов {np.round(dd, 1).tolist()}°; "
@@ -163,9 +166,10 @@ if a.write:
         sp_.write_bytes(pickle.dumps(rc_raw))
     rc_w = copy.deepcopy(rc_raw)
     for b, d in rc_w["bands"].items():
-        d["p0"] = np.asarray(rc["bands"][b]["p0"], float); d.pop("meas", None)
+        d["p0"] = np.asarray(rc["bands"][b]["p0"], float) + (np.asarray(out["band_offsets_m"][b]) if out.get("band_offsets_m") else 0.0)
+        d.pop("meas", None)
     (ROOT / "results/shape" / f"{n}.pkl").write_bytes(pickle.dumps(rc_w))
-    xa = np.r_[xb[:3], 0.0, xb[-2], xb[-1], 0.0, xb[3:3 + Df.nd]]
+    xa = np.r_[xb[:3], 0.0, xb[Df.o0 - 2], xb[Df.o0 - 1], 0.0, xb[3:3 + Df.nd]]
     desc = f"по пикселям: до «на Землю» {near:.0f}° (рысканье {yaw:.0f}°), σ поворота {np.round(sd, 1).tolist()}°"
     au_new = dict(kind=spec.get("kind"), source=spec.get("source"), name=n, law=dict(name="поза по пикселям", pix=True), x=xa.tolist(),
                   chosen=desc, anomalous=False, margin_eff=float("nan"), hypotheses=[], C_lvlh_to_fit=C.tolist(),

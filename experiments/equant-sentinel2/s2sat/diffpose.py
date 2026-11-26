@@ -59,7 +59,7 @@ def rot_angle(Ra, Rb):
 class DiffPose:
     """x = [вектор поворота корпуса (оси тела → орбитальные оси) 3, углы приводов n, сдвиг 2]."""
 
-    def __init__(self, rc, spec, C, shade=False, kappa=1.0, lmax=None, coarse=False):
+    def __init__(self, rc, spec, C, shade=False, kappa=1.0, lmax=None, coarse=False, band_off=None):
         """coarse — для глобального поиска: силуэт одной группой, окно по размаху объекта, пятна ≤ 3 м (diffmodel)."""
         part, chains = face_parts(spec)
         self.sc = sc = Scene(rc, spec, C, parts=part, lmax=3.0 if coarse else lmax, ng=1 if coarse else None, coarse=coarse)
@@ -74,6 +74,12 @@ class DiffPose:
         self.npix = int(sum(len(sc.B[b].r) for b in sc.bands))
         self.scale = torch.tensor([0.3] * 3 + [0.3] * self.nd + [3.0, 3.0])
         self.Rbase = torch.eye(3)
+        # band_off = σ, м: опора каждой полосы — свободный сдвиг на снимке с априорной ошибкой σ (разброс положений
+        # полос вокруг точной орбиты ~24 м, scripts/orbit_check.py); параметры — в конце x (2 на полосу)
+        self.band_off = band_off; self.nbd = len(sc.bands)
+        if band_off:
+            self.P += 2 * self.nbd; self.scale = torch.cat([self.scale, torch.full((2 * self.nbd,), 5.0)])
+        self.o0 = 3 + self.nd + 2
 
     # --- модель ---
     def spots(self, x, Rt=None):
@@ -93,15 +99,22 @@ class DiffPose:
         return torch.einsum("bij,bmj->bmi", R, c), torch.einsum("bij,bmj->bmi", R, S)
 
     def dpos(self, x):
-        return torch.cat([x[:, -2:], torch.zeros(x.shape[0], 1, dtype=x.dtype)], 1)
+        return torch.cat([x[:, self.o0 - 2:self.o0], torch.zeros(x.shape[0], 1, dtype=x.dtype)], 1)
+
+    def off(self, x, b):
+        if not self.band_off or x.shape[1] < self.o0 + 2 * self.nbd:
+            return None
+        k = self.sc.bands.index(b); return x[:, self.o0 + 2 * k:self.o0 + 2 * k + 2]
 
     def loss(self, x, bands=None, prior=True, shade=None):
         shade = self.shade if shade is None else shade
         cw, Sw = self.spots(x); dp = self.dpos(x)
         L = self.sc.loss(None, dp, self.kappa, grey=True, bands=bands, shade=shade,
-                         occfun=lambda b, sh: self.sc.band_occ_cs(b, cw, Sw, dp, sh))
+                         occfun=lambda b, sh: self.sc.band_occ_cs(b, cw, Sw, dp, sh, off=self.off(x, b)))
         if prior:
-            L = L + (x[:, -2] ** 2 + x[:, -1] ** 2) / AP.SIG_POS ** 2
+            L = L + (x[:, self.o0 - 2] ** 2 + x[:, self.o0 - 1] ** 2) / AP.SIG_POS ** 2
+            if self.band_off and x.shape[1] >= self.o0 + 2 * self.nbd:
+                L = L + (x[:, self.o0:self.o0 + 2 * self.nbd] ** 2).sum(1) / self.band_off ** 2
         return L
 
     def L(self, x, bands=None, prior=True):
@@ -137,7 +150,7 @@ class DiffPose:
         D = np.radians(np.arange(0.0, 180.0, step_deg))
         Dd = np.array(list(itertools.product(D, repeat=self.nd))) if self.nd else np.zeros((1, 0))
         R = so3_grid(n_rot)
-        return np.c_[np.repeat(R, len(Dd), 0), np.tile(Dd, (len(R), 1)), np.zeros((len(R) * len(Dd), 2))]
+        return np.c_[np.repeat(R, len(Dd), 0), np.tile(Dd, (len(R), 1)), np.zeros((len(R) * len(Dd), self.P - 3 - self.nd))]
 
     def search(self, bands=None, n_rot=3000, step_deg=60.0, top=256, iters=150, n_polish=16, log=print, fine=None):
         """Глобально: вся SO(3) × приводы → градиент по всем параметрам → различные минимумы. Сетка и спуск — на этой
@@ -176,7 +189,7 @@ class DiffPose:
         собственные значения — найденная точка не минимум по этому направлению (сообщается, σ = ∞)."""
         Rb = self.Rbase; self.Rbase = torch.tensor(self.R_of(x), dtype=torch.float32)
         u0 = np.r_[np.zeros(3), np.asarray(x[3:], float)]; P = len(u0)
-        h = np.r_[[0.02] * 3, [0.02] * self.nd, [0.5, 0.5], [0.01] * (P - 5 - self.nd)][:P]
+        h = np.r_[[0.02] * 3, [0.02] * self.nd, [0.5, 0.5], [2.0] * (P - 5 - self.nd)][:P]
         pts = [u0]; idx = {}
         for i in range(P):
             for j in range(i, P):
@@ -211,7 +224,7 @@ class DiffPose:
         shade = self.shade if shade is None else shade
         with torch.no_grad():
             xt = torch.tensor(np.atleast_2d(x), dtype=torch.float32); cw, Sw = self.spots(xt)
-            res = self.sc.band_occ_cs(b, cw, Sw, self.dpos(xt), shade)
+            res = self.sc.band_occ_cs(b, cw, Sw, self.dpos(xt), shade, off=self.off(xt, b))
         if shade:
             occ, lit, sp = res; cols = torch.cat([lit, sp], 1)
         else:

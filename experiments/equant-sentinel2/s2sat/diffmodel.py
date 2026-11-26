@@ -177,11 +177,13 @@ class Scene:
         cw = torch.einsum("bij,mj->bmi", Rfit, self.c); Sw = torch.einsum("bij,mj->bmi", Rfit, self.S)
         return self.band_occ_cs(b, cw, Sw, dpos, shade)
 
-    def band_occ_cs(self, b, cw, Sw, dpos, shade=False):
+    def band_occ_cs(self, b, cw, Sw, dpos, shade=False, off=None):
         """То же по уже повёрнутым центрам пятен cw (B, m, 3) и векторным площадям Sw (B, m, 3) — для моделей с
         подвижными частями (крылья на приводах), где у частей свой поворот."""
         bd = self.B[b]
         P = bd.bt + torch.einsum("ij,bmj->bmi", bd.Mt, cw + dpos[:, None, :])
+        if off is not None:                                                 # сдвиг опоры полосы, м снимка (B, 2)
+            P = P + off[:, None, :]
         A = torch.abs(torch.einsum("bmj,j->bm", Sw, bd.qt))                   # вес 0,5/1 — в S
         occ = bd.occupancy(P, A, self.grp)
         if not shade:
