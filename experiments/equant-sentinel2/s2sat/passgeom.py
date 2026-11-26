@@ -70,6 +70,25 @@ class Pass:
                 self.DG.setdefault(b, []).extend(lst)
         self.bands = list(self.DG)
 
+    def regrid(self, sen=None):
+        """Пересчитать углы полос в трёхмерной геометрии с орбитой sen (обычно GPS) — s2meta.alpha_3d."""
+        if sen is not None:
+            self.sen = sen
+        psi = G.track_azimuth(self.sen, self.e["jd"]); H = float(np.linalg.norm(self.sen.ecef([self.e["jd"]])[0][0])) - G.R_LOC
+        its = I.items_around(self.e["lon"], self.e["lat"], dt_from_jd(self.e["jd"]), self.e["sent"][-1], d=1.0)
+        self.DG = {}
+        for it in its:
+            try:
+                gg = M.parse_grids(I.get_text(it.assets["granule_metadata"].href), psi, H, it.id, sen=self.sen,
+                                   epsg=I.epsg_of(it), jd0=self.e["jd"])
+            except Exception:
+                continue
+            for b, lst in gg.items():
+                for dd in lst:
+                    dd["epsg"] = I.epsg_of(it)
+                self.DG.setdefault(b, []).extend(lst)
+        self.bands = list(self.DG)
+
     def roots(self, theta):
         tr = G.apparent_track(self.sen, self.orb, self.e["jd"], np.linspace(-2.6, 2.6, 2000), dpos_km=np.asarray(theta, float))
         ok = np.isfinite(tr["ground"][:, 0])

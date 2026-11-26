@@ -85,10 +85,12 @@ def check(name, orbs):
                detection_tle=dict(line1=P.orb.line1, line2=P.orb.line2, age_days=round(jd - P.orb.epoch_jd, 3)),
                bands_used=len(meas))
     fits = {}
-    for tag, sen in (("tle", sen_tle), ("gps", po)):
+    for tag, sen in (("tle", sen_tle), ("gps", po), ("gps3d", po)):
         if sen is None:
             continue
         P.sen = sen
+        if tag == "gps3d":
+            P.regrid(sen)                          # углы полос в трёхмерной геометрии (s2meta.alpha_3d)
         f = fit_theta(P, meas, rc.get("theta", [0, 0, 0]))
         if f is None:
             continue
@@ -100,8 +102,8 @@ def check(name, orbs):
                          residual_m={b: [round(float(v), 1) for v in res[b]] for b in bs})
     if not fits:
         print(name, "нет решения (меньше 3 полос с пятном)", flush=True); return None
-    best = fits.get("gps") or fits["tle"]
-    out["sentinel_orbit"] = "GPS" if "gps" in fits else "TLE"
+    best = fits.get("gps3d") or fits.get("gps") or fits["tle"]
+    out["sentinel_orbit"] = "GPS+3D" if "gps3d" in fits else "GPS" if "gps" in fits else "TLE"
     out["fits"] = fits
     if "gps" in fits and "tle" in fits:
         out["sentinel_tle_effect_m"] = ((np.array(fits["tle"]["theta_km"]) - np.array(fits["gps"]["theta_km"])) * 1e3).round(1).tolist()

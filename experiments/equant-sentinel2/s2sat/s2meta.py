@@ -16,11 +16,51 @@ BRES = {"blue": 10, "green": 10, "red": 10, "nir": 10, "rededge1": 20, "rededge2
 STEP = 5000.0  # шаг сетки углов, м
 
 
-def parse_grids(xml_text: str, psi_rad: float, H_km: float, item_id: str = ""):
+def alpha_3d(Zg, Ag, ulx, uly, epsg, sen, jd0):
+    """Угол вдоль трассы α (°) для узлов сетки углов в трёхмерной геометрии (THEORY §25).
+
+    Узел — точка P на эллипсоиде; зенит Z и азимут Az (от географического севера в самой точке P, по часовой) задают луч
+    от P к спутнику в местной системе ENU точки P. Момент съёмки узла — когда Sentinel (орбита sen, лучше GPS) ближе
+    всего к этому лучу; α — угол вдоль трассы того же луча в системе спутника в этот момент (как в band_plane).
+    Прежняя формула α = atan(−tan η·cos(Az − ψ)) брала одно направление трассы ψ для всех узлов, а азимут отсчитан от
+    местного севера: разница (сходимость меридианов) до ~1° на 100 км от трассы → ошибка α до ~0,1°.
+    """
+    from pyproj import Transformer
+    from .geometry import unit, fan_normal
+    nr, nc = Zg.shape
+    X = ulx + (np.arange(nc) * STEP); Y = uly - (np.arange(nr) * STEP)
+    Xg, Yg = np.meshgrid(X, Y)
+    lon, lat = Transformer.from_crs(f"EPSG:{epsg}", "EPSG:4326", always_xy=True).transform(Xg, Yg)
+    x, y, z = Transformer.from_crs("EPSG:4979", "EPSG:4978", always_xy=True).transform(lon, lat, np.zeros_like(lon))
+    P = np.stack([x, y, z], -1) / 1000.0
+    la, lo = np.radians(lat), np.radians(lon)
+    uE = np.stack([-np.sin(lo), np.cos(lo), np.zeros_like(lo)], -1)
+    uN = np.stack([-np.sin(la) * np.cos(lo), -np.sin(la) * np.sin(lo), np.cos(la)], -1)
+    uU = np.stack([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo), np.sin(la)], -1)
+    Zr, Ar = np.radians(Zg), np.radians(Ag)
+    d = (np.sin(Zr) * np.sin(Ar))[..., None] * uE + (np.sin(Zr) * np.cos(Ar))[..., None] * uN + np.cos(Zr)[..., None] * uU
+    ok = np.isfinite(d).all(-1)
+    out = np.full(Zg.shape, np.nan)
+    if not ok.any():
+        return out
+    Pp, dd = P[ok], d[ok]
+    t = np.full(len(Pp), float(jd0))
+    for _ in range(6):                      # Ньютон по g(t) = s·v − (s·d)(v·d), s = S(t) − P
+        rS, vS = sen.ecef(t); s_ = rS - Pp
+        g = np.einsum("ij,ij->i", s_, vS) - np.einsum("ij,ij->i", s_, dd) * np.einsum("ij,ij->i", vS, dd)
+        dg = np.einsum("ij,ij->i", vS, vS) - np.einsum("ij,ij->i", vS, dd) ** 2
+        t = t - g / dg / 86400.0
+    rS, vS = sen.ecef(t)
+    rh = unit(rS); n = fan_normal(rS, vS); look = -dd
+    out[ok] = np.degrees(np.arctan2(np.einsum("ij,ij->i", look, n), -np.einsum("ij,ij->i", look, rh)))
+    return out
+
+
+def parse_grids(xml_text: str, psi_rad: float, H_km: float, item_id: str = "", sen=None, epsg=None, jd0=None):
     """→ {band: [dict(det, g=α° (23×23), ulx, uly, item)]}.
 
-    Zenith в метаданных измерен на земле; надирный угол на спутнике η = asin(R sin Z / (R+H)),
-    угол вдоль трассы α = atan(−tan η · cos(Az − ψ)).
+    С sen/epsg/jd0 — α в трёхмерной геометрии (alpha_3d). Без них — прежнее приближение: надирный угол на спутнике
+    η = asin(R sin Z / (R+H)), α = atan(−tan η · cos(Az − ψ)).
     """
     root = ET.fromstring(xml_text)
     ulx = uly = None
@@ -38,8 +78,11 @@ def parse_grids(xml_text: str, psi_rad: float, H_km: float, item_id: str = ""):
                              for row in grid.find(tag).find("Values_List").findall("VALUES")])
 
         Zg, Ag = rd("Zenith"), rd("Azimuth")
-        eta = np.arcsin(R_LOC * np.sin(np.radians(Zg)) / (R_LOC + H_km))
-        al = np.degrees(np.arctan(-np.tan(eta) * np.cos(np.radians(Ag) - psi_rad)))
+        if sen is not None and epsg is not None:
+            al = alpha_3d(Zg, Ag, ulx, uly, epsg, sen, jd0)
+        else:
+            eta = np.arcsin(R_LOC * np.sin(np.radians(Zg)) / (R_LOC + H_km))
+            al = np.degrees(np.arctan(-np.tan(eta) * np.cos(np.radians(Ag) - psi_rad)))
         out.setdefault(names[0], []).append(dict(det=int(grid.get("detectorId")), g=al, ulx=ulx, uly=uly, item=item_id))
     return out
 
