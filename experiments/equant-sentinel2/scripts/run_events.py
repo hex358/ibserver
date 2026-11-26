@@ -141,11 +141,32 @@ OTYPE = {}
 RCS = _load_rcs()
 
 
+_MA = {}
+
+
+def model_area(e):
+    """Средняя площадь силуэта модели каталога (м²) при случайной ориентации — для объектов без ЭПР в SATCAT."""
+    try:
+        from s2sat import modelcat as MC, debris as DB
+        ent = MC.resolve(int(e["cat"]), e["obj"])
+        if ent is None:
+            return None
+        if ent["key"] not in _MA:
+            spec = MC.spec_for(int(e["cat"]), e["obj"])
+            _MA[ent["key"]] = DB.tumbling_area(spec["V"], spec["F"], n=60)
+        return float(_MA[ent["key"]])
+    except Exception:              # noqa: BLE001
+        return None
+
+
 def area_m2(e):
     """Площадь объекта (м²) для прогноза: оценка по имени (Starlink V2 mini ~120, v1.5 ~30, ступень ~36, станции)."""
     rcs = RCS.get(str(int(e["cat"]))) if e.get("cat") else None
     if rcs:
         return float(rcs)          # радарное сечение из SATCAT (м²) — оценка площади по данным
+    ma = model_area(e)
+    if ma:
+        return ma                  # нет ЭПР (новые объекты) — средняя площадь силуэта 3D-модели каталога
     n = e["obj"].upper()
     if n.startswith("ISS (") or e.get("cat") in ("25544",): return 2500.0
     if n.startswith(("CSS (", "TIANHE", "TIANGONG")): return 600.0
