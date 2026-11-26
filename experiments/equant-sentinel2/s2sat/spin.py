@@ -17,6 +17,7 @@ import math
 
 import numpy as np
 from scipy.optimize import minimize, nnls
+from scipy.spatial.transform import Rotation as _Ro
 
 from s2sat import autopose as AP
 
@@ -71,7 +72,7 @@ class Spin:
         x = x0.copy(); x[idx] = r.x
         return x, r.fun
 
-    def starts(self, n_dir=40):
+    def starts(self, n_dir=40, top=3, bands=None):
         """Стартовые R₀: направления оси тела по сфере (лучшие по невязке при ω = 0); ω: 0 и перебор
         скоростей 15–120 °/с вокруг осей, перпендикулярных продольной (плоское кувыркание) и вдоль неё."""
         k = np.arange(n_dir) + 0.5; el = np.arcsin(k / n_dir); az = math.pi * (1 + 5 ** 0.5) * k
@@ -81,8 +82,49 @@ class Spin:
             Rm = AP._align(self.spec["M2B"] @ np.array([1.0, 0, 0]), d)
             from scipy.spatial.transform import Rotation as Ro
             cand.append(np.r_[Ro.from_matrix(Rm).as_rotvec(), 0, 0, 0, 0, 0])
-        sc = [self.loss(c)[0] for c in cand]
-        return [cand[i] for i in np.argsort(sc)[:3]]
+        sc = [self.loss(c, bands)[0] for c in cand]
+        return [cand[i] for i in np.argsort(sc)[:top]]
+
+    def groups(self, gap=1.0):
+        """Группы полос, снятых почти одновременно (разрыв по времени > gap с — новая группа)."""
+        bs = sorted(self.bands, key=lambda b: self.t[b]); out = [[bs[0]]]
+        for b in bs[1:]:
+            (out[-1].append(b) if self.t[b] - self.t[out[-1][-1]] <= gap else out.append([b]))
+        return out
+
+    def group_poses(self, bands, keep=4, maxfev=150):
+        """Неподвижные позы по одной группе полос: старты по сфере → лучшие → подгонка; различные минимумы (> 15°)."""
+        cands = self.starts(n_dir=40, top=8, bands=bands)
+        sols = []
+        for s in cands:
+            x, L = self.fit(s, [0, 1, 2, 6, 7], maxfev, bands=bands)
+            sols.append((x, L))
+        sols.sort(key=lambda q: q[1]); out = []
+        for x, L in sols:
+            R = AP.rotvec(x[0:3])
+            if all(math.degrees(np.linalg.norm(_Ro.from_matrix(R @ AP.rotvec(y[0:3]).T).as_rotvec())) > 15 for y, _ in out):
+                out.append((x, L))
+            if len(out) >= keep:
+                break
+        return out
+
+    def omega_candidates(self, groups, kmax=1):
+        """Кандидаты ω из поворота между первой и последней группой: R_b R_aᵀ = exp([ω]× Δt); наложения ±2πk/Δt.
+        R₀ (в момент 0) = exp(−[ω]× t_a) R_a, положение — среднее групп."""
+        ga, gb = groups[0], groups[-1]
+        ta = float(np.mean([self.t[b] for b in ga])); tb = float(np.mean([self.t[b] for b in gb])); dt = tb - ta
+        A = self.group_poses(ga); B = self.group_poses(gb)
+        Ro = _Ro; out = []
+        for xa, _ in A:
+            Ra = AP.rotvec(xa[0:3])
+            for xb, _ in B:
+                phi = Ro.from_matrix(AP.rotvec(xb[0:3]) @ Ra.T).as_rotvec(); th = np.linalg.norm(phi)
+                u = phi / th if th > 1e-9 else np.array([0.0, 0, 1])
+                for k in range(-kmax, kmax + 1):
+                    w = u * (th + 2 * math.pi * k) / dt
+                    R0 = AP.rotvec(-w * ta) @ Ra
+                    out.append(np.r_[Ro.from_matrix(R0).as_rotvec(), w, 0.5 * (xa[6:8] + xb[6:8])])
+        return out, dt
 
     def solve(self, maxfev=400, log=print, jackknife=True):
         """Поза без вращения и с вращением; значимость вращения (Δ эфф. χ²), ω и погрешность (большая из двух:
@@ -97,14 +139,25 @@ class Spin:
         best = (x0, L0); sols = []
         long_axis = AP.rotvec(x0[0:3]) @ self.spec["M2B"] @ np.array([1.0, 0, 0])
         perp = np.cross(long_axis, [0.0, 0, 1]); perp = perp / (np.linalg.norm(perp) + 1e-12); perp2 = np.cross(long_axis, perp)
-        for axis in (perp, perp2, long_axis):
-            for rate in (15, 40, 90):
-                for sg in (1, -1):
-                    s = x0.copy(); s[3:6] = axis * math.radians(rate) * sg
-                    x, L = self.fit(s, [0, 1, 2, 3, 4, 5, 6, 7], maxfev)
-                    sols.append((x, L))
-                    if L < best[1]:
-                        best = (x, L)
+        grp = self.groups()
+        if len(grp) >= 2:
+            # полосы сняты группами в разные моменты: поза каждой группы отдельно → ω из поворота между группами
+            # (с наложениями ±360°/Δt) → лучшие кандидаты по всем полосам → подгонка всех параметров
+            cands, dt = self.omega_candidates(grp)
+            sc = [self.loss(c)[0] for c in cands]
+            starts = [cands[i] for i in np.argsort(sc)[:8]]
+            log(f"   групп полос {len(grp)}, разрыв {dt:.2f} с; кандидатов ω {len(cands)}, уточняются 8")
+        else:
+            starts = []
+            for axis in (perp, perp2, long_axis):
+                for rate in (15, 40, 90):
+                    for sg in (1, -1):
+                        s = x0.copy(); s[3:6] = axis * math.radians(rate) * sg; starts.append(s)
+        for s in starts:
+            x, L = self.fit(s, [0, 1, 2, 3, 4, 5, 6, 7], maxfev)
+            sols.append((x, L))
+            if L < best[1]:
+                best = (x, L)
         x1, L1 = best
         # семейство решений, совместимых со снимком (Δ эфф. χ² < 4 от лучшего): полосы сняты группами с разрывом в
         # секунды, и у симметричного тела разные скорости дают почти одинаковые снимки — тогда выдаётся весь диапазон
