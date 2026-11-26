@@ -338,6 +338,10 @@ def main():
         pix = rg / k_scale                                     # м на объекте на пиксель кадра
         npx = int(math.ceil(2 * ext / pix)) + 8
         obj = render_object(Vb, F, MAT, sun, los, right, up, pix, npx, earth, geo["alt"], a.spp, Path(a.work) / a.name, shapes=hd_shapes, env=env)
+        phf = Path(a.out) / f"photometry_{a.name}.json"          # яркость объекта, измеренная Sentinel-2 (photometry_check)
+        if phf.exists():
+            ch = json.loads(phf.read_text())["channels"]
+            obj[..., :3] *= np.array([ch.get(c, {}).get("scale", 1.0) for c in "RGB"], np.float32)
         # кадр: центр — якорь, север вверх
         jj, ii = np.meshgrid(np.arange(a.W), np.arange(a.H))
         gE = (jj + 0.5 - a.W / 2) * rg; gN = (a.H / 2 - ii - 0.5) * rg
