@@ -44,7 +44,7 @@ def mtd_ds_name(item_id, jd):
     """Путь MTD_DS.xml в архиве для снимка Earth Search вида S2B_T59GNN_20261118T222728_L2A: тот же спутник, тайл и
     дата; если полос съёмки несколько — с началом съёмки ближе всего к jd."""
     sat, tile, stamp = item_id.split("_")[:3]
-    zone, lat, sq = int(tile[1:3]), tile[3], tile[4:6]
+    zone, lat, sq = tile[1:3], tile[3], tile[4:6]            # зона в архиве — двумя цифрами («02»)
     names = [n for n in _list(f"tiles/{zone}/{lat}/{sq}/{sat}_MSIL1C_{stamp[:8]}") if n.endswith("/MTD_DS.xml")]
     if not names:
         return None
