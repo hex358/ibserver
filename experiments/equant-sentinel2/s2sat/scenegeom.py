@@ -32,8 +32,9 @@ def event_of(name):
 
 
 def choose_orbits(e, rc, until=None):
-    """TLE Sentinel-2 с эпохой, ближайшей к снимку; орбита объекта — из TLE этого объекта в ±6 сут та, что воспроизводит
-    дальность, с которой делалась реконструкция."""
+    """TLE Sentinel-2 с эпохой, ближайшей к снимку. Орбита объекта — та же, что в детекции и восстановлении формы
+    (источник и возраст записаны в событии: PG.pick_orbit находит её точно), иначе — из TLE объекта в ±6 сут та, что
+    воспроизводит дальность реконструкции. Поправки θ (shape_fit) отсчитаны от неё — карточки и кадры должны брать её."""
     orbs = PG.Orbits(until=until or "99999999")
     jd = e["jd"]
     S2 = []
@@ -42,6 +43,10 @@ def choose_orbits(e, rc, until=None):
         if f.exists():
             S2 += [o for o in O.parse_tle(f.read_text()) if o.name == e["sent"]]
     sen = min(S2, key=lambda o: abs(o.epoch_jd - jd))
+    if e.get("orbit_src") and e.get("orbit_age") is not None:
+        o = PG.pick_orbit(orbs, e); age = float(e["orbit_age"])
+        if min(abs(o.epoch_jd - (jd - age)), abs(o.epoch_jd - (jd + age))) < 1e-5:
+            return sen, o
     pool = [o for o in orbs.SG.get(e["cat"], []) + orbs.GP.get(e["cat"], []) if abs(o.epoch_jd - jd) < 6]
     rS = sen.ecef([jd])[0][0]
     rng = lambda o: float(np.linalg.norm(o.ecef([jd])[0][0] - rS))
