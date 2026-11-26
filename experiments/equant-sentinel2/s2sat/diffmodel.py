@@ -137,6 +137,9 @@ class Scene:
         self.c = torch.tensor(c @ M2B.T, dtype=torch.float32); self.S = torch.tensor((S * wt[:, None]) @ M2B.T, dtype=torch.float32)
         self.grp = torch.tensor(np.asarray(g) % self.ng)
         self.C = torch.tensor(np.asarray(C, float), dtype=torch.float32); self.los = np.asarray(rc["los"], float)
+        sun = np.asarray(rc["sun"], float); los_ = self.los / np.linalg.norm(self.los); hv = sun + los_
+        self.sun_t = torch.tensor(sun / np.linalg.norm(sun), dtype=torch.float32)
+        self.los_t = torch.tensor(los_, dtype=torch.float32); self.half_t = torch.tensor(hv / np.linalg.norm(hv), dtype=torch.float32)
         jd = {b: float(rc["bands"][b]["jd"]) for b in self.bands}; j0 = float(np.median(list(jd.values())))
         self.t = t or {b: (v - j0) * 86400.0 for b, v in jd.items()}
         for b in self.bands:
@@ -144,22 +147,39 @@ class Scene:
             bd.bt = torch.tensor(bd.base, dtype=torch.float32)
         print(f"   дифф. модель: {len(c)} пятен (≤ {lmax:.2f} м), {len(self.bands)} полос", flush=True)
 
-    def band_occ(self, b, Rfit, dpos):
-        """Rfit (B, 3, 3): поворот модели → оси реконструкции в момент полосы; dpos (B, 3) — сдвиг, м объекта."""
+    def band_occ(self, b, Rfit, dpos, shade=False):
+        """Rfit (B, 3, 3): поворот модели → оси реконструкции в момент полосы; dpos (B, 3) — сдвиг, м объекта.
+        shade: кроме заслонения фона (занятость групп) — освещённость Солнцем: по Ламберту cos(n·s)⁺ стороны грани,
+        обращённой к Sentinel, и блик стекла панелей (n·h)^p, h — биссектриса Солнце/визир. → (occ, lit, spec)."""
         bd = self.B[b]
         cw = torch.einsum("bij,mj->bmi", Rfit, self.c) + dpos[:, None, :]
         P = bd.bt + torch.einsum("ij,bmj->bmi", bd.Mt, cw)
         A = torch.abs(torch.einsum("bij,mj,i->bm", Rfit, self.S, bd.qt))     # вес 0,5/1 — в S
-        return bd.occupancy(P, A, self.grp)
+        occ = bd.occupancy(P, A, self.grp)
+        if not shade:
+            return occ
+        Sw = torch.einsum("bij,mj->bmi", Rfit, self.S); n = Sw / torch.linalg.norm(Sw, dim=-1, keepdim=True).clamp_min(1e-9)
+        nl = (n * self.los_t).sum(-1); nv = n * torch.sign(nl)[..., None]          # сторона к камере
+        cosi = torch.relu((nv * self.sun_t).sum(-1))
+        spec = torch.relu((nv * self.half_t).sum(-1)) ** 60
+        lit = bd.occupancy(P, A * cosi, self.grp)
+        sp = bd.occupancy(P, A * spec * (self.grp == 0), self.grp).sum(1, keepdim=True)   # блик — панели (группа 0)
+        return occ, lit, sp
 
-    def loss(self, Rfun, dpos, kappa=1.0, grey=True, bands=None):
-        """Rfun(b) → (B,3,3). Серое тело (grey): яркости групп общие для полос (в долях медианы фона), иначе — свои."""
+    def loss(self, Rfun, dpos, kappa=1.0, grey=True, bands=None, shade=False):
+        """Rfun(b) → (B,3,3). Серое тело (grey): яркости групп общие для полос (в долях медианы фона), иначе — свои.
+        shade: яркость объекта = Σ ρ_g · освещённость_g + блик (физически: Солнце, визир), а не свободная яркость групп."""
         bands = bands or self.bands
         rows, ys = [], []
         L = 0.0
         for b in bands:
-            bd = self.B[b]; occ = self.band_occ(b, Rfun(b), dpos)                       # (B, ng, n)
-            A = occ.transpose(1, 2) * (bd.gm / bd.s if grey else 1.0 / bd.s)          # (B, n, ng)
+            bd = self.B[b]
+            if shade:
+                occ, lit, sp = self.band_occ(b, Rfun(b), dpos, shade=True)
+                cols = torch.cat([lit, sp], 1)
+            else:
+                occ = self.band_occ(b, Rfun(b), dpos); cols = occ
+            A = cols.transpose(1, 2) * (bd.gm / bd.s if grey else 1.0 / bd.s)         # (B, n, k)
             y = (bd.r + bd.g * occ.sum(1)) / bd.s                                      # (B, n)
             if grey:
                 rows.append(A); ys.append(y)

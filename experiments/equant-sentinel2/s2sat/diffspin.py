@@ -16,8 +16,8 @@ from s2sat.diffmodel import Scene, rotvec_to_mat
 
 
 class DiffSpin:
-    def __init__(self, rc, spec, C, kappa=1.0, seed=0):
-        self.sc = Scene(rc, spec, C); self.kappa = kappa; self.rng = np.random.default_rng(seed)
+    def __init__(self, rc, spec, C, kappa=1.0, seed=0, shade=False):
+        self.sc = Scene(rc, spec, C); self.kappa = kappa; self.rng = np.random.default_rng(seed); self.shade = shade
         self.t = self.sc.t
 
     def loss_batch(self, x, bands=None, prior=True, t0=0.0):
@@ -28,7 +28,7 @@ class DiffSpin:
         def Rfun(b):
             return C @ rotvec_to_mat(w * (self.t[b] - t0)) @ R0
         dpos = torch.cat([x[:, 6:8], torch.zeros(x.shape[0], 1, dtype=x.dtype)], 1)
-        L = self.sc.loss(Rfun, dpos, self.kappa, grey=True, bands=bands)
+        L = self.sc.loss(Rfun, dpos, self.kappa, grey=True, bands=bands, shade=self.shade)
         if prior:
             L = L + (x[:, 6] ** 2 + x[:, 7] ** 2) / AP.SIG_POS ** 2
         return L
