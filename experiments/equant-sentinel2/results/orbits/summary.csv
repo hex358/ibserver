@@ -1,2 +1,2 @@
 name,sentinel_orbit,sig_along_m,sig_cross_m,sig_radial_m,GP_before_age_d,GP_before_along_km,GP_before_cross_km,GP_after_age_d,GP_after_along_km,GP_after_cross_km,SupGP_before_age_d,SupGP_before_along_km,SupGP_before_cross_km,SupGP_after_age_d,SupGP_after_along_km,SupGP_after_cross_km
-STARLINK-32251_20261121T005354,TLE,191,109,1757,0.429,3.699,-0.43,0.288,-0.343,-0.527,0.163,0.048,-0.634,0.878,27.098,0.742
+STARLINK-30245_20261120T110322,GPS+3D,7,10,321,0.09,0.162,0.082,0.825,0.809,0.072,0.441,0.458,0.166,0.476,-4.331,0.159

@@ -15,11 +15,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 import model_recon as MR
 from s2sat import autopose as AP, modelcat as MC, scenegeom as SG
+from s2sat.diffmodel import transfer_r
 from s2sat.diffpose import DiffPose, DiffSpinPose, anchor_to_geometry, rot_angle
 
 ap = argparse.ArgumentParser()
 ap.add_argument("name"); ap.add_argument("--rates", default="20,60,120"); ap.add_argument("--shade", action="store_true")
-ap.add_argument("--seed", type=int, default=5); ap.add_argument("--n-rot", type=int, default=1500); ap.add_argument("--threads", type=int, default=4)
+ap.add_argument("--seed", type=int, default=5); ap.add_argument("--n-rot", type=int, default=1500); ap.add_argument("--threads", type=int, default=2)
 a = ap.parse_args(); torch.set_num_threads(a.threads); rng = np.random.default_rng(a.seed); n = a.name
 
 
@@ -30,8 +31,8 @@ def log(*s):
 rc = pickle.loads((ROOT / "results/shape" / f"{n}.pkl").read_bytes())
 log(f"{n}: опоры — {anchor_to_geometry(rc, ROOT / 'results/orbits' / f'{n}.json')}")
 MR.prepare(rc); spec = MC.spec_for(int(rc["cat"]), n); C = SG.lvlh_to_fit(n, rc)
-Sf, Sc = DiffPose(rc, spec, C, shade=a.shade), DiffPose(rc, spec, C, shade=a.shade, lmax=3.0)
-Wf, Wc = DiffSpinPose(rc, spec, C, shade=a.shade), DiffSpinPose(rc, spec, C, shade=a.shade, lmax=3.0)
+Sf, Sc = DiffPose(rc, spec, C, shade=a.shade), DiffPose(rc, spec, C, shade=a.shade, coarse=True)
+Wf, Wc = DiffSpinPose(rc, spec, C, shade=a.shade), DiffSpinPose(rc, spec, C, shade=a.shade, coarse=True)
 G = Wf.groups(); gt = [float(np.median([Wf.sc.t[b] for b in g])) for g in G]
 big = int(np.argmax([len(g) for g in G])); Wf.t0 = Wc.t0 = gt[big]
 log(f"   группы полос: " + "; ".join(f"{'+'.join(g)} (t {t:+.2f} с, разброс {np.ptp([Wf.sc.t[b] for b in g]):.2f} с)" for g, t in zip(G, gt)))
@@ -45,8 +46,7 @@ for rate in [float(v) for v in a.rates.split(",")]:
     xt = np.r_[xs0, w]                                              # поза в t₀ — найденная по снимку
     orig = Wf.synth(xt, rho, math.sqrt(kap), rng)
     for D in (Sf, Sc, Wc):
-        for b in D.sc.bands:
-            D.sc.B[b].r = Wf.sc.B[b].r.clone()
+        transfer_r(Wf.sc, D.sc)
     gm = []
     for g in G:                                                     # 1. поза каждой группы
         md, _ = Sc.search(bands=g, n_rot=a.n_rot, top=64, fine=Sf, n_polish=6, log=lambda s: None)
@@ -64,7 +64,6 @@ for rate in [float(v) for v in a.rates.split(",")]:
         f"невязка найдено {Le:.0f} / истина {Lt_p:.0f}; кандидатов {len(cand)}; {r_['seconds']:.0f} с")
     Wf.restore(orig)
     for D in (Sf, Sc, Wc):
-        for b in D.sc.bands:
-            D.sc.B[b].r = Wf.sc.B[b].r.clone()
+        transfer_r(Wf.sc, D.sc)
 out = ROOT / "results/spin_pix"; out.mkdir(exist_ok=True)
 (out / f"{n}{'_shade' if a.shade else ''}.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1))

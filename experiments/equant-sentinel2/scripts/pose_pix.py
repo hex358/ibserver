@@ -22,15 +22,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 import model_recon as MR
 from s2sat import autopose as AP, modelcat as MC, scenegeom as SG
+from s2sat.diffmodel import transfer_r
 from s2sat.diffpose import DiffPose, rot_angle
 
 ap = argparse.ArgumentParser()
 ap.add_argument("name"); ap.add_argument("--n-rot", type=int, default=3000); ap.add_argument("--checks", action="store_true")
-ap.add_argument("--write", action="store_true"); ap.add_argument("--threads", type=int, default=4); ap.add_argument("--seed", type=int, default=0)
+ap.add_argument("--write", action="store_true"); ap.add_argument("--shade", action="store_true"); ap.add_argument("--threads", type=int, default=2); ap.add_argument("--seed", type=int, default=0)
 a = ap.parse_args()
 torch.set_num_threads(a.threads)
 n = a.name; t_start = time.time(); rng = np.random.default_rng(a.seed)
-OUT = ROOT / "results/pose_pix"; OUT.mkdir(parents=True, exist_ok=True)
+OUT = ROOT / ("results/pose_pix_shade" if "--shade" in sys.argv else "results/pose_pix"); OUT.mkdir(parents=True, exist_ok=True)
 
 
 def log(*s):
@@ -53,7 +54,7 @@ log(f"{n}: опоры полос — {anchors}")
 MR.prepare(rc)
 spec = MC.spec_for(int(rc["cat"]), n); C = SG.lvlh_to_fit(n, rc)
 sun_l = C.T @ np.asarray(rc["sun"], float)
-Df = DiffPose(rc, spec, C); Dc = DiffPose(rc, spec, C, lmax=3.0)
+Df = DiffPose(rc, spec, C, shade=a.shade); Dc = DiffPose(rc, spec, C, coarse=True, shade=a.shade)
 log(f"   параметры: поворот корпуса 3 + приводы {Df.nd} + сдвиг 2; пикселей {Df.npix}; невязка без объекта {Df.null():.0f}")
 
 # --- 1. поиск по всей SO(3) × приводам ---
@@ -115,7 +116,7 @@ if a.checks:
         train = [b for b in bs if b not in test]
         if not train or not test:
             continue
-        mt, _ = Dc.search(bands=train, n_rot=max(1000, a.n_rot // 2), top=64, fine=Df, n_polish=4, log=lambda s: None)
+        mt, _ = Dc.search(bands=train, n_rot=max(1000, a.n_rot // 2), top=128, fine=Df, n_polish=8, log=lambda s: None)
         xt = mt[0]["x"]
         pr, _ = Df.predict(xt, train, test); pb, _ = Df.predict(xb, train, test)
         po = Df.predict(xo, train, test)[0] if old else None
@@ -137,10 +138,8 @@ if a.checks:
     truths = [("найденная поза", xb)] + [(f"случайная поза {k + 1}", np.r_[Ro.random(random_state=int(rng.integers(1 << 30))).as_rotvec(),
                                                                        rng.uniform(0, math.pi, Df.nd), rng.normal(0, 2.0, 2)]) for k in range(2)]
     for lab, xt in truths:
-        o1 = Df.synth(xt, rho, math.sqrt(kap), rng); o2 = Dc.synth(xt, rho, math.sqrt(kap), np.random.default_rng(1))
-        for b in Dc.sc.bands:
-            Dc.sc.B[b].r = Df.sc.B[b].r.clone()
-        mi, _ = Dc.search(n_rot=max(1000, a.n_rot // 2), top=64, fine=Df, n_polish=4, log=lambda s: None)
+        o1 = Df.synth(xt, rho, math.sqrt(kap), rng); o2 = {b: Dc.sc.B[b].r for b in Dc.sc.bands}; transfer_r(Df.sc, Dc.sc)
+        mi, _ = Dc.search(n_rot=max(1000, a.n_rot // 2), top=128, fine=Df, n_polish=8, log=lambda s: None)
         xe = mi[0]["x"]; Lt = float(Df.L(xt)[0]); Le = mi[0]["L"]
         dd = (np.degrees(xe[3:3 + Df.nd] - xt[3:3 + Df.nd]) + 90) % 180 - 90
         r_ = dict(truth=lab, angle_err_deg=rot_angle(Df.R_of(xe), AP.rotvec(xt[:3])), drive_err_deg=dd.tolist(), L_found=Le, L_truth=Lt,

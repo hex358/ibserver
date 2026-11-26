@@ -216,7 +216,7 @@ def retry_dm(e, r):
     return min(max(2.5 * dm_for(e), 20.0), 40.0)   # ошибки SupGP по найденным: 1.2–7 км, у 31272 — 15 км
 
 
-from s2sat.threshold import threshold as _threshold
+from s2sat.threshold import threshold as _threshold, prior_test as _prior_test, P_CUT as _PFA
 
 
 def status(r):
@@ -233,6 +233,10 @@ def status(r):
         return "unobservable"
     thr = _threshold(r)
     if r["score"] >= thr:
+        return "detected"
+    pt = _prior_test(r)                     # второй ярус: у источника орбиты, со своим нулём (s2sat/threshold.py)
+    if pt and pt["p"] <= _PFA and pt["score"] > pt["null_max_local"]:
+        r["prior_test"] = pt
         return "detected"
     fc = r.get("forecast") or {}
     tp = fc.get("T_pred", float("nan"))
@@ -463,6 +467,8 @@ for e in day:
     except Exception as ex:
         print("FAIL", repr(ex)[:300]); continue
     maps = r.pop("_maps", None)
+    if e.get("source_centers"):
+        r["source_centers"] = e["source_centers"]
     try:
         from s2sat import imagery as _I
         _I.prune_cache()

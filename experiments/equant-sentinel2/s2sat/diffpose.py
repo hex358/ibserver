@@ -59,9 +59,10 @@ def rot_angle(Ra, Rb):
 class DiffPose:
     """x = [вектор поворота корпуса (оси тела → орбитальные оси) 3, углы приводов n, сдвиг 2]."""
 
-    def __init__(self, rc, spec, C, shade=False, kappa=1.0, lmax=None):
+    def __init__(self, rc, spec, C, shade=False, kappa=1.0, lmax=None, coarse=False):
+        """coarse — для глобального поиска: силуэт одной группой, окно по размаху объекта, пятна ≤ 3 м (diffmodel)."""
         part, chains = face_parts(spec)
-        self.sc = sc = Scene(rc, spec, C, parts=part, lmax=lmax)
+        self.sc = sc = Scene(rc, spec, C, parts=part, lmax=3.0 if coarse else lmax, ng=1 if coarse else None, coarse=coarse)
         self.spec, self.shade, self.kappa = spec, shade, kappa
         self.nd = AP.n_drives(spec); self.P = 3 + self.nd + 2
         self.M2B = torch.tensor(np.asarray(spec["M2B"], float), dtype=torch.float32)
@@ -138,7 +139,7 @@ class DiffPose:
         R = so3_grid(n_rot)
         return np.c_[np.repeat(R, len(Dd), 0), np.tile(Dd, (len(R), 1)), np.zeros((len(R) * len(Dd), 2))]
 
-    def search(self, bands=None, n_rot=3000, step_deg=60.0, top=96, iters=150, n_polish=8, log=print, fine=None):
+    def search(self, bands=None, n_rot=3000, step_deg=60.0, top=256, iters=150, n_polish=16, log=print, fine=None):
         """Глобально: вся SO(3) × приводы → градиент по всем параметрам → различные минимумы. Сетка и спуск — на этой
         (грубой) модели, дожим — на fine (мелкие пятна), если задана."""
         X = self.grid(n_rot, step_deg); Ls = []
@@ -170,18 +171,41 @@ class DiffPose:
 
     # --- проверки ---
     def hessian_sigma(self, x, bands=None):
-        """σ в локальных осях: R = exp([δ]×) · R̂ — δ по орбитальным осям (вдоль, поперёк, радиус), рад; приводы; сдвиг."""
+        """σ в локальных осях: R = exp([δ]×) · R̂ — δ по орбитальным осям (вдоль, поперёк, радиус), рад; приводы; сдвиг.
+        Гессиан — центральными разностями по невязке (шаг ~1°, 0,5 м: выше шума float32), одним пакетом. Отрицательные
+        собственные значения — найденная точка не минимум по этому направлению (сообщается, σ = ∞)."""
         Rb = self.Rbase; self.Rbase = torch.tensor(self.R_of(x), dtype=torch.float32)
-        u0 = torch.tensor(np.r_[np.zeros(3), x[3:]], dtype=torch.float32)
+        u0 = np.r_[np.zeros(3), np.asarray(x[3:], float)]; P = len(u0)
+        h = np.r_[[0.02] * 3, [0.02] * self.nd, [0.5, 0.5], [0.01] * (P - 5 - self.nd)][:P]
+        pts = [u0]; idx = {}
+        for i in range(P):
+            for j in range(i, P):
+                for si in (1, -1):
+                    for sj in (1, -1):
+                        if i == j and sj == -1:
+                            continue
+                        u = u0.copy(); u[i] += si * h[i]
+                        if i != j:
+                            u[j] += sj * h[j]
+                        else:
+                            u[i] += si * h[i] * 0.0
+                        idx[(i, j, si, sj)] = len(pts); pts.append(u)
         try:
-            H = torch.autograd.functional.hessian(lambda u: self.loss(u[None], bands)[0], u0).numpy().astype(float)
+            Lp = np.concatenate([self.L(np.array(pts[k:k + 128]), bands) for k in range(0, len(pts), 128)]).astype(float)
         finally:
             self.Rbase = Rb
-        L0 = float(self.L(x, bands)[0]); kap = max(1.0, L0 / max(1, self.npix - self.P))
-        H = 0.5 * (H + H.T)
-        w, V = np.linalg.eigh(H); w = np.maximum(w, 1e-9)
-        Cov = 2.0 * kap * (V / w) @ V.T
-        return np.sqrt(np.diag(Cov)), Cov, kap
+        f0 = Lp[0]; H = np.zeros((P, P))
+        for i in range(P):
+            H[i, i] = (Lp[idx[(i, i, 1, 1)]] - 2 * f0 + Lp[idx[(i, i, -1, 1)]]) / h[i] ** 2
+            for j in range(i + 1, P):
+                H[i, j] = H[j, i] = (Lp[idx[(i, j, 1, 1)]] - Lp[idx[(i, j, 1, -1)]] - Lp[idx[(i, j, -1, 1)]] + Lp[idx[(i, j, -1, -1)]]) / (4 * h[i] * h[j])
+        kap = max(1.0, f0 / max(1, self.npix - self.P))
+        w, V = np.linalg.eigh(H)
+        self.neg_dirs = [V[:, k] for k in range(P) if w[k] <= 0]
+        wi = np.where(w > 0, 1.0 / np.maximum(w, 1e-12), np.inf)
+        Cov = 2.0 * kap * (V * wi) @ V.T if np.isfinite(wi).all() else np.full((P, P), np.inf)
+        sd = np.sqrt(np.abs(np.diag(Cov))) if np.isfinite(wi).all() else np.array([np.sqrt(2 * kap / H[k, k]) if H[k, k] > 0 else np.inf for k in range(P)])
+        return sd, Cov, kap
 
     def columns(self, x, b, shade=None):
         shade = self.shade if shade is None else shade

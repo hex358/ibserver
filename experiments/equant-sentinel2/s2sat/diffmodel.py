@@ -19,6 +19,8 @@ import numpy as np
 import torch
 
 torch.set_default_dtype(torch.float32)
+# мелкие тензоры: много потоков на занятых ядрах тормозят в 10–100 раз (проверено: 512 поз 9,1 с при 4 потоках, 0,7 с при 1)
+torch.set_num_threads(2)
 HUB = 3.0
 
 
@@ -56,21 +58,32 @@ def subdivide(V, F, G, lmax, cap=60000, W=None):
 
 
 def rotvec_to_mat(v):
-    """Родриг для пакета: v (..., 3) → (..., 3, 3)."""
-    th = torch.linalg.norm(v, dim=-1, keepdim=True).clamp_min(1e-12)
-    k = v / th; K = torch.zeros(v.shape[:-1] + (3, 3), dtype=v.dtype)
-    K[..., 0, 1], K[..., 0, 2], K[..., 1, 0] = -k[..., 2], k[..., 1], k[..., 2]
-    K[..., 1, 2], K[..., 2, 0], K[..., 2, 1] = -k[..., 0], -k[..., 1], k[..., 0]
-    th = th[..., None]; I = torch.eye(3, dtype=v.dtype).expand(K.shape)
-    return I + torch.sin(th) * K + (1 - torch.cos(th)) * (K @ K)
+    """Родриг для пакета: v (..., 3) → (..., 3, 3). R = I + A·[v]× + B·[v]×², A = sin θ/θ, B = (1 − cos θ)/θ² — с рядами
+    у нуля (гладко, вторые производные конечны: Гессиан в точке поворота)."""
+    t2 = (v * v).sum(-1, keepdim=True)[..., None]; small = t2 < 1e-6
+    th = torch.sqrt(torch.where(small, torch.ones_like(t2), t2))
+    A = torch.where(small, 1 - t2 / 6 + t2 * t2 / 120, torch.sin(th) / th)
+    Bc = torch.where(small, 0.5 - t2 / 24 + t2 * t2 / 720, (1 - torch.cos(th)) / (th * th))
+    K = torch.zeros(v.shape[:-1] + (3, 3), dtype=v.dtype)
+    K[..., 0, 1], K[..., 0, 2], K[..., 1, 0] = -v[..., 2], v[..., 1], v[..., 2]
+    K[..., 1, 2], K[..., 2, 0], K[..., 2, 1] = -v[..., 0], -v[..., 1], v[..., 0]
+    I = torch.eye(3, dtype=v.dtype).expand(K.shape)
+    return I + A * K + Bc * (K @ K)
 
 
 class Band:
     """Одна полоса: окно пикселей, мелкая сетка, ядро в Фурье, индексы выборки."""
 
-    def __init__(self, d, ng, margin=30.0):
+    def __init__(self, d, ng, margin=30.0, crop=None, hfac=1.6):
+        """crop — радиус (м снимка) вокруг опоры: пиксели дальше, куда модель не может попасть, не берутся (их вклад в
+        невязку постоянен — для глобального поиска); hfac — шаг мелкой сетки σ_ядра / hfac."""
         self.res = float(d["res"]); self.s = float(d["s"])
         ok = np.isfinite(d["r"]) & np.isfinite(d["g"])
+        if crop is not None:
+            c0 = np.asarray(d["meas"][:2], float) if d.get("meas") else np.asarray(d["p0"], float)
+            ok &= (np.abs(d["X"] - c0[0]) <= crop) & (np.abs(d["Y"] - c0[1]) <= crop)
+        self.idx = np.where(ok)[0]                                 # номера пикселей в исходном окне полосы
+        d = dict(d, X=d["X"][ok], Y=d["Y"][ok], r=d["r"][ok], g=d["g"][ok]); ok = np.ones(len(d["X"]), bool)
         self.X, self.Y = d["X"][ok], d["Y"][ok]
         self.r = torch.tensor(d["r"][ok], dtype=torch.float32); self.g = torch.tensor(d["g"][ok], dtype=torch.float32)
         self.gm = float(np.nanmedian(d["g"]))
@@ -79,7 +92,7 @@ class Band:
         self.q = np.cross(self.M[0], self.M[1])                    # проекция площади: a = S·q
         # ядро: то же, что model_recon.kernel
         k = np.asarray(d["_k"]); C = self._cov(k)
-        self.h = max(1.0, min(self.res / 3.0, math.sqrt(np.linalg.eigvalsh(C).min()) / 1.6))
+        self.h = max(1.0, min(self.res / 3.0 * 1.6 / hfac, math.sqrt(np.linalg.eigvalsh(C).min()) / hfac))
         self.x0 = d["X"].min() - self.res - margin; self.y1 = d["Y"].max() + self.res + margin
         self.W = int((d["X"].max() - d["X"].min() + 2 * self.res + 2 * margin) / self.h) + 2
         self.H = int((d["Y"].max() - d["Y"].min() + 2 * self.res + 2 * margin) / self.h) + 2
@@ -122,13 +135,19 @@ class Band:
 class Scene:
     """Объект (модель каталога) и полосы снимка. Поворот модели в оси реконструкции Q = C · R_lvlh · M2B."""
 
-    def __init__(self, rc, spec, C, ng=None, lmax=None, t=None, parts=None):
-        """parts (по граням) — номер подвижной части (−1 — корпус); пятна сортируются по частям: self.part."""
+    def __init__(self, rc, spec, C, ng=None, lmax=None, t=None, parts=None, coarse=False):
+        """parts (по граням) — номер подвижной части (−1 — корпус); пятна сортируются по частям: self.part.
+        coarse — грубая модель для глобального поиска: окно вокруг опоры не шире, чем объект может занять (размах
+        модели на снимке + 3σ ядра + 40 м), сетка σ/1."""
         self.ng = int(ng or (int(np.max(spec["G"])) + 1))
         Ms = [np.asarray(d["J"], float) / 1000.0 for d in rc["bands"].values()]
         k = float(np.median([np.linalg.norm(M, 2) for M in Ms]))          # м снимка на м объекта
         self.bands = [b for b in rc["bands"]]
-        self.B = {b: Band(rc["bands"][b], self.ng) for b in self.bands}
+        crop = None
+        if coarse:
+            Vm = np.asarray(spec["V"], float); rad = float(np.max(np.linalg.norm(Vm - Vm.mean(0), axis=1)))
+            crop = rad * max(np.linalg.norm(M, 2) for M in Ms) + 3 * 8.0 + 40.0
+        self.B = {b: Band(rc["bands"][b], self.ng, crop=crop, hfac=1.0 if coarse else 1.6) for b in self.bands}
         smin = min(bd.sig_min for bd in self.B.values())
         lmax = lmax or max(0.2, 0.8 * smin / k)                            # пятно ≤ 0,8 σ ядра на снимке
         G0 = np.asarray(spec["G"]) % self.ng
@@ -206,3 +225,10 @@ class Scene:
         a = torch.linalg.solve(AtA, Aty).clamp_min(0.0)
         z = y - (A @ a)[..., 0]
         return (2 * HUB ** 2 * (torch.sqrt(1 + (z / HUB) ** 2) - 1)).sum(1)
+
+
+def transfer_r(src, dst):
+    """Остатки снимка r из сцены src в сцену dst (другое окно/сетка тех же пикселей) — для подстановок."""
+    for b in dst.bands:
+        S, D = src.B[b], dst.B[b]; pos = np.searchsorted(S.idx, D.idx)
+        D.r = S.r[torch.tensor(pos)].clone()
