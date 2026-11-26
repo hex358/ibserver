@@ -1,0 +1,205 @@
+{
+ "name": "STARLINK-30409_20261119T215020",
+ "object": "STARLINK-30409",
+ "norad": 57820,
+ "jd": 2461364.4099534713,
+ "sentinel": "SENTINEL-2B",
+ "image": "S2B_T02KMG_20261119T214811_L2A",
+ "detection_tle": {
+  "line1": "1 57820U 23138N   26324.43750221 -.00007879  00000+0 -27742-3 0  9997",
+  "line2": "2 57820  43.0043 229.6609 0001887 270.5538  89.5097 15.27539617177791",
+  "age_days": -0.528
+ },
+ "bands_used": 8,
+ "sentinel_orbit": "TLE",
+ "fits": {
+  "tle": {
+   "theta_km": [
+    20.31172775748177,
+    -0.2529793479405412,
+    -0.44590640778606483
+   ],
+   "sigma_m": [
+    30.60628162821169,
+    58.268716214136994,
+    394.3081359107637
+   ],
+   "sigma_ls_m": [
+    30.60628162821169,
+    58.268716214136994,
+    394.3081359107637
+   ],
+   "sigma_jackknife_m": [
+    11.683842669517059,
+    18.1847230702616,
+    124.82513012243567
+   ],
+   "spot_sigma_m": 22.214610797829398,
+   "bands": [
+    "blue",
+    "green",
+    "red",
+    "rededge1",
+    "rededge2",
+    "rededge3",
+    "nir",
+    "swir16"
+   ],
+   "residual_m": {
+    "blue": [
+     -10.6,
+     -19.2
+    ],
+    "green": [
+     -4.3,
+     -14.3
+    ],
+    "red": [
+     0.6,
+     -2.4
+    ],
+    "rededge1": [
+     -10.5,
+     -18.5
+    ],
+    "rededge2": [
+     12.0,
+     23.6
+    ],
+    "rededge3": [
+     -90.8,
+     217.9
+    ],
+    "nir": [
+     1.6,
+     -13.2
+    ],
+    "swir16": [
+     18.1,
+     10.9
+    ]
+   }
+  }
+ },
+ "position_ecef_km": [
+  -6524.906833446542,
+  -897.6484264528865,
+  -1925.3832727200863
+ ],
+ "sigma_m": [
+  30.60628162821169,
+  58.268716214136994,
+  394.3081359107637
+ ],
+ "note": "положение фотоцентра (пятна) на момент jd; радиус по одному ракурсу — с априорным условием 1,9 км",
+ "celestrak": [
+  {
+   "source": "GP",
+   "epoch_age_days": -3.208,
+   "when": "после снимка",
+   "d_along_km": -30.256,
+   "d_cross_km": 0.136,
+   "d_radial_km": 0.836,
+   "d_time_s": -4.165
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": -2.489,
+   "when": "после снимка",
+   "d_along_km": 1.235,
+   "d_cross_km": -0.981,
+   "d_radial_km": 0.72,
+   "d_time_s": 0.17
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": -1.508,
+   "when": "после снимка",
+   "d_along_km": -1.921,
+   "d_cross_km": -0.653,
+   "d_radial_km": 0.647,
+   "d_time_s": -0.264
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": -0.528,
+   "when": "после снимка",
+   "d_along_km": -20.312,
+   "d_cross_km": 0.253,
+   "d_radial_km": 0.453,
+   "d_time_s": -2.796
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": 0.257,
+   "when": "до снимка",
+   "d_along_km": 10.71,
+   "d_cross_km": -0.99,
+   "d_radial_km": 0.912,
+   "d_time_s": 1.474
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -3.941,
+   "when": "после снимка",
+   "d_along_km": -199.962,
+   "d_cross_km": 7.2,
+   "d_radial_km": -2.098,
+   "d_time_s": -27.527
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -3.238,
+   "when": "после снимка",
+   "d_along_km": 341.609,
+   "d_cross_km": -15.476,
+   "d_radial_km": -7.746,
+   "d_time_s": 47.027
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -3.116,
+   "when": "после снимка",
+   "d_along_km": 106.319,
+   "d_cross_km": -5.583,
+   "d_radial_km": -0.17,
+   "d_time_s": 14.636
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -2.88,
+   "when": "после снимка",
+   "d_along_km": -37.601,
+   "d_cross_km": 0.62,
+   "d_radial_km": 0.569,
+   "d_time_s": -5.176
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -2.063,
+   "when": "после снимка",
+   "d_along_km": -25.382,
+   "d_cross_km": 0.171,
+   "d_radial_km": 0.665,
+   "d_time_s": -3.494
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -1.025,
+   "when": "после снимка",
+   "d_along_km": -26.95,
+   "d_cross_km": 0.444,
+   "d_radial_km": 0.487,
+   "d_time_s": -3.71
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -0.107,
+   "when": "после снимка",
+   "d_along_km": -1.253,
+   "d_cross_km": -0.487,
+   "d_radial_km": 0.641,
+   "d_time_s": -0.172
+  }
+ ]
+}
