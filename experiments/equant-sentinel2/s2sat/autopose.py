@@ -81,6 +81,11 @@ def pose_body(spec, h, x, sun_b):
         az, el = x[0], x[1]; d = np.array([math.cos(el) * math.cos(az), math.cos(el) * math.sin(az), math.sin(el)])
         R = _align(spec["M2B"] @ np.array([1.0, 0, 0]), d) @ spec["M2B"]
         return spec["V"] @ R.T, R, []
+    if h.get("pix"):                                       # поза по пикселям (s2sat/diffpose.py): корпус x[:3], приводы x[7:]
+        R = rotvec(x[:3]) @ spec["M2B"]; nd = n_drives(spec)
+        ang = np.asarray(x[7:7 + nd], float) if nd else np.zeros(0)
+        V = apply_drives(spec, ang) if nd else spec["V"].copy(); L = drive_layout(spec)
+        return V @ R.T, R, [float(ang[L["prim"][k]]) for k in range(len(spec["arrays"]))]
     if h.get("free3"):                                     # свободный поворот: вектор поворота относительно штатных осей
         R = rotvec(x[:3]) @ spec["M2B"]
         V = spec["V"].copy(); angs = []

@@ -89,16 +89,34 @@ def main():
     ax2.text(*s0, "Солнце ", color="orange", fontsize=8, ha="right")
 
     # цифры
-    txt = [f"Закон ориентации: {au['chosen']}", f"запас над второй гипотезой {au['margin_eff']:.0f} (порог 4)",
-           ("НЕШТАТНАЯ ориентация, " + f"{au.get('deviation_deg'):.0f}° от ближайшего закона") if au.get("anomalous") else "ориентация штатная"]
-    h = min(au["hypotheses"], key=lambda q: q["cv"])
-    if h.get("drives_summary"):
-        txt.append(f"приводы панелей: {h['drives_summary']}")
+    pp = json.loads(Path(au["pose_pix"]).read_text()) if au.get("pose_pix") and Path(au["pose_pix"]).exists() else None
+    if pp:                                                     # поза по пикселям (scripts/pose_pix.py)
+        sd = pp["sigma"]["rot_deg"]; m2 = pp["modes"][1] if len(pp["modes"]) > 1 else None
+        txt = ["Поза — по пикселям, без законов ориентации:", "корпус по всей SO(3) + угол каждого крыла, градиент",
+               f"невязка {pp['L']:.0f} (без объекта {pp['null']:.0f}), κ {pp['kappa']:.2f}",
+               f"σ поворота (вдоль/поперёк/радиус) {sd[0]:.1f}/{sd[1]:.1f}/{sd[2]:.1f}°",
+               f"углы крыльев {', '.join(f'{v % 180:.0f}' for v in pp['drives_deg'])}° ± {', '.join(f'{v:.1f}' for v in pp['sigma']['drives_deg'])}°",
+               f"вероятность лучшего минимума {pp['modes'][0]['prob']:.2f}" + (f"; второй: +{m2['dL']:.0f}, {m2['angle_deg']:.0f}° от лучшего" if m2 else ""),
+               f"до «на Землю» {pp['nearest_nadir']['angle_deg']:.0f}° (рысканье {pp['nearest_nadir']['yaw_deg']:.0f}°)",
+               f"нормали крыльев от Солнца {', '.join(f'{v:.0f}' for v in pp['wing_normal_from_sun_deg'])}°"]
+        for c in pp.get("cross_validation", []):
+            txt.append(f"проверка: поза по {'+'.join(c['train'])} предсказывает {'+'.join(c['test'])}: {c['explained_pose_from_train'] * 100:.0f}% сигнала")
+        for c in pp.get("injection", []):
+            txt.append(f"подстановка ({c['truth']}): ошибка {c['angle_err_deg']:.1f}°")
+        if pp.get("old"):
+            txt.append(f"прежняя схема (законы): невязка +{pp['old']['L'] - pp['L']:.0f}, {pp['old']['angle_to_new_deg']:.0f}° от найденной")
+    else:
+        txt = [f"Закон ориентации: {au['chosen']}", f"запас над второй гипотезой {au['margin_eff']:.0f} (порог 4)",
+               ("НЕШТАТНАЯ ориентация, " + f"{au.get('deviation_deg'):.0f}° от ближайшего закона") if au.get("anomalous") else "ориентация штатная"]
+        h = min(au["hypotheses"], key=lambda q: q["cv"])
+        if h.get("drives_summary"):
+            txt.append(f"приводы панелей: {h['drives_summary']}")
     orb = ROOT / "results/orbits" / f"{n}.json"
     if orb.exists():
-        q = json.loads(orb.read_text()); th = q["fits"].get("gps", q["fits"].get("tle"))["theta_km"]; sg = q["sigma_m"]
-        txt += ["", "Положение (орбита Sentinel по GPS):", f"поправка к TLE: вдоль {th[0] * 1e3:+.0f} м, поперёк {th[1] * 1e3:+.0f} м",
-                f"(стат. ±{sg[0]:.0f} / ±{sg[1]:.0f} м; систематика поперёк до ~1 км — калибруется)"]
+        q = json.loads(orb.read_text()); fk = "gps3d" if "gps3d" in q["fits"] else ("gps" if "gps" in q["fits"] else "tle")
+        th = q["fits"][fk]["theta_km"]; sg = q["fits"][fk].get("sigma_m", q.get("sigma_m"))
+        txt += ["", f"Положение (орбита Sentinel {'GPS + 3D-углы' if fk == 'gps3d' else fk}):",
+                f"поправка к TLE: вдоль {th[0] * 1e3:+.0f} м, поперёк {th[1] * 1e3:+.0f} м (±{sg[0]:.0f} / ±{sg[1]:.0f} м)"]
     card = ROOT / "results/cards" / f"{n}.json"
     if card.exists():
         k = json.loads(card.read_text())

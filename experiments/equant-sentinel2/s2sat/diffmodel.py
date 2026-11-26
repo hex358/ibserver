@@ -104,16 +104,14 @@ class Band:
     def occupancy(self, P, A, grp):
         """P (B, m, 2) — положения пятен на снимке (м UTM), A (B, m) — площади на снимке (м², только лицевые), grp (m) —
         группы. → занятость пикселей (B, ng, npix)."""
-        B = P.shape[0]; u = (P[..., 0] - self.x0) / self.h; v = (self.y1 - P[..., 1]) / self.h
-        i0 = torch.floor(u).detach(); j0 = torch.floor(v).detach(); fu = u - i0; fv = v - j0
-        i0 = i0.long(); j0 = j0.long()
-        grid = torch.zeros(B, self.ng, self.H * self.W, dtype=P.dtype)
-        dens = A / self.h ** 2
-        for di, dj, w in ((0, 0, (1 - fu) * (1 - fv)), (1, 0, fu * (1 - fv)), (0, 1, (1 - fu) * fv), (1, 1, fu * fv)):
-            ii = (i0 + di).clamp(0, self.W - 1); jj = (j0 + dj).clamp(0, self.H - 1)
-            inside = ((i0 + di) >= 0) & ((i0 + di) < self.W) & ((j0 + dj) >= 0) & ((j0 + dj) < self.H)
-            idx = (jj * self.W + ii) + (grp[None, :] * self.H * self.W)
-            grid.view(B, -1).scatter_add_(1, idx, dens * w * inside)
+        B = P.shape[0]; HW = self.H * self.W
+        u = ((P[..., 0] - self.x0) / self.h).clamp(0.0, self.W - 2.001); v = ((self.y1 - P[..., 1]) / self.h).clamp(0.0, self.H - 2.001)
+        i0 = torch.floor(u.detach()); j0 = torch.floor(v.detach()); fu = u - i0; fv = v - j0
+        base = (j0 * self.W + i0).long() + (grp * HW)[None, :]            # пятна за краем сетки — на край (поля 30 м)
+        dens = A / self.h ** 2; a = dens * (1 - fv); c = dens * fv
+        grid = torch.zeros(B, self.ng * HW, dtype=P.dtype)
+        grid.scatter_add_(1, base, a * (1 - fu)); grid.scatter_add_(1, base + 1, a * fu)
+        grid.scatter_add_(1, base + self.W, c * (1 - fu)); grid.scatter_add_(1, base + self.W + 1, c * fu)
         img = torch.fft.irfft2(torch.fft.rfft2(grid.view(B, self.ng, self.H, self.W)) * self.Kf, s=(self.H, self.W)).view(B, self.ng, -1)
         out = 0
         for idx, w in self.samp:
@@ -124,7 +122,8 @@ class Band:
 class Scene:
     """Объект (модель каталога) и полосы снимка. Поворот модели в оси реконструкции Q = C · R_lvlh · M2B."""
 
-    def __init__(self, rc, spec, C, ng=None, lmax=None, t=None):
+    def __init__(self, rc, spec, C, ng=None, lmax=None, t=None, parts=None):
+        """parts (по граням) — номер подвижной части (−1 — корпус); пятна сортируются по частям: self.part."""
         self.ng = int(ng or (int(np.max(spec["G"])) + 1))
         Ms = [np.asarray(d["J"], float) / 1000.0 for d in rc["bands"].values()]
         k = float(np.median([np.linalg.norm(M, 2) for M in Ms]))          # м снимка на м объекта
@@ -132,7 +131,12 @@ class Scene:
         self.B = {b: Band(rc["bands"][b], self.ng) for b in self.bands}
         smin = min(bd.sig_min for bd in self.B.values())
         lmax = lmax or max(0.2, 0.8 * smin / k)                            # пятно ≤ 0,8 σ ядра на снимке
-        c, S, g, wt = subdivide(spec["V"], spec["F"], spec["G"], lmax, W=closed_weight(spec["F"], spec["V"]))
+        G0 = np.asarray(spec["G"]) % self.ng
+        Gp = G0 if parts is None else G0 + self.ng * (np.asarray(parts) + 1)
+        c, S, g, wt = subdivide(spec["V"], spec["F"], Gp, lmax, W=closed_weight(spec["F"], spec["V"]))
+        part = g // self.ng - (0 if parts is None else 1); o = np.argsort(part, kind="stable")
+        c, S, g, wt, part = c[o], S[o], g[o], wt[o], part[o]
+        self.part = part; self.c_model = c; self.S_model = S * wt[:, None]
         M2B = np.asarray(spec["M2B"], float)
         self.c = torch.tensor(c @ M2B.T, dtype=torch.float32); self.S = torch.tensor((S * wt[:, None]) @ M2B.T, dtype=torch.float32)
         self.grp = torch.tensor(np.asarray(g) % self.ng)
@@ -151,14 +155,19 @@ class Scene:
         """Rfit (B, 3, 3): поворот модели → оси реконструкции в момент полосы; dpos (B, 3) — сдвиг, м объекта.
         shade: кроме заслонения фона (занятость групп) — освещённость Солнцем: по Ламберту cos(n·s)⁺ стороны грани,
         обращённой к Sentinel, и блик стекла панелей (n·h)^p, h — биссектриса Солнце/визир. → (occ, lit, spec)."""
+        cw = torch.einsum("bij,mj->bmi", Rfit, self.c); Sw = torch.einsum("bij,mj->bmi", Rfit, self.S)
+        return self.band_occ_cs(b, cw, Sw, dpos, shade)
+
+    def band_occ_cs(self, b, cw, Sw, dpos, shade=False):
+        """То же по уже повёрнутым центрам пятен cw (B, m, 3) и векторным площадям Sw (B, m, 3) — для моделей с
+        подвижными частями (крылья на приводах), где у частей свой поворот."""
         bd = self.B[b]
-        cw = torch.einsum("bij,mj->bmi", Rfit, self.c) + dpos[:, None, :]
-        P = bd.bt + torch.einsum("ij,bmj->bmi", bd.Mt, cw)
-        A = torch.abs(torch.einsum("bij,mj,i->bm", Rfit, self.S, bd.qt))     # вес 0,5/1 — в S
+        P = bd.bt + torch.einsum("ij,bmj->bmi", bd.Mt, cw + dpos[:, None, :])
+        A = torch.abs(torch.einsum("bmj,j->bm", Sw, bd.qt))                   # вес 0,5/1 — в S
         occ = bd.occupancy(P, A, self.grp)
         if not shade:
             return occ
-        Sw = torch.einsum("bij,mj->bmi", Rfit, self.S); n = Sw / torch.linalg.norm(Sw, dim=-1, keepdim=True).clamp_min(1e-9)
+        n = Sw / torch.linalg.norm(Sw, dim=-1, keepdim=True).clamp_min(1e-9)
         nl = (n * self.los_t).sum(-1); nv = n * torch.sign(nl)[..., None]          # сторона к камере
         cosi = torch.relu((nv * self.sun_t).sum(-1))
         spec = torch.relu((nv * self.half_t).sum(-1)) ** 60
@@ -166,19 +175,21 @@ class Scene:
         sp = bd.occupancy(P, A * spec * (self.grp == 0), self.grp).sum(1, keepdim=True)   # блик — панели (группа 0)
         return occ, lit, sp
 
-    def loss(self, Rfun, dpos, kappa=1.0, grey=True, bands=None, shade=False):
+    def loss(self, Rfun, dpos, kappa=1.0, grey=True, bands=None, shade=False, occfun=None):
         """Rfun(b) → (B,3,3). Серое тело (grey): яркости групп общие для полос (в долях медианы фона), иначе — свои.
-        shade: яркость объекта = Σ ρ_g · освещённость_g + блик (физически: Солнце, визир), а не свободная яркость групп."""
+        shade: яркость объекта = Σ ρ_g · освещённость_g + блик (физически: Солнце, визир), а не свободная яркость групп.
+        occfun(b, shade) — вместо Rfun: своя занятость (модель с подвижными частями)."""
         bands = bands or self.bands
         rows, ys = [], []
         L = 0.0
         for b in bands:
             bd = self.B[b]
+            res = occfun(b, shade) if occfun is not None else self.band_occ(b, Rfun(b), dpos, shade=shade)
             if shade:
-                occ, lit, sp = self.band_occ(b, Rfun(b), dpos, shade=True)
+                occ, lit, sp = res
                 cols = torch.cat([lit, sp], 1)
             else:
-                occ = self.band_occ(b, Rfun(b), dpos); cols = occ
+                occ = res; cols = occ
             A = cols.transpose(1, 2) * (bd.gm / bd.s if grey else 1.0 / bd.s)         # (B, n, k)
             y = (bd.r + bd.g * occ.sum(1)) / bd.s                                      # (B, n)
             if grey:

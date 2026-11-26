@@ -98,7 +98,8 @@ def check(name, orbs):
         th, P0, J, bs, res = f
         C, Cj, sig = covariance(J, bs, res)
         sd = np.sqrt(np.maximum(np.diag(C), np.diag(Cj))) * 1e3
-        fits[tag] = dict(theta_km=th.tolist(), sigma_m=sd.tolist(), sigma_ls_m=(np.sqrt(np.diag(C)) * 1e3).tolist(),
+        fits[tag] = dict(theta_km=th.tolist(), band_positions={b: [float(v) for v in P0[b][:2]] for b in P0},
+                         sigma_m=sd.tolist(), sigma_ls_m=(np.sqrt(np.diag(C)) * 1e3).tolist(),
                          sigma_jackknife_m=(np.sqrt(np.diag(Cj)) * 1e3).tolist(), spot_sigma_m=sig, bands=bs,
                          residual_m={b: [round(float(v), 1) for v in res[b]] for b in bs})
     if not fits:
