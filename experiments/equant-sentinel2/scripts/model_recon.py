@@ -27,7 +27,7 @@ from scipy.ndimage import map_coordinates
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 MESH = ROOT / "data/models/starlink-v2mini.obj"
-PSF = {10: 4.2, 20: 8.4}
+PSF = {10: 4.2, 20: 8.4, 60: 25.0}
 V_SCAN = 6600.0
 GROUPS = {"solar_cell": 0, "panel_back": 1}          # остальное — шина (2)
 FINE = 1.0

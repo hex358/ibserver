@@ -239,6 +239,9 @@ def parts_for(name, sun_b, norad=None):
     if au:
         law, x = au["law"], np.asarray(au["x"], float)
         note = f"поза автоматически: {au['chosen']}" + (" — НЕШТАТНАЯ" if au.get("anomalous") else "")
+        import os as _os
+        if _os.environ.get("ARRAYS_OVERRIDE") and law.get("arrays"):           # проверка: другой режим панелей при той же позе
+            law = dict(law, arrays=_os.environ["ARRAYS_OVERRIDE"]); note += f"; панели: {law['arrays']} (проверка)"
     else:
         law, x = spec["laws"][0], np.zeros(7)
         note = f"поза по первому закону класса ({law['name']}; автоматической реконструкции нет)"

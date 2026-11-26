@@ -17,7 +17,8 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-OUT = ROOT / "results" / "shape"
+import os as _os
+OUT = Path(_os.environ.get("SHAPE_OUT", str(ROOT / "results" / "shape")))
 NOMINAL = (12.8, 4.1, 4.1, 2.7)
 
 
@@ -33,8 +34,15 @@ def prep(paths):
             print(name, "есть"); continue
         P = PG.Pass(e, r, orbs)
         P.orb = PG.pick_orbit(orbs, e)
+        if os.environ.get("S2_ALL60"):                       # полосы 60 м (B01, B09) — лишние моменты съёмки
+            from s2sat import s2orbit as S2O
+            po = S2O.precise_for(r["item"], e["sent"], e["jd"])
+            P.regrid(po, all60=True)
         tgt = {b: tuple(v) for b, v in r["pos_best"].items()}
         th, P0, J, rms0 = PG.gauss_newton_theta(P, tgt, [r.get("dM", 0.0), 0.0, 0.0])
+        if os.environ.get("S2_ALL60"):                       # окна полос 60 м — по положениям из геометрии при θ
+            P0a = P.positions(th, None)
+            tgt = {**{b: tuple(v[:2]) for b, v in P0a.items() if b in ("coastal", "nir09")}, **tgt}
         W = PG.window_residuals(P, tgt)
         # положение пятна в каждой полосе по сырым остаткам (экстремум сглаженного |r|/σ в 250 м от pos_best)
         from scipy.ndimage import gaussian_filter

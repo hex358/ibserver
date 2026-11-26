@@ -70,7 +70,7 @@ class Pass:
                 self.DG.setdefault(b, []).extend(lst)
         self.bands = list(self.DG)
 
-    def regrid(self, sen=None):
+    def regrid(self, sen=None, all60=False):
         """Пересчитать углы полос в трёхмерной геометрии с орбитой sen (обычно GPS) — s2meta.alpha_3d."""
         if sen is not None:
             self.sen = sen
@@ -80,7 +80,7 @@ class Pass:
         for it in its:
             try:
                 gg = M.parse_grids(I.get_text(it.assets["granule_metadata"].href), psi, H, it.id, sen=self.sen,
-                                   epsg=I.epsg_of(it), jd0=self.e["jd"])
+                                   epsg=I.epsg_of(it), jd0=self.e["jd"], all60=all60)
             except Exception:
                 continue
             for b, lst in gg.items():
@@ -244,7 +244,7 @@ def window_residuals(P, pos, half_m=600.0, mask_m=60.0):
     out = {}
     for b, (px, py) in pos.items():
         res = float(M.BRES.get(b, 20))
-        if res > 20:
+        if res > 60:
             continue
         x0 = math.floor((px - half_m) / 20.0) * 20.0; y0 = math.floor((py - half_m) / 20.0) * 20.0
         bb = (x0, y0, x0 + 2 * half_m + 40.0, y0 + 2 * half_m + 40.0)

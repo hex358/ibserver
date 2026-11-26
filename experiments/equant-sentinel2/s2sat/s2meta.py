@@ -13,6 +13,11 @@ BID = {"blue": "1", "green": "2", "red": "3", "rededge1": "4", "rededge2": "5", 
        "nir": "7", "nir08": "8", "swir16": "11", "swir22": "12"}
 BRES = {"blue": 10, "green": 10, "red": 10, "nir": 10, "rededge1": 20, "rededge2": 20, "rededge3": 20,
         "nir08": 20, "swir16": 20, "swir22": 20}
+# полосы 60 м: B01 (443 нм) и B09 (945 нм) — в тех же данных L2A; детектор их не берёт, а восстановление формы и вращения —
+# берёт: каждая полоса снята в свой момент, это лишние точки во времени (THEORY §25)
+BID60 = {"coastal": "0", "nir09": "9"}
+BID_ALL = {**BID, **BID60}
+BRES.update({"coastal": 60, "nir09": 60})
 STEP = 5000.0  # шаг сетки углов, м
 
 
@@ -56,7 +61,7 @@ def alpha_3d(Zg, Ag, ulx, uly, epsg, sen, jd0):
     return out
 
 
-def parse_grids(xml_text: str, psi_rad: float, H_km: float, item_id: str = "", sen=None, epsg=None, jd0=None):
+def parse_grids(xml_text: str, psi_rad: float, H_km: float, item_id: str = "", sen=None, epsg=None, jd0=None, all60=False):
     """→ {band: [dict(det, g=α° (23×23), ulx, uly, item)]}.
 
     С sen/epsg/jd0 — α в трёхмерной геометрии (alpha_3d). Без них — прежнее приближение: надирный угол на спутнике
@@ -69,7 +74,7 @@ def parse_grids(xml_text: str, psi_rad: float, H_km: float, item_id: str = "", s
             ulx = float(g.find("ULX").text); uly = float(g.find("ULY").text)
     out = {}
     for grid in root.iter("Viewing_Incidence_Angles_Grids"):
-        names = [k for k, v in BID.items() if v == grid.get("bandId")]
+        names = [k for k, v in (BID_ALL if all60 else BID).items() if v == grid.get("bandId")]
         if not names:
             continue
 

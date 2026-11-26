@@ -55,5 +55,6 @@ for c in "RGB":
         rows[c] = dict(render_m2=round(pred[c], 1), measured_m2=round(obs[c], 1), ratio=round(ratio, 2), scale=round(scale, 3))
         print(f"  {c}: интегральный контраст — рендер {pred[c]:+8.1f} м², снимок {obs[c]:+8.1f} м², отношение {ratio:+.2f}; "
               f"поправка яркости объекта ×{rows[c]['scale']:.2f}")
-out = ROOT / "results/realistic" / f"photometry_{name}.json"
+import os as _os
+out = ROOT / "results/realistic" / (f"photometry_{name}.json" if not _os.environ.get("ARRAYS_OVERRIDE") else f"photometry_{name}_{_os.environ['ARRAYS_OVERRIDE']}.json")
 out.write_text(json.dumps(dict(name=name, note=note, background=earth.tolist(), channels=rows), ensure_ascii=False, indent=1))
