@@ -1,0 +1,205 @@
+{
+ "name": "STARLINK-36113_20261120T221033",
+ "object": "STARLINK-36113",
+ "norad": 66982,
+ "jd": 2461365.423975693,
+ "sentinel": "SENTINEL-2C",
+ "image": "S2C_T01KCB_20261120T220915_L2A",
+ "detection_tle": {
+  "line1": "1 66982C 25288Z   26324.89423611 -.00008606  00000+0 -31171-3 0  3246",
+  "line2": "2 66982  43.0024  16.1783 0001524 269.7430 131.0213 15.27582840    19",
+  "age_days": 0.03
+ },
+ "bands_used": 8,
+ "sentinel_orbit": "TLE",
+ "fits": {
+  "tle": {
+   "theta_km": [
+    0.34727413449910877,
+    0.454821868332792,
+    0.6745307222607648
+   ],
+   "sigma_m": [
+    204.04227915647073,
+    173.97531599736115,
+    1743.9336315342887
+   ],
+   "sigma_ls_m": [
+    204.04227915647073,
+    173.97531599736115,
+    1743.9336315342887
+   ],
+   "sigma_jackknife_m": [
+    14.214216174847031,
+    12.1878120904767,
+    122.88667569537859
+   ],
+   "spot_sigma_m": 156.57717877405602,
+   "bands": [
+    "green",
+    "red",
+    "rededge1",
+    "rededge2",
+    "rededge3",
+    "nir",
+    "swir16",
+    "swir22"
+   ],
+   "residual_m": {
+    "green": [
+     251.7,
+     -26.8
+    ],
+    "red": [
+     135.6,
+     -12.9
+    ],
+    "rededge1": [
+     27.6,
+     -1.8
+    ],
+    "rededge2": [
+     -39.5,
+     -9.1
+    ],
+    "rededge3": [
+     -160.5,
+     25.9
+    ],
+    "nir": [
+     307.7,
+     -23.4
+    ],
+    "swir16": [
+     -27.3,
+     5.0
+    ],
+    "swir22": [
+     -289.6,
+     76.1
+    ]
+   }
+  }
+ },
+ "position_ecef_km": [
+  -6577.8322030723675,
+  -222.73277361786995,
+  -1945.2675201662084
+ ],
+ "sigma_m": [
+  204.04227915647073,
+  173.97531599736115,
+  1743.9336315342887
+ ],
+ "note": "положение фотоцентра (пятна) на момент jd; радиус по одному ракурсу — с априорным условием 1,9 км",
+ "celestrak": [
+  {
+   "source": "GP",
+   "epoch_age_days": -2.251,
+   "when": "после снимка",
+   "d_along_km": 15.454,
+   "d_cross_km": 0.584,
+   "d_radial_km": -0.782,
+   "d_time_s": 2.127
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": -1.467,
+   "when": "после снимка",
+   "d_along_km": 5.121,
+   "d_cross_km": -0.102,
+   "d_radial_km": -0.537,
+   "d_time_s": 0.705
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": -0.486,
+   "when": "после снимка",
+   "d_along_km": -2.715,
+   "d_cross_km": -0.397,
+   "d_radial_km": -0.492,
+   "d_time_s": -0.374
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": 0.495,
+   "when": "до снимка",
+   "d_along_km": 2.782,
+   "d_cross_km": -0.419,
+   "d_radial_km": -0.461,
+   "d_time_s": 0.383
+  },
+  {
+   "source": "GP",
+   "epoch_age_days": 1.672,
+   "when": "до снимка",
+   "d_along_km": 20.373,
+   "d_cross_km": 0.185,
+   "d_radial_km": -0.313,
+   "d_time_s": 2.805
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -2.933,
+   "when": "после снимка",
+   "d_along_km": -45.307,
+   "d_cross_km": -1.806,
+   "d_radial_km": -1.346,
+   "d_time_s": -6.237
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -2.349,
+   "when": "после снимка",
+   "d_along_km": -127.249,
+   "d_cross_km": -5.156,
+   "d_radial_km": -2.697,
+   "d_time_s": -17.517
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -2.113,
+   "when": "после снимка",
+   "d_along_km": 106.829,
+   "d_cross_km": 4.452,
+   "d_radial_km": -1.047,
+   "d_time_s": 14.706
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -1.874,
+   "when": "после снимка",
+   "d_along_km": -38.325,
+   "d_cross_km": -1.68,
+   "d_radial_km": -1.14,
+   "d_time_s": -5.276
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": -1.012,
+   "when": "после снимка",
+   "d_along_km": 13.118,
+   "d_cross_km": 0.298,
+   "d_radial_km": -0.559,
+   "d_time_s": 1.806
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": 0.03,
+   "when": "до снимка",
+   "d_along_km": -0.348,
+   "d_cross_km": -0.455,
+   "d_radial_km": -0.675,
+   "d_time_s": -0.048
+  },
+  {
+   "source": "SupGP",
+   "epoch_age_days": 0.944,
+   "when": "до снимка",
+   "d_along_km": 5.457,
+   "d_cross_km": -0.375,
+   "d_radial_km": -0.622,
+   "d_time_s": 0.751
+  }
+ ]
+}
