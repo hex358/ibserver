@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 import model_recon as MR
 from s2sat import modelcat as MC, scenegeom as SG
-from s2sat.diffpose import DiffPose, DiffSpinPose, DiffSpinCoM, solve_spin
+from s2sat.diffpose import DiffPose, DiffSpinPose, DiffSpinCoM, solve_spin, cv_decision
 
 ap = argparse.ArgumentParser(); ap.add_argument("name"); ap.add_argument("--nongrey", action="store_true"); ap.add_argument("--shade", action="store_true")
 ap.add_argument("--n-rot", type=int, default=1500); ap.add_argument("--threads", type=int, default=2)
@@ -111,12 +111,12 @@ if dL > thr and identifiable:
         d_ = float(Sf.L(rr["x_static"], bands=c, prior=False)[0]) - float(Wf.L(rr["x"], bands=c, prior=False)[0])
         cv.append(("+".join(c), d_, math.degrees(np.linalg.norm(rr["x"][-3:]))))
         print(f"   отложено {'+'.join(c):24s}: вращение по остальным {cv[-1][2]:6.1f} °/с, предсказание лучше статики на {d_:+.0f}", flush=True)
-dcv = sum(d for _, d, _ in cv); nb = sum(d > 0 for _, d, _ in cv); thr_cv = 2 * kap * max(1, len(cv))
-cons = bool(cv) and bool(dcv > thr_cv and nb >= math.ceil(2 * len(cv) / 3))
+cons, dcv, thr_cv, nb, ninf = cv_decision([d for _, d, _ in cv], kap)
 if cv:
-    print(f"   отложенные моменты: в сумме {dcv:+.0f} (порог {thr_cv:.0f}), лучше в {nb} из {len(cv)} → {'вращение ПОДТВЕРЖДЕНО' if cons else 'вращение НЕ подтверждено'}", flush=True)
+    print(f"   отложенные моменты: в сумме {dcv:+.0f} (порог {thr_cv:.0f}), лучше в {nb} из {ninf} информативных (всего {len(cv)}) → "
+          f"{'вращение ПОДТВЕРЖДЕНО' if cons else 'вращение НЕ подтверждено'}", flush=True)
 out["cv"] = dict(per_cluster={k: d for k, d, _ in cv}, rate_per_fold={k: r_ for k, _, r_ in cv}, total=dcv, threshold=thr_cv,
-                 n_better=nb, confirmed=cons, n_clusters=len(CL))
+                 n_better=nb, n_informative=ninf, confirmed=cons, n_clusters=len(CL))
 if not identifiable:
     spinning, verdict = False, f"вращение по пролёту не определяется: {len(CL)} момент(а) съёмки (нужно ≥ 3)"
 elif dL <= thr:
