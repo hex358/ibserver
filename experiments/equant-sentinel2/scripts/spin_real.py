@@ -4,8 +4,8 @@
 Несоответствие модели снимку (спектр, ядро, опоры полос) «вращение» может изображать: каждая полоса снята в свой
 момент, и поворот подстраивается под особенности полосы. Поэтому вращение признаётся, только если:
   1) выигрыш над лучшей статической позой больше порога (BIC: κ·3·ln N);
-  2) вращение, найденное НЕЗАВИСИМО по двум непересекающимся наборам полос (чередуя по времени), одно и то же
-     (скорость ±25 %, ось ±30° с учётом зеркального двойника); наборов нет — «не проверено».
+  2) вращение предсказывает ОТЛОЖЕННЫЕ полосы лучше статики (каждая полоса по очереди: подгонка по остальным,
+     предсказание отложенной; сумма > 2κ на полосу и лучше в ≥ 2/3 полос).
 Пишет results/spin_real/<имя>.json.
 """
 import argparse, json, math, pickle, sys, time
@@ -67,37 +67,26 @@ thr = kap * 3 * math.log(Wf.npix); dL = r["L_static"] - r["L"]
 print(f"   все полосы: {rate:.1f} °/с, ось {np.round(ax, 2).tolist()}; выигрыш над статикой {dL:.0f} (порог {thr:.0f}); "
       f"зеркальный двойник хуже на {r['mirror_dL']:.0f}", flush=True)
 out["all"] = dict(rate=rate, axis=ax.tolist(), dL=dL, thr=thr, mirror_dL=r["mirror_dL"], p_direction=r["p_direction"])
-# два НЕЗАВИСИМЫХ (непересекающихся) набора полос, чередуя полосы по времени съёмки: каждый покрывает почти всю
-# базу времени и сам по себе измеряет ω; сравниваются наборы между собой (часть с целым — не проверка)
-bt_ = sorted(Wf.sc.bands, key=lambda b: Wf.sc.t[b])
-sub = {"набор A": bt_[0::2], "набор B": bt_[1::2]} if len(bt_) >= 4 else {}
-res_sub = {}
-for k, bs in sub.items():
-    if len(bs) >= 2 and np.ptp([Wf.sc.t[b] for b in bs]) >= 0.3:     # набор сам должен покрывать базу времени
-        rs = solve_spin(Wf, Wc, Sf, Sc, bands=bs, n_rot=a.n_rot, kap=kap); rk, axk = summ(rs)
-        res_sub[k] = (rk, axk, rs["L_static"] - rs["L"])
-        print(f"   полосы {k} {bs}: {rk:.1f} °/с, ось {np.round(axk, 2).tolist()}, выигрыш {rs['L_static'] - rs['L']:.0f}", flush=True)
-        out[k] = dict(bands=bs, rate=rk, axis=axk.tolist(), dL=rs["L_static"] - rs["L"])
-# согласованность независимых наборов A и B между собой: скорость ±25 %, ось ±30° (с учётом зеркального двойника —
-# по силуэту он неотличим)
-cons = None
-l_ = Wf.sc.C.numpy().T @ Wf.sc.los_t.numpy(); l_ /= np.linalg.norm(l_)
-if len(res_sub) == 2:
-    (r1, a1, _), (r2, a2, _) = res_sub.values()
-    a2m = -(a2 - 2 * (a2 @ l_) * l_)
-    ang = min(math.degrees(math.acos(float(np.clip(a1 @ a2, -1, 1)))), math.degrees(math.acos(float(np.clip(a1 @ a2m, -1, 1)))))
-    rel = abs(r1 - r2) / max(r1, r2, 1e-9); cons = bool(ang <= 30.0 and rel <= 0.25)
-    print(f"   согласованность независимых наборов A / B: {r1:.1f} / {r2:.1f} °/с (разница {rel * 100:.0f}%), оси расходятся на {ang:.0f}° → "
-          f"{'СОГЛАСОВАНЫ' if cons else 'НЕ согласованы'}", flush=True)
-    out["consistency"] = dict(axis_angle_deg=ang, rate_rel=rel, consistent=cons)
+# проверка предсказанием отложенной полосы: по очереди каждая полоса откладывается, вращение и статика дожимаются
+# (от найденных решений) по остальным, и обе модели предсказывают отложенную полосу (яркости — по ней самой, свобода
+# одинаковая). Настоящее вращение предсказывает форму отложенной полосы лучше статики; «вращение», подогнанное под
+# особенности полос, — нет (её оно не видело)
+cv = []
+for b in sorted(Wf.sc.bands, key=lambda q: Wf.sc.t[q]):
+    tr = [c for c in Wf.sc.bands if c != b]
+    xs_tr, _ = Sf.polish(r["x_static"], iters=60, bands=tr); xw_tr, _ = Wf.polish(r["x"], iters=60, bands=tr)
+    d_ = float(Sf.L(xs_tr, bands=[b], prior=False)[0]) - float(Wf.L(xw_tr, bands=[b], prior=False)[0])
+    cv.append((b, d_)); print(f"   отложена {b:9s}: предсказание вращением лучше статики на {d_:+.0f}", flush=True)
+dcv = sum(d for _, d in cv); nb = sum(d > 0 for _, d in cv); thr_cv = 2 * kap * len(cv)
+cons = bool(dcv > thr_cv and nb >= math.ceil(2 * len(cv) / 3))
+print(f"   отложенные полосы: в сумме {dcv:+.0f} (порог {thr_cv:.0f}), лучше в {nb} из {len(cv)} → {'вращение ПОДТВЕРЖДЕНО' if cons else 'вращение НЕ подтверждено'}", flush=True)
+out["cv"] = dict(per_band={b: d for b, d in cv}, total=dcv, threshold=thr_cv, n_better=nb, confirmed=cons)
 if dL <= thr:
     spinning, verdict = False, "НЕ вращается (вращение не улучшает снимок)"
-elif cons is None:
-    spinning, verdict = None, "НЕ ПРОВЕРЕНО: вращение улучшает снимок, но независимых наборов полос для проверки нет"
 elif cons:
-    spinning, verdict = True, "ВРАЩАЕТСЯ (независимые наборы полос согласованы)"
+    spinning, verdict = True, "ВРАЩАЕТСЯ (вращение предсказывает отложенные полосы)"
 else:
-    spinning, verdict = False, "НЕ вращается: «вращение» подстраивается под полосы (независимые наборы не согласованы)"
+    spinning, verdict = False, "НЕ вращается: «вращение» подстраивается под полосы и не предсказывает отложенные"
 print(f"   ИТОГ: {verdict}" + (f": {rate:.1f} °/с, ось {np.round(ax, 2).tolist()}" if spinning else ""), flush=True)
 if truth:
     ang_t = math.degrees(math.acos(float(np.clip(ax @ truth[1], -1, 1))))
