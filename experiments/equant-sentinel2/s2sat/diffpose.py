@@ -529,6 +529,88 @@ class DiffSpinCoM(DiffSpinPose):
         cov = kap * np.linalg.inv(H); return np.sqrt(np.diag(cov)), E, cov
 
 
+class DiffTumble(DiffSpinPose):
+    """Кувыркание без внешних моментов (уравнения Эйлера) — ТЕНЗОР ИНЕРЦИИ по фото. Равномерное вращение — частный
+    случай (ω вдоль главной оси или все моменты равны); при вращении не вокруг главной оси ω в теле прецессирует, и
+    поворот за пролёт отходит от равномерного — по пикселям видно отношения моментов и главные оси, без модели масс.
+    x = [R₀ 3, приводы, сдвиг 2, ω₀ 3 (рад/с, орбит. оси, в t₀), q 3 (главные оси в осях модели, вектор поворота),
+         λ 2 (ln I₁/I₃, ln I₂/I₃)].
+    Интегрирование: ω̇_p = I⁻¹((I ω_p) × ω_p), Ȧ = A [ω_p]× (A — главные оси → орбитальные), РК4 по ω, поворот за шаг —
+    экспонента от ω в середине шага; Rt(t) = A(t)·A(t₀)ᵀ. Шаг ≤ 0,02 с (ω·dt ≤ 4° при 200 °/с)."""
+
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        self.P += 5
+        self.scale = torch.cat([self.scale, torch.tensor([0.3, 0.3, 0.3, 0.2, 0.2])])
+        self.dt_max = 0.02
+
+    def _split(self, x):
+        return x[:, :-11], x[:, -11:-8], x[:, -8:-5], x[:, -5:-2], x[:, -2:]
+
+    def from_spin(self, xw, q=(0.0, 0.0, 0.0), lam=(0.0, 0.0)):
+        """Равномерное вращение xw → x кувыркания (q — главные оси, λ — логарифмы отношений)."""
+        return np.r_[np.asarray(xw, float), np.asarray(q, float), np.asarray(lam, float)]
+
+    def _Rt_all(self, xs, w0, q, lam, times):
+        """Повороты за время t − t₀ для списка моментов (орбитальные оси) → dict t → (B, 3, 3)."""
+        B = xs.shape[0]; Rb = rotvec_to_mat(xs[:, 0:3]) @ self.Rbase @ self.M2B
+        A0 = Rb @ rotvec_to_mat(q); Iv = torch.cat([torch.exp(lam), torch.ones(B, 1, dtype=xs.dtype)], 1)   # I₁, I₂, I₃ = 1
+        wp0 = torch.einsum("bji,bj->bi", A0, w0)
+
+        def f(w):
+            return torch.cross(Iv * w, w, dim=1) / Iv
+        out = {}
+        for sgn in (1.0, -1.0):
+            ts = sorted([t for t in times if (t - self.t0) * sgn > 0], key=lambda t: abs(t - self.t0))
+            A, w, tc = A0, wp0, self.t0
+            for t in ts:
+                T = abs(t - tc); nst = max(1, int(math.ceil(T / self.dt_max))); h = sgn * T / nst
+                for _ in range(nst):
+                    k1 = f(w); k2 = f(w + 0.5 * h * k1); k3 = f(w + 0.5 * h * k2); k4 = f(w + h * k3)
+                    wn = w + h * (k1 + 2 * k2 + 2 * k3 + k4) / 6.0
+                    A = A @ rotvec_to_mat(0.5 * (w + wn) * h); w = wn
+                tc = t; out[t] = A @ A0.transpose(1, 2)
+        for t in times:
+            if t not in out:
+                out[t] = torch.eye(3, dtype=xs.dtype).expand(B, 3, 3)
+        return out
+
+    def loss(self, x, bands=None, prior=True, shade=None):
+        shade = self.shade if shade is None else shade
+        xs, w0, q, lam = x[:, :-8], x[:, -8:-5], x[:, -5:-2], x[:, -2:]; dp = self.dpos(x)
+        bl = bands or self.sc.bands; Rts = self._Rt_all(xs, w0, q, lam, sorted({self.sc.t[b] for b in bl}))
+
+        def occ(b, sh):
+            cw, Sw = self.spots(xs, Rts[self.sc.t[b]])
+            return self.sc.band_occ_cs(b, cw, Sw, dp, sh)
+        L = self.sc.loss(None, dp, self.kappa, grey=self.grey, bands=bands, shade=shade, occfun=occ)
+        if prior:
+            L = L + (xs[:, -2] ** 2 + xs[:, -1] ** 2) / AP.SIG_POS ** 2 + (lam ** 2).sum(1) / 3.0 ** 2
+        return L
+
+    def dpos(self, x):
+        xs = x[:, :-8] if x.shape[1] == self.P else x
+        return torch.cat([xs[:, -2:], torch.zeros(x.shape[0], 1, dtype=x.dtype)], 1)
+
+    def columns(self, x, b, shade=None):
+        shade = self.shade if shade is None else shade
+        with torch.no_grad():
+            xt = torch.tensor(np.atleast_2d(x), dtype=torch.float32)
+            xs, w0, q, lam = xt[:, :-8], xt[:, -8:-5], xt[:, -5:-2], xt[:, -2:]
+            Rt = self._Rt_all(xs, w0, q, lam, [self.sc.t[b]])[self.sc.t[b]]
+            cw, Sw = self.spots(xs, Rt); res = self.sc.band_occ_cs(b, cw, Sw, self.dpos(xt), shade)
+        if shade:
+            occ, lit, sp = res; cols = torch.cat([lit, sp], 1)
+        else:
+            occ = res; cols = occ
+        return occ[0].numpy(), cols[0].numpy()
+
+    def inertia_model(self, x):
+        """→ (моменты I₁:I₂:I₃ с I₃ = 1, главные оси столбцами в осях модели)."""
+        q = np.asarray(x[-5:-2], float); lam = np.asarray(x[-2:], float)
+        return np.r_[np.exp(lam), 1.0], AP.rotvec(q)
+
+
 def anchor_to_geometry(rc, orbit_json):
     """Опоры полос — геометрические положения по точной орбите Sentinel (scripts/orbit_check.py: gps3d / gps) вместо
     ярких пиков в каждой полосе. → описание (или None, если орбиты нет)."""
