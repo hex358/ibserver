@@ -389,6 +389,18 @@ class DiffSpinPose(DiffPose):
                             out.append(np.r_[Ro.from_matrix(R0).as_rotvec(), base[3:3 + self.nd], base[3 + self.nd:3 + self.nd + 2], w])
         return out
 
+    def mirror_twins(self, x):
+        """Зеркальный двойник движения (ортогональная проекция: снимок не различает отражение относительно плоскости ⊥
+        визиру): R(t) = exp([ω]× t)·R₀ → M·R(t)·D_k = exp([−Mω]× t)·(M R₀ D_k), M = I − 2llᵀ, D_k — отражение оси тела k.
+        Скорость та же, составляющая ω вдоль визира та же, в плоскости снимка — обратная. Различает их только свет."""
+        from scipy.spatial.transform import Rotation as Ro
+        l = self.sc.C.numpy().T @ self.sc.los_t.numpy(); l = l / np.linalg.norm(l); M = np.eye(3) - 2 * np.outer(l, l)
+        R0 = self.R_of(x); w = np.asarray(x[-3:], float); out = []
+        for k in range(3):
+            D = np.eye(3); D[k, k] = -1.0
+            out.append(np.r_[Ro.from_matrix(M @ R0 @ D).as_rotvec(), -np.asarray(x[3:3 + self.nd]), np.asarray(x[3 + self.nd:-3]), -M @ w])
+        return out
+
     def static_x(self, xs):
         return np.r_[xs, 0.0, 0.0, 0.0]
 

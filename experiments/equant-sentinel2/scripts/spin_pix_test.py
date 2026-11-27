@@ -39,7 +39,11 @@ log(f"   подгруппы ≤ 0,2 с: {[c for c in Wf.clusters(0.2)]}"); log(f
 # яркость подставного объекта — как у НАСТОЯЩЕГО: из подгонки с подогнанными опорами полос (results/pose_pix_off);
 # без сдвигов опор модель почти не объясняет объект, и подставной выходил в ~20 раз слабее настоящего
 pp = json.loads((ROOT / "results/pose_pix_off" / f"{n}.json").read_text()); xo = np.asarray(pp["x"], float); kap = float(pp["kappa"])
-Do = DiffPose(rc, spec, C, band_off=25.0); _, rho = Do.predict(xo, Do.sc.bands, Do.sc.bands[:1])
+Do = DiffPose(rc, spec, C, band_off=25.0, shade=a.shade); _, rho = Do.predict(xo, Do.sc.bands, Do.sc.bands[:1])
+if a.shade:      # с освещением — физические классы материалов (в долях яркости фона): ячейки, светлое, тёмное, блик стекла;
+    # подгонка блика по настоящему снимку при позе без освещения неустойчива (давала коэффициент ~10⁵)
+    rho = np.r_[np.array([0.05, 0.6, 0.3])[:Do.sc.ng], 2.0]
+log(f"   яркости подставного ({'освещение Солнцем + блик' if a.shade else 'силуэт'}): {np.round(rho, 3).tolist()}")
 xs0 = xo[:Do.o0]
 print(f"   объект на снимке: невязка без объекта {pp['null']:.0f} → в позе {pp['L']:.0f} (сигнал {pp['null'] - pp['L']:.0f})", flush=True)
 rows = []
@@ -76,34 +80,46 @@ for rate in [float(v) for v in a.rates.split(",")]:
     #    (конус до 20°); невязка пакетом → лучшие точки → градиент. Дальняя база (≈2 с) даёт узкие ямы по ω (~5 °/с),
     #    ближняя — широкое априорное окно; сетка закрывает его целиком.
     w0 = xe[-3:]; r0 = float(np.linalg.norm(w0)); n0 = w0 / max(r0, 1e-9)
-    e1 = np.cross(n0, [0.0, 0, 1]); e1 = e1 / (np.linalg.norm(e1) + 1e-12) if np.linalg.norm(e1) > 1e-6 else np.array([1.0, 0, 0])
-    e2 = np.cross(n0, e1); W = []
-    for cone in (0.0, 7.0, 14.0, 20.0):
-        for ph in (np.arange(0, 360, 45) if cone else [0.0]):
-            c, s_ = math.cos(math.radians(cone)), math.sin(math.radians(cone))
-            nn = c * n0 + s_ * (math.cos(math.radians(ph)) * e1 + math.sin(math.radians(ph)) * e2)
-            for m in np.arange(0.5, 1.61, 0.02):
-                W.append(nn * r0 * m)
-    # позы в t₀: найденная и все статические минимумы ближайшей к t₀ подгруппы (их снимок допускает), сдвинутые на t₀
+    # ось — по всей сфере (Фибоначчи, 200 направлений + найденная), величина ×0,80…1,25: дальняя база фиксирует |ω|
+    # точнее, чем направление; ограничение конусом 20° держало ось на краю конуса
+    kf = np.arange(200) + 0.5; zf = 1 - 2 * kf / 200; phf = math.pi * (1 + 5 ** 0.5) * kf
+    dirs = np.c_[np.sqrt(1 - zf ** 2) * np.cos(phf), np.sqrt(1 - zf ** 2) * np.sin(phf), zf]; dirs = np.vstack([n0, dirs])
+    W = [d_ * r0 * m for d_ in dirs for m in np.arange(0.80, 1.26, 0.03)]
+    # позы в t₀: найденная и её двойники тела (поворот на 180° вокруг каждой оси тела при той же ω: у почти
+    # симметричного тела силуэт тот же, а истина могла оказаться именно двойником), с углами крыльев как есть и +180°;
+    # плюс статические минимумы ближайшей к t₀ подгруппы
     from scipy.spatial.transform import Rotation as Ro
-    bases = [(Wf.R_of(xe), xe[3:-3])] + [(Wf.R_of(m), m[3:]) for m in gm[ib][:4]]
+    Rh = Wf.R_of(xe); dr_ = xe[3:3 + Wf.nd]; rest_ = xe[3 + Wf.nd:-3]
+    bases = []
+    for k_ in (None, 0, 1, 2):
+        Rk = Rh if k_ is None else Rh @ AP.rot_axis(np.eye(3)[k_], math.pi)
+        for dd_ in (dr_, dr_ + math.pi):
+            bases.append((Rk, np.r_[dd_, rest_], False))
+    bases += [(Wf.R_of(m), m[3:], True) for m in gm[ib][:4]]
     dtc = ct[ib] - Wf.t0; Xw = []
-    for Rb_, rest in bases:
+    for Rb_, rest, shift in bases:
         for w in W:
-            R0 = AP.rotvec(-np.asarray(w) * dtc) @ Rb_ if Rb_ is not bases[0][0] else Rb_
+            R0 = AP.rotvec(-np.asarray(w) * dtc) @ Rb_ if shift else Rb_
             Xw.append(np.r_[Ro.from_matrix(R0).as_rotvec(), rest, w])
     Xw = np.array(Xw); Lw = np.concatenate([Wc.L(Xw[i:i + 256]) for i in range(0, len(Xw), 256)])
-    ow = np.argsort(Lw)[:8]
+    ow = np.argsort(Lw)[:12]
     xw, Lw2 = Wf.fit(Xw[ow], iters=60, lr=0.01)
     res2 = sorted([Wf.polish(xw[k]) for k in np.argsort(Lw2)[:3]] + [(xe, Le)], key=lambda q: q[1])
     xe, Le = res2[0]
+    # 5. зеркальный двойник (направление): дожать все три варианта отражения, сравнить с лучшим
+    tw = sorted([Wf.polish(t) for t in Wf.mirror_twins(xe)], key=lambda q: q[1]); xm, Lm = tw[0]
+    if Lm < Le:
+        (xe, Le), (xm, Lm) = (xm, Lm), (xe, Le)
+    ang_m = math.degrees(math.acos(float(np.clip(xe[-3:] @ xm[-3:] / (np.linalg.norm(xe[-3:]) * np.linalg.norm(xm[-3:]) + 1e-12), -1, 1))))
+    p_dir = 1.0 / (1.0 + math.exp(-0.5 * (Lm - Le) / kap))
+    log(f"   направление: зеркальный двойник хуже на {Lm - Le:.0f} (ось отличается на {ang_m:.0f}°) → вероятность найденного направления {p_dir:.3f}")
     xt_p, Lt_p = Wf.polish(xt)
     re = math.degrees(np.linalg.norm(xe[-3:])); fam = [round(math.degrees(np.linalg.norm(x[-3:])), 1) for x, L in res2 if L - Le < 2 * kap * 3]
-    axe = math.degrees(math.acos(min(1.0, abs(float(xe[-3:] @ w) / (np.linalg.norm(xe[-3:]) * np.linalg.norm(w) + 1e-12))))) if rate > 0 else float("nan")
-    r_ = dict(rate_true=rate, rate_found=re, axis_err_deg=axe, family=fam, L_found=Le, L_truth=Lt_p, n_cand=len(cand),
+    axe = math.degrees(math.acos(float(np.clip(float(xe[-3:] @ w) / (np.linalg.norm(xe[-3:]) * np.linalg.norm(w) + 1e-12), -1, 1)))) if rate > 0 else float("nan")   # со знаком: обратное вращение — 180°
+    r_ = dict(rate_true=rate, rate_found=re, axis_err_deg=axe, mirror_dL=Lm - Le, mirror_axis_deg=ang_m, p_direction=p_dir, family=fam, L_found=Le, L_truth=Lt_p, n_cand=len(cand),
               pose_err_deg=rot_angle(Wf.R_of(xe), Wf.R_of(xt)), seconds=time.time() - t_)
     rows.append(r_)
-    log(f"   истина {rate:.0f} °/с → найдено {re:.1f} °/с, ось ±{axe:.0f}°, поза в t₀ ±{r_['pose_err_deg']:.0f}°; семейство {fam}; "
+    log(f"   истина {rate:.0f} °/с → найдено {re:.1f} °/с, ось (со знаком) {axe:.0f}°, поза в t₀ ±{r_['pose_err_deg']:.0f}°; семейство {fam}; "
         f"невязка найдено {Le:.0f} / истина {Lt_p:.0f}; кандидатов {len(cand)}; {r_['seconds']:.0f} с")
     Wf.restore(orig)
     for D in (Sf, Sc, Wc):
