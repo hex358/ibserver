@@ -112,8 +112,8 @@ if not a.shade and dL > thr:
     xl = pl[0][0] if L0l <= Ltw else pl[it][0]; axl = xl[-3:] / max(np.linalg.norm(xl[-3:]), 1e-12)
     dl_ok = abs(Ltw - L0l) > 2 * kap * 3
     print(f"   направление по свету: {'найденное' if L0l <= Ltw else 'двойник'} лучше на {abs(Ltw - L0l):.0f} (порог {2 * kap * 3:.0f}) → "
-          f"{'определено' if dl_ok else 'не различимо'}; ось {np.round(axl, 2).tolist()}", flush=True)
-    out["light"] = dict(axis=axl.tolist(), dL=float(Ltw - L0l), resolved=bool(dl_ok))
+          f"{'определено' if dl_ok else 'не различимо'}; ось {np.round(axl, 2).tolist()}, скорость {math.degrees(np.linalg.norm(xl[-3:])):.1f} °/с", flush=True)
+    out["light"] = dict(axis=axl.tolist(), rate=math.degrees(float(np.linalg.norm(xl[-3:]))), dL=float(Ltw - L0l), resolved=bool(dl_ok))
 # проверка предсказанием отложенного МОМЕНТА съёмки: по очереди откладывается целая подгруппа полос (снятых в пределах
 # 0,2 с — у них одна поза), и вращение ищется ЗАНОВО по остальным подгруппам (тот же решатель, без единого параметра,
 # подогнанного по отложенной); статика — так же. Обе модели предсказывают отложенную подгруппу (яркости — по ней самой,
