@@ -35,6 +35,10 @@ def main():
     spec = MC.spec_for(int(rc["cat"]), n); C = np.asarray(au["C_lvlh_to_fit"]); law, x = au["law"], np.asarray(au["x"], float)
     P = AP.Problem(rc, spec, C); Vfit = P.body(law, x)
     chans = [(b, t) for b, t in CH if b in rc["bands"]]
+    if not chans:                                  # объект виден только в других полосах (граница детекторов и т. п.)
+        _bid = {"coastal": "B01", "rededge1": "B05", "rededge2": "B06", "rededge3": "B07", "nir": "B08", "nir08": "B8A",
+                "nir09": "B09", "swir16": "B11", "swir22": "B12"}
+        chans = [(b, f"{b} ({_bid.get(b, b)})") for b in sorted(rc["bands"], key=lambda q: rc["bands"][q]["jd"])][:3]
     jd0 = float(np.median([rc["bands"][b]["jd"] for b in rc["bands"]]))
 
     # предсказание модели по каналам
@@ -69,7 +73,7 @@ def main():
                                                                       "объект в каждом — в своём месте", fontsize=10)
     for b, lab in chans:
         cx = 0.5 * (pan[b]["ext"][0] + pan[b]["ext"][1]); cy = 0.5 * (pan[b]["ext"][2] + pan[b]["ext"][3])
-        colr = {"red": "#ff3030", "green": "#30ff30", "blue": "#4060ff"}[b]
+        colr = {"red": "#ff3030", "green": "#30ff30", "blue": "#4060ff"}.get(b, "#ffd000")
         ax.add_patch(plt.Circle((cx, cy), 260, fill=False, color=colr, lw=1.6))
         ax.text(cx - 300, cy + 330, f"{lab[0]}  {pan[b]['dt']:+.2f} с", color=colr, fontsize=10, weight="bold", ha="right")
     ax.set_xticks([]); ax.set_yticks([])

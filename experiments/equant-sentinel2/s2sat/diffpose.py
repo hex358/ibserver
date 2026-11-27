@@ -148,7 +148,10 @@ class DiffPose:
 
     def grid(self, n_rot=3000, step_deg=60.0):
         D = np.radians(np.arange(0.0, 180.0, step_deg))
-        Dd = np.array(list(itertools.product(D, repeat=self.nd))) if self.nd else np.zeros((1, 0))
+        if self.nd and len(D) ** self.nd > 27:              # много приводов (МКС): 9 случайных наборов углов на поворот
+            Dd = np.random.default_rng(1).uniform(0, math.pi, (9, self.nd))
+        else:
+            Dd = np.array(list(itertools.product(D, repeat=self.nd))) if self.nd else np.zeros((1, 0))
         R = so3_grid(n_rot)
         return np.c_[np.repeat(R, len(Dd), 0), np.tile(Dd, (len(R), 1)), np.zeros((len(R) * len(Dd), self.P - 3 - self.nd))]
 

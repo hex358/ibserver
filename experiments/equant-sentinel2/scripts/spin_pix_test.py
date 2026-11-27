@@ -53,7 +53,9 @@ for rate in [float(v) for v in a.rates.split(",")]:
         gm.append([m["x"] for m in md])
     cand = Wf.candidates(gm, gt) + [Wf.static_x(m) for m in gm[big][:4]]     # 2. кандидаты ω (+ «не вращается»)
     xc, Lc = Wc.fit(np.array(cand), iters=120)                     # 3. градиент по всем параметрам, все полосы
-    o = np.argsort(Lc)[:6]; res = sorted([Wf.polish(xc[k]) for k in o], key=lambda q: q[1])
+    o = np.argsort(Lc)[:12]
+    xf, Lf = Wf.fit(xc[o], iters=60, lr=0.01)                       # дожим на точной модели (Adam), затем L-BFGS
+    res = sorted([Wf.polish(xf[k]) for k in np.argsort(Lf)[:4]], key=lambda q: q[1])
     xe, Le = res[0]; xt_p, Lt_p = Wf.polish(xt)
     re = math.degrees(np.linalg.norm(xe[-3:])); fam = [round(math.degrees(np.linalg.norm(x[-3:])), 1) for x, L in res if L - Le < 2 * kap * 3]
     axe = math.degrees(math.acos(min(1.0, abs(float(xe[-3:] @ w) / (np.linalg.norm(xe[-3:]) * np.linalg.norm(w) + 1e-12))))) if rate > 0 else float("nan")

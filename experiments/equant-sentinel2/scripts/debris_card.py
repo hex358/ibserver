@@ -184,7 +184,18 @@ def card(name, a):
                              nearest_law=au.get("nearest_law"), consistent=au.get("consistent"), R_mesh_to_lvlh=np.round(R, 4).tolist()),
                reflectance_rel_bg=refl, group_names=["панели/элементы", "светлое", "тёмное"][:P.ng],
                tle=dict(epoch_jd=r(orb.epoch_jd, 5), age_days=r(jd - orb.epoch_jd, 2), line1=orb.line1, line2=orb.line2))
-    best = min(au["hypotheses"], key=lambda q: q["cv"])
+    pp = json.loads(Path(au["pose_pix"]).read_text()) if au.get("pose_pix") and Path(au["pose_pix"]).exists() else None
+    if pp:                                     # поза по пикселям (scripts/pose_pix.py): σ, минимумы, проверки
+        out["attitude"].update(method="по пикселям: вся SO(3) + приводы, градиент; опоры полос подогнаны (σ 25 м)",
+                               sigma_rot_deg=[r(v, 2) for v in pp["sigma"]["rot_deg"]], drive_angles_deg=[r(v % 180, 1) for v in pp["drives_deg"]],
+                               drive_sigma_deg=[r(v, 2) for v in pp["sigma"]["drives_deg"]],
+                               wing_normal_from_sun_deg=[r(v, 1) for v in pp["wing_normal_from_sun_deg"]],
+                               nearest_nadir_deg=r(pp["nearest_nadir"]["angle_deg"], 1), nearest_nadir_yaw_deg=r(pp["nearest_nadir"]["yaw_deg"], 1),
+                               best_mode_prob=r(pp["modes"][0]["prob"], 3),
+                               second_mode=dict(dL=r(pp["modes"][1]["dL"], 1), angle_deg=r(pp["modes"][1]["angle_deg"], 1)) if len(pp["modes"]) > 1 else None,
+                               fit_vs_null=[r(pp["L"], 0), r(pp["null"], 0)], band_offsets_m=pp.get("band_offsets_m"),
+                               old_law_pose=pp.get("old"))
+    best = min(au["hypotheses"], key=lambda q: q["cv"]) if au.get("hypotheses") else {}
     if best.get("drive_angles_deg"):
         out["attitude"].update(drive_angles_deg=best["drive_angles_deg"], drive_sigma_deg=best["drive_sigma_deg"],
                                drive_vs_sun_deg=best.get("sun_dev_plate_deg"), drives_summary=best.get("drives_summary"))
