@@ -71,6 +71,14 @@ def rotvec_to_mat(v):
     return I + A * K + Bc * (K @ K)
 
 
+RING_A = None          # параметр ядра пересчёта снимка (Кийс; −0,5 — кубическая свёртка); None — без него
+
+
+def _keys(x, a):
+    x = np.abs(x)
+    return np.where(x < 1, (a + 2) * x ** 3 - (a + 3) * x ** 2 + 1, np.where(x < 2, a * x ** 3 - 5 * a * x ** 2 + 8 * a * x - 4 * a, 0.0))
+
+
 class Band:
     """Одна полоса: окно пикселей, мелкая сетка, ядро в Фурье, индексы выборки."""
 
@@ -101,6 +109,13 @@ class Band:
         kern = np.exp(-0.5 * (iC[0, 0] * Xg ** 2 + 2 * iC[0, 1] * Xg * Yg + iC[1, 1] * Yg ** 2)); kern /= kern.sum()
         kern = np.fft.ifftshift(kern)
         self.Kf = torch.fft.rfft2(torch.tensor(kern, dtype=torch.float32)); self.sig_min = math.sqrt(np.linalg.eigvalsh(C).min())
+        if RING_A is not None and d.get("row") is not None:
+            # пересчёт снимка на картографическую сетку интерполяцией: ядро Кийса (a < 0 — отрицательные лепестки
+            # ~7 % у ярких точек) вдоль строк и столбцов датчика; свёртка с гауссовым ядром — произведение в Фурье
+            rx, ry = np.asarray(d["row"], float) / np.linalg.norm(d["row"])
+            al = (Xg * rx + Yg * ry) / self.res; ac = (-Xg * ry + Yg * rx) / self.res
+            kc = _keys(al, RING_A) * _keys(ac, RING_A); kc /= kc.sum()
+            self.Kf = self.Kf * torch.fft.rfft2(torch.tensor(np.fft.ifftshift(kc), dtype=torch.float32))
         # выборка в центрах пикселей (билинейно по мелкой сетке)
         u = (self.X - self.x0) / self.h; v = (self.y1 - self.Y) / self.h
         i0 = np.floor(u).astype(int); j0 = np.floor(v).astype(int); fu = u - i0; fv = v - j0

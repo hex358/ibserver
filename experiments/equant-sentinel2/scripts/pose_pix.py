@@ -27,7 +27,7 @@ from s2sat.diffpose import DiffPose, rot_angle
 
 ap = argparse.ArgumentParser()
 ap.add_argument("name"); ap.add_argument("--n-rot", type=int, default=3000); ap.add_argument("--checks", action="store_true")
-ap.add_argument("--write", action="store_true"); ap.add_argument("--shade", action="store_true"); ap.add_argument("--band-off", type=float, default=0.0); ap.add_argument("--threads", type=int, default=2); ap.add_argument("--seed", type=int, default=0)
+ap.add_argument("--write", action="store_true"); ap.add_argument("--shade", action="store_true"); ap.add_argument("--band-off", type=float, default=0.0); ap.add_argument("--nongrey", action="store_true"); ap.add_argument("--threads", type=int, default=2); ap.add_argument("--seed", type=int, default=0)
 a = ap.parse_args()
 torch.set_num_threads(a.threads)
 n = a.name; t_start = time.time(); rng = np.random.default_rng(a.seed)
@@ -55,6 +55,7 @@ MR.prepare(rc)
 spec = MC.spec_for(int(rc["cat"]), n); C = SG.lvlh_to_fit(n, rc)
 sun_l = C.T @ np.asarray(rc["sun"], float)
 Df = DiffPose(rc, spec, C, shade=a.shade, band_off=a.band_off or None); Dc = DiffPose(rc, spec, C, coarse=True, shade=a.shade, band_off=a.band_off or None)
+Df.grey = Dc.grey = not a.nongrey
 log(f"   параметры: поворот корпуса 3 + приводы {Df.nd} + сдвиг 2; пикселей {Df.npix}; невязка без объекта {Df.null():.0f}")
 
 # --- 1. поиск по всей SO(3) × приводам ---

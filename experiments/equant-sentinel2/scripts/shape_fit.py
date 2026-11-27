@@ -43,7 +43,17 @@ def prep(paths):
         if os.environ.get("S2_ALL60"):                       # окна полос 60 м — по положениям из геометрии при θ
             P0a = P.positions(th, None)
             tgt = {**{b: tuple(v[:2]) for b, v in P0a.items() if b in ("coastal", "nir09")}, **tgt}
-        W = PG.window_residuals(P, tgt)
+        # маска объекта при подгонке фона — по размеру объекта на снимке (радиус модели × увеличение + 40 м); прежние
+        # 60 м меньше изображения Starlink (~±70 м): концы крыльев попадали в подгонку фона → тёмные полосы по бокам
+        try:
+            from s2sat import modelcat as MC
+            Vm = np.asarray(MC.spec_for(int(e["cat"]), name)["V"], float); Robj = float(np.max(np.linalg.norm(Vm - Vm.mean(0), axis=1)))
+        except Exception:
+            Robj = 15.0
+        kmag = max(float(np.linalg.norm(np.asarray(J[b_]), 2)) for b_ in J) / 1000.0
+        mask_m = max(60.0, Robj * kmag + 40.0) if os.environ.get("S2_MASK_SIZE") else 60.0   # по размеру — пока проверяется
+        print(f"{name}: маска объекта для фона {mask_m:.0f} м (радиус модели {Robj:.1f} м × увеличение {kmag:.2f} + 40 м)", flush=True)
+        W = PG.window_residuals(P, tgt, mask_m=mask_m)
         # положение пятна в каждой полосе по сырым остаткам (экстремум сглаженного |r|/σ в 250 м от pos_best)
         from scipy.ndimage import gaussian_filter
         meas = {}

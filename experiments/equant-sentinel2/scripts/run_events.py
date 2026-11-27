@@ -257,7 +257,9 @@ def snr_key(e):
 def footprints(t0, t1):
     """Все снимки коллекции за окно (только контур, время, облачность), с кэшем на диске."""
     from s2sat import imagery as I
-    cache = ROOT / "data/cache" / f"footprints_{t0:%Y%m%dT%H%M}_{t1:%Y%m%dT%H%M}.json"
+    import hashlib as _hl
+    _key = _hl.md5(",".join(f"{e['cat']}:{e['jd']:.5f}" for e in day).encode()).hexdigest()[:10] if (t1 - t0).total_seconds() > 2 * 86400 else ""
+    cache = ROOT / "data/cache" / f"footprints_{t0:%Y%m%dT%H%M}_{t1:%Y%m%dT%H%M}{'_' + _key if _key else ''}.json"   # длинное окно — по точкам пролётов
     if cache.exists():
         return json.loads(cache.read_text())
     out, t = [], t0

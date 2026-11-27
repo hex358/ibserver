@@ -80,6 +80,7 @@ class DiffPose:
         if band_off:
             self.P += 2 * self.nbd; self.scale = torch.cat([self.scale, torch.full((2 * self.nbd,), 5.0)])
         self.o0 = 3 + self.nd + 2
+        self.grey = True          # False — яркости материалов свои в каждой полосе (спектр не серый)
 
     # --- модель ---
     def spots(self, x, Rt=None):
@@ -109,7 +110,7 @@ class DiffPose:
     def loss(self, x, bands=None, prior=True, shade=None):
         shade = self.shade if shade is None else shade
         cw, Sw = self.spots(x); dp = self.dpos(x)
-        L = self.sc.loss(None, dp, self.kappa, grey=True, bands=bands, shade=shade,
+        L = self.sc.loss(None, dp, self.kappa, grey=self.grey, bands=bands, shade=shade,
                          occfun=lambda b, sh: self.sc.band_occ_cs(b, cw, Sw, dp, sh, off=self.off(x, b)))
         if prior:
             L = L + (x[:, self.o0 - 2] ** 2 + x[:, self.o0 - 1] ** 2) / AP.SIG_POS ** 2
@@ -328,7 +329,7 @@ class DiffSpinPose(DiffPose):
             Rt = rotvec_to_mat(w * (self.sc.t[b] - self.t0))
             cw, Sw = self.spots(xs, Rt)
             return self.sc.band_occ_cs(b, cw, Sw, dp, sh)
-        L = self.sc.loss(None, dp, self.kappa, grey=True, bands=bands, shade=shade, occfun=occ)
+        L = self.sc.loss(None, dp, self.kappa, grey=self.grey, bands=bands, shade=shade, occfun=occ)
         if prior:
             L = L + (xs[:, -2] ** 2 + xs[:, -1] ** 2) / AP.SIG_POS ** 2
         return L
@@ -423,3 +424,55 @@ def anchor_to_geometry(rc, orbit_json):
         d["p0"] = np.asarray(bp[b], float); d.pop("meas", None)
     return f"геометрия по орбите Sentinel ({'GPS + 3D-углы' if 'gps3d' in q['fits'] else 'GPS'}); прежние опоры смещены на " + \
         ", ".join(f"{b} {v:.0f} м" for b, v in sh.items())
+
+
+def solve_spin(Wf, Wc, Sf, Sc, bands=None, n_rot=1500, kap=1.0, log=print):
+    """Вращение по пикселям на наборе полос bands (все — по умолчанию); то же, что проверено подстановками
+    (scripts/spin_pix_test.py): 1) позы подгрупп ≤ 0,2 с; 2) кандидаты ω из пар минимумов (+2πk) и «не вращается»;
+    3) градиент по всем параметрам; 4) профиль по оси (вся сфера) × величине × позам (найденная, её двойники тела,
+    минимумы подгруппы у t₀), градиент для каждого направления; 5) зеркальный двойник (направление).
+    → dict(x, L, L_static, x_static, mirror_dL, mirror_axis_deg, p_direction)."""
+    from scipy.spatial.transform import Rotation as Ro
+    bands = list(bands or Wf.sc.bands)
+    bs = sorted(bands, key=lambda b: Wf.sc.t[b]); CL = [[bs[0]]]
+    for b in bs[1:]:
+        (CL[-1].append(b) if Wf.sc.t[b] - Wf.sc.t[CL[-1][0]] <= 0.2 else CL.append([b]))
+    ct = [float(np.median([Wf.sc.t[b] for b in c])) for c in CL]
+    gm = []
+    for c in CL:
+        md, _ = Sc.search(bands=c, n_rot=n_rot, top=128, fine=Sf, n_polish=8, log=lambda s: None)
+        gm.append([m["x"] for m in md])
+    ib = int(np.argmin([abs(t - Wf.t0) for t in ct]))
+    cand = Wf.candidates(gm, ct, k_modes=3) + [Wf.static_x(m) for m in gm[ib][:4]]
+    xc, Lc = Wc.fit(np.array(cand), iters=120, bands=bands)
+    o = np.argsort(Lc)[:12]; xf, Lf = Wf.fit(xc[o], iters=60, lr=0.01, bands=bands)
+    xe, Le = sorted([Wf.polish(xf[k], bands=bands) for k in np.argsort(Lf)[:4]], key=lambda q: q[1])[0]
+    w0 = xe[-3:]; r0 = max(float(np.linalg.norm(w0)), math.radians(1.0)); n0 = w0 / max(float(np.linalg.norm(w0)), 1e-9)
+    kf = np.arange(200) + 0.5; zf = 1 - 2 * kf / 200; phf = math.pi * (1 + 5 ** 0.5) * kf
+    dirs = np.vstack([n0, np.c_[np.sqrt(1 - zf ** 2) * np.cos(phf), np.sqrt(1 - zf ** 2) * np.sin(phf), zf]])
+    mags = np.arange(0.80, 1.26, 0.03); W = [d_ * r0 * m for d_ in dirs for m in mags]
+    Rh = Wf.R_of(xe); dr_ = xe[3:3 + Wf.nd]; rest_ = xe[3 + Wf.nd:-3]; bases = []
+    for k_ in (None, 0, 1, 2):
+        Rk = Rh if k_ is None else Rh @ AP.rot_axis(np.eye(3)[k_], math.pi)
+        for dd_ in (dr_, dr_ + math.pi):
+            bases.append((Rk, np.r_[dd_, rest_], False))
+    bases += [(Wf.R_of(m), m[3:], True) for m in gm[ib][:4]]
+    dtc = ct[ib] - Wf.t0; Xw = []
+    for Rb_, rest, shift in bases:
+        for w in W:
+            R0 = AP.rotvec(-np.asarray(w) * dtc) @ Rb_ if shift else Rb_
+            Xw.append(np.r_[Ro.from_matrix(R0).as_rotvec(), rest, w])
+    Xw = np.array(Xw); Lw = np.concatenate([Wc.L(Xw[i:i + 256], bands) for i in range(0, len(Xw), 256)])
+    Lr = Lw.reshape(len(bases), len(dirs), len(mags))
+    per_dir = [np.unravel_index(np.argmin(Lr[:, d_, :]), (len(bases), len(mags))) for d_ in range(len(dirs))]
+    Xd = np.array([Xw[(bi * len(dirs) + d_) * len(mags) + mi] for d_, (bi, mi) in enumerate(per_dir)])
+    xd, Ld = Wc.fit(Xd, iters=40, lr=0.02, bands=bands)
+    ow = np.argsort(Ld)[:12]; xw, Lw2 = Wf.fit(xd[ow], iters=60, lr=0.01, bands=bands)
+    xe, Le = sorted([Wf.polish(xw[k], bands=bands) for k in np.argsort(Lw2)[:3]] + [(xe, Le)], key=lambda q: q[1])[0]
+    xm, Lm = sorted([Wf.polish(t, bands=bands) for t in Wf.mirror_twins(xe)], key=lambda q: q[1])[0]
+    if Lm < Le:
+        (xe, Le), (xm, Lm) = (xm, Lm), (xe, Le)
+    ang_m = math.degrees(math.acos(float(np.clip(xe[-3:] @ xm[-3:] / (np.linalg.norm(xe[-3:]) * np.linalg.norm(xm[-3:]) + 1e-12), -1, 1))))
+    xs_, Ls = min([Sf.polish(xe[:-3], bands=bands)] + [Sf.polish(m, bands=bands) for m in gm[ib][:4]], key=lambda q: q[1])
+    return dict(x=xe, L=Le, L_static=Ls, x_static=xs_, mirror_dL=Lm - Le, mirror_axis_deg=ang_m,
+                p_direction=1.0 / (1.0 + math.exp(-0.5 * (Lm - Le) / kap)), bands=bands)
