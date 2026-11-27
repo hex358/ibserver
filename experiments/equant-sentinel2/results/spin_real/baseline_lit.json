@@ -1,0 +1,32 @@
+{
+ "STARLINK-32851_20261013T055346": {
+  "rate_err_pct": 13.008246044474822,
+  "measured": true,
+  "axis_err_deg": 2.4301930752057634,
+  "axis_err_signed_deg": 91.08808703349747,
+  "light_resolved": true,
+  "axis_err_light_deg": 3.8183323811598675,
+  "false_pos": false,
+  "real_spin": false
+ },
+ "STARLINK-30245_20261120T110322": {
+  "rate_err_pct": 1.9718783961362025,
+  "measured": true,
+  "axis_err_deg": 7.532992757528832,
+  "axis_err_signed_deg": 83.93797016240833,
+  "light_resolved": false,
+  "axis_err_light_deg": 82.69009577206909,
+  "false_pos": false,
+  "real_spin": false
+ },
+ "STARLINK-30580_20261120T111642": {
+  "rate_err_pct": 1.1700427730155145,
+  "measured": true,
+  "axis_err_deg": 12.219570912232022,
+  "axis_err_signed_deg": 12.219570912232022,
+  "light_resolved": true,
+  "axis_err_light_deg": 10.86171843165287,
+  "false_pos": false,
+  "real_spin": false
+ }
+}
