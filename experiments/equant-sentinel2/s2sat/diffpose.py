@@ -461,6 +461,8 @@ class DiffSpinCoM(DiffSpinPose):
         L = self.sc.loss(None, dp, self.kappa, grey=self.grey, bands=bands, shade=shade, occfun=occ)
         if prior:
             L = L + (xs[:, -2] ** 2 + xs[:, -1] ** 2) / AP.SIG_POS ** 2 + (c ** 2).sum(1) / self.sig_com ** 2
+        if getattr(self, "_cfix", None) is not None:
+            L = L + self._cfix[1] * ((c - self._cfix[0][None]) ** 2).sum(1)
         return L
 
     def dpos(self, x):
@@ -482,6 +484,62 @@ class DiffSpinCoM(DiffSpinPose):
     def from_spin(self, xw, c=(0.0, 0.0, 0.0)):
         return np.r_[np.asarray(xw[:-3], float), np.asarray(c, float), np.asarray(xw[-3:], float)]
 
+    def full_cov(self, x, bands=None, kap=1.0):
+        """Ковариация ВСЕХ параметров по полному гессиану невязки (центральные разности одним пакетом; шаги: поворот
+        и приводы 0,02 рад, сдвиг 0,5 м, центр масс 2 м, ω 0,005 рад/с — выше шума float32). σ центра масс —
+        маргинальная (с подстройкой позы, сдвига, ω), а не при закреплённых остальных (та была занижена в 2–3 раза)."""
+        x = np.asarray(x, float); P = len(x); k0 = P - 6
+        h = np.r_[[0.02] * 3, [0.02] * self.nd, [0.5, 0.5], [0.0] * (k0 - 5 - self.nd), [2.0] * 3, [0.005] * 3]
+        h[h == 0] = 0.5
+        pts = [x]; idx = {}
+        for i in range(P):
+            for j in range(i, P):
+                for si, sj in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+                    if i == j and (si, sj) in ((1, -1), (-1, 1)):
+                        continue
+                    u = x.copy(); u[i] += si * h[i]; u[j] += sj * h[j]; idx[(i, j, si, sj)] = len(pts); pts.append(u)
+        Lp = np.concatenate([self.L(np.array(pts[k:k + 128]), bands) for k in range(0, len(pts), 128)]).astype(float)
+        H = np.zeros((P, P))
+        for i in range(P):
+            H[i, i] = (Lp[idx[(i, i, 1, 1)]] - 2 * Lp[0] + Lp[idx[(i, i, -1, -1)]]) / (4 * h[i] ** 2)
+            for j in range(i + 1, P):
+                a_, b_, c_, d_ = (Lp[idx[(i, j, s1, s2)]] for s1, s2 in ((1, 1), (1, -1), (-1, 1), (-1, -1)))
+                H[i, j] = H[j, i] = (a_ - b_ - c_ + d_) / (4 * h[i] * h[j])
+        ev = np.linalg.eigvalsh(0.5 * H)
+        if ev.min() <= 0:
+            return None
+        return kap * np.linalg.inv(0.5 * H)
+
+    def com_sigma_marginal(self, x, bands=None, kap=1.0):
+        """σ центра масс поперёк оси — маргинальная по полному гессиану. → (σ 2, базис 3×2, ковариация 2×2)."""
+        nm = self.axis_model(x); e1 = np.cross(nm, [1.0, 0, 0] if abs(nm[0]) < 0.9 else [0, 1.0, 0]); e1 /= np.linalg.norm(e1)
+        E = np.c_[e1, np.cross(nm, e1)]; cov = self.full_cov(x, bands, kap)
+        if cov is None:
+            return np.full(2, np.inf), E, None
+        k0 = len(x) - 6; Cc = E.T @ cov[k0:k0 + 3, k0:k0 + 3] @ E
+        return np.sqrt(np.diag(Cc)), E, Cc
+
+    def com_sigma_profile(self, x, bands=None, kap=1.0, d=2.0):
+        """σ центра масс поперёк оси по ПРОФИЛЮ невязки: c = ĉ ± d·e_i (e_i ⊥ оси), все остальные параметры дожимаются
+        заново (поза, приводы, сдвиг, ω), σ_i² = κ·d²/ΔL_i (ΔL — средний рост по двум знакам). Маргинальная оценка
+        без гессиана (у приводов бывают плоские направления — гессиан не положительно определён).
+        → (σ 2, базис 3×2)."""
+        x = np.asarray(x, float); k0 = len(x) - 6; nm = self.axis_model(x)
+        e1 = np.cross(nm, [1.0, 0, 0] if abs(nm[0]) < 0.9 else [0, 1.0, 0]); e1 /= np.linalg.norm(e1); E = np.c_[e1, np.cross(nm, e1)]
+        L0 = float(self.L(x, bands)[0]); sig = []
+        for i in range(2):
+            dl = []
+            for sg in (1.0, -1.0):
+                cf = x[k0:k0 + 3] + sg * d * E[:, i]; u = x.copy(); u[k0:k0 + 3] = cf
+                self._cfix = (torch.tensor(cf, dtype=torch.float32), 1e4)
+                try:
+                    u, _ = self.polish(u, iters=100, bands=bands)
+                finally:
+                    self._cfix = None
+                u[k0:k0 + 3] = cf; dl.append(float(self.L(u, bands)[0]) - L0)
+            dL = float(np.mean(dl)); sig.append(math.sqrt(kap * d * d / dL) if dL > 0 else float("inf"))
+        return np.array(sig), E
+
     def fit_com(self, xw, bands=None, kap=1.0):
         """Центр масс от найденного вращения xw (вокруг начала модели): дожим всех параметров из 7 стартов c = 0 и
         ±σ/3 по осям модели (один старт может остановиться в начале — градиент мал), до сходимости; лучший по невязке.
@@ -498,8 +556,8 @@ class DiffSpinCoM(DiffSpinPose):
                 x, L = x2, L2
             if best is None or L < best[1]:
                 best = (x, L)
-        sig, E, cov = self.com_sigma(best[0], bands, kap=kap)
-        return best[0], best[1], L0, sig, E, cov
+        sig, E = self.com_sigma_profile(best[0], bands, kap=kap)
+        return best[0], best[1], L0, sig, E, None
 
     def axis_model(self, x):
         """Ось вращения в осях модели (единичная)."""
