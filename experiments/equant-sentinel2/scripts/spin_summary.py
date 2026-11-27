@@ -1,14 +1,39 @@
-"""Сводка проверки вращения по всем объектам (results/spin_real): настоящий снимок и подстановка 60 °/с."""
+"""Сводка проверки вращения по всем объектам (results/spin_real), одинаково для всех:
+  * настоящий снимок — вердикт решателя;
+  * подстановка 0 °/с на той же геометрии — ложное срабатывание (находит ли «вращение» в шуме);
+  * подстановка 60 °/с — точность скорости и оси на этой геометрии.
+Итог по объекту: вердикт по настоящему снимку принимается, только если на этой геометрии решатель не путается
+(0 °/с → «не вращается», 60 °/с → скорость ±15 %); иначе — «геометрия пролёта не определяет вращение».
+"""
 import json, glob
 from pathlib import Path
+
 ROOT = Path(__file__).resolve().parents[1]
-rows = []
-for f in sorted(glob.glob(str(ROOT / "results/spin_real/*_nongrey.json"))):
-    if "_inj" in f:
-        continue
-    n = Path(f).name.replace("_nongrey.json", ""); r = json.loads(Path(f).read_text())
-    fi = ROOT / "results/spin_real" / f"{n}_inj60_nongrey.json"; ri = json.loads(fi.read_text()) if fi.exists() else None
-    rows.append((n, r.get("verdict", ""), ri["all"]["rate"] if ri else None, ri["inject"]["axis_err_deg"] if ri and "inject" in ri else None, ri.get("verdict", "") if ri else ""))
-print(f"{'объект':34s} | настоящий снимок (эталон: не вращается) | подстановка 60 °/с: найдено, ошибка оси, вердикт")
-for n, v, rr, ae, vi in rows:
-    print(f"{n:34s} | {v[:40]:40s} | {('%.1f' % rr) if rr is not None else '—':>6s} °/с, {('%.0f' % ae) if ae is not None else '—':>4s}°, {vi[:30]}")
+D = ROOT / "results/spin_real"
+
+
+def load(n, tag):
+    f = D / f"{n}{tag}_nongrey.json"
+    return json.loads(f.read_text()) if f.exists() else None
+
+
+names = sorted({Path(f).name.split("_inj")[0].replace("_nongrey.json", "") for f in glob.glob(str(D / "*_nongrey.json"))})
+print(f"{'объект':32s} | {'настоящий снимок':42s} | {'подст. 0 °/с':14s} | {'подст. 60 °/с: найдено, ось':28s} | итог")
+for n in names:
+    r, r0, r60 = load(n, ""), load(n, "_inj0"), load(n, "_inj60")
+    v = (r or {}).get("verdict", "—")
+    fa = None if r0 is None else bool(r0.get("spinning"))
+    s60 = None if r60 is None else (r60["all"]["rate"], r60.get("inject", {}).get("axis_err_deg"), bool(r60.get("spinning")))
+    ok_geo = (fa is False) and s60 is not None and abs(s60[0] - 60) / 60 <= 0.15 and s60[2]
+    if r is None:
+        final = "—"
+    elif fa is None or s60 is None:
+        final = "проверка геометрии не закончена"
+    elif ok_geo:
+        final = ("ВРАЩАЕТСЯ %.1f °/с" % r["all"]["rate"]) if r.get("spinning") else "не вращается"
+    else:
+        final = "геометрия пролёта не определяет вращение" + (" (ложное срабатывание на 0 °/с)" if fa else "") + \
+                (" (60 °/с → %.0f °/с)" % s60[0] if s60 and abs(s60[0] - 60) / 60 > 0.15 else "")
+    t0 = "—" if fa is None else ("ЛОЖНОЕ" if fa else "чисто")
+    t60 = "—" if s60 is None else f"{s60[0]:.1f} °/с, {s60[1]:.0f}°" if s60[1] is not None else f"{s60[0]:.1f} °/с"
+    print(f"{n:32s} | {v[:42]:42s} | {t0:14s} | {t60:28s} | {final}")
