@@ -60,9 +60,11 @@ class DiffPose:
     """x = [вектор поворота корпуса (оси тела → орбитальные оси) 3, углы приводов n, сдвиг 2]."""
 
     def __init__(self, rc, spec, C, shade=False, kappa=1.0, lmax=None, coarse=False, band_off=None):
-        """coarse — для глобального поиска: силуэт одной группой, окно по размаху объекта, пятна ≤ 3 м (diffmodel)."""
+        """coarse — для глобального поиска: окно по размаху объекта, пятна ≤ 3 м, сетка σ/1 (diffmodel)."""
         part, chains = face_parts(spec)
-        self.sc = sc = Scene(rc, spec, C, parts=part, lmax=3.0 if coarse else lmax, ng=1 if coarse else None, coarse=coarse)
+        # грубая модель — те же группы материалов, что и точная: при одной группе разные по знаку контрасты (светлый
+        # корпус, тёмные панели) гасили друг друга, и глобальный перебор не видел правильную позу (истина лучше на 484)
+        self.sc = sc = Scene(rc, spec, C, parts=part, lmax=3.0 if coarse else lmax, ng=None, coarse=coarse)
         self.spec, self.shade, self.kappa = spec, shade, kappa
         self.nd = AP.n_drives(spec); self.P = 3 + self.nd + 2
         self.M2B = torch.tensor(np.asarray(spec["M2B"], float), dtype=torch.float32)
@@ -158,8 +160,21 @@ class DiffPose:
 
     def search(self, bands=None, n_rot=3000, step_deg=60.0, top=256, iters=150, n_polish=16, log=print, fine=None, twins=False):
         """Глобально: вся SO(3) × приводы → градиент по всем параметрам → различные минимумы. Сетка и спуск — на этой
-        (грубой) модели, дожим — на fine (мелкие пятна), если задана."""
+        (грубой) модели, дожим — на fine (мелкие пятна), если задана.
+        Сначала — сдвиг объекта: остаток орбиты даёт до ~10 м в осях объекта (×4–6 на снимке — несколько пикселей),
+        и перебор поз при нулевом сдвиге ищет позу смещённого объекта. Сдвиг — сетка ±16 м (шаг 4 м) × 100 поз по
+        SO(3), лучший — исходный для всей сетки поз (градиент его доводит)."""
         X = self.grid(n_rot, step_deg); Ls = []
+        Xp = self.grid(100, step_deg)[::max(1, len(self.grid(1, step_deg)))]           # 100 поворотов, одни приводы
+        sh = np.arange(-16.0, 16.01, 4.0); best = (None, 0.0, 0.0)
+        for dx in sh:
+            for dy in sh:
+                Xs = Xp.copy(); Xs[:, self.o0 - 2] = dx; Xs[:, self.o0 - 1] = dy
+                Lm_ = float(self.L(Xs, bands).min())
+                if best[0] is None or Lm_ < best[0]:
+                    best = (Lm_, dx, dy)
+        X[:, self.o0 - 2] = best[1]; X[:, self.o0 - 1] = best[2]
+        log(f"   сдвиг объекта до перебора поз: ({best[1]:+.0f}, {best[2]:+.0f}) м")
         for i in range(0, len(X), 512):
             Ls.append(self.L(X[i:i + 512], bands))
         Ls = np.concatenate(Ls); o = np.argsort(Ls)[:top]
@@ -455,6 +470,21 @@ def solve_spin(Wf, Wc, Sf, Sc, bands=None, n_rot=1500, kap=1.0, log=print):
             md, _ = Sc.search(bands=g, n_rot=n_rot, top=128, fine=Sf, n_polish=10, log=lambda s: None)
             gm1.append([m["x"] for m in md])
         cand += Wf.candidates(gm1, gt1, k_modes=5)
+        # опора на САМУЮ ИНФОРМАТИВНУЮ группу (наибольший выигрыш над «объекта нет»): её позы + полный перебор ω —
+        # ось (120 направлений) × скорость 1…200 °/с шагом 2 °/с (на базе Δt шаг поворота 2°/с·Δt ≲ 10°); поза в t₀ —
+        # перенос позы группы на t₀ при этой ω. Слабые группы позу не определяют (много равных минимумов), а ω при
+        # надёжной позе сильной группы выбирается невязкой всех полос, включая поворот внутри групп
+        gain = [Sf.null(g) - float(Sf.L(gm1[i_][0], bands=g)[0]) for i_, g in enumerate(G1)]
+        ia = int(np.argmax(gain)); kq = np.arange(120) + 0.5; zq = 1 - 2 * kq / 120; pq = math.pi * (1 + 5 ** 0.5) * kq
+        dirs3 = np.c_[np.sqrt(1 - zq ** 2) * np.cos(pq), np.sqrt(1 - zq ** 2) * np.sin(pq), zq]
+        spds = np.radians(np.arange(1.0, 200.1, 2.0)); from scipy.spatial.transform import Rotation as Ro_
+        for m in gm1[ia][:8]:
+            Ra = Wf.R_of(m); rest = m[3:]
+            W3 = np.array([d_ * s_ for d_ in dirs3 for s_ in spds])
+            R0s = Ro_.from_rotvec(-W3 * (gt1[ia] - Wf.t0)) * Ro_.from_matrix(Ra)
+            X3 = np.c_[R0s.as_rotvec(), np.tile(rest, (len(W3), 1)), W3]
+            L3 = np.concatenate([Wc.L(X3[i_:i_ + 256], bands) for i_ in range(0, len(X3), 256)]).reshape(len(dirs3), len(spds))
+            cand += [X3[d_ * len(spds) + int(np.argmin(L3[d_]))] for d_ in np.argsort(L3.min(1))[:6]]
     xc, Lc = Wc.fit(np.array(cand), iters=120, bands=bands)
     o = np.argsort(Lc)[:12]; xf, Lf = Wf.fit(xc[o], iters=60, lr=0.01, bands=bands)
     xe, Le = sorted([Wf.polish(xf[k], bands=bands) for k in np.argsort(Lf)[:4]], key=lambda q: q[1])[0]
