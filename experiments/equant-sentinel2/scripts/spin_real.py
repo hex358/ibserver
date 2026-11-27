@@ -8,7 +8,7 @@
      предсказание отложенной; сумма > 2κ на полосу и лучше в ≥ 2/3 полос).
 Пишет results/spin_real/<имя>.json.
 """
-import argparse, json, math, pickle, sys, time
+import argparse, json, math, os, pickle, sys, time
 from pathlib import Path
 
 import numpy as np
@@ -103,4 +103,4 @@ if truth:
     out["inject"] = dict(rate=truth[0], axis=truth[1].tolist(), axis_err_deg=ang_t, axis_err_mod_mirror_deg=min(ang_t, ang_tm))
 out.update(name=n, spinning=spinning, verdict=verdict, seconds=time.time() - t0_)
 (ROOT / "results/spin_real").mkdir(exist_ok=True)
-(ROOT / "results/spin_real" / f"{n}{'_inj%d' % a.inject if a.inject is not None else ''}{'_nongrey' if a.nongrey else ''}{'_shade' if a.shade else ''}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
+(ROOT / "results/spin_real" / f"{n}{'_inj%d' % a.inject if a.inject is not None else ''}{'_nongrey' if a.nongrey else ''}{'_shade' if a.shade else ''}{os.environ.get('SPIN_TAG', '')}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))

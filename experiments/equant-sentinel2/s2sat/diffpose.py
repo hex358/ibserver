@@ -64,7 +64,9 @@ class DiffPose:
         part, chains = face_parts(spec)
         # грубая модель — те же группы материалов, что и точная: при одной группе разные по знаку контрасты (светлый
         # корпус, тёмные панели) гасили друг друга, и глобальный перебор не видел правильную позу (истина лучше на 484)
-        self.sc = sc = Scene(rc, spec, C, parts=part, lmax=3.0 if coarse else lmax, ng=None, coarse=coarse)
+        import os as _os
+        ng_c = 1 if (coarse and _os.environ.get("S2_COARSE_NG", "full") == "1") else None
+        self.sc = sc = Scene(rc, spec, C, parts=part, lmax=3.0 if coarse else lmax, ng=ng_c, coarse=coarse)
         self.spec, self.shade, self.kappa = spec, shade, kappa
         self.nd = AP.n_drives(spec); self.P = 3 + self.nd + 2
         self.M2B = torch.tensor(np.asarray(spec["M2B"], float), dtype=torch.float32)
