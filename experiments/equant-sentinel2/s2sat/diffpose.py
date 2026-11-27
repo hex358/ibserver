@@ -173,8 +173,11 @@ class DiffPose:
                 Lm_ = float(self.L(Xs, bands).min())
                 if best[0] is None or Lm_ < best[0]:
                     best = (Lm_, dx, dy)
-        X[:, self.o0 - 2] = best[1]; X[:, self.o0 - 1] = best[2]
-        log(f"   сдвиг объекта до перебора поз: ({best[1]:+.0f}, {best[2]:+.0f}) м")
+        # перебор поз — и при найденном сдвиге, и при нулевом: у слабых наборов полос (1–2 полосы) минимум по сетке
+        # сдвигов может подогнаться под шум; лучшие позы отбираются из обоих
+        if abs(best[1]) + abs(best[2]) > 0:
+            X0 = X.copy(); X[:, self.o0 - 2] = best[1]; X[:, self.o0 - 1] = best[2]; X = np.vstack([X0, X])
+        log(f"   сдвиг объекта до перебора поз: ({best[1]:+.0f}, {best[2]:+.0f}) м (перебор при нём и при нулевом)")
         for i in range(0, len(X), 512):
             Ls.append(self.L(X[i:i + 512], bands))
         Ls = np.concatenate(Ls); o = np.argsort(Ls)[:top]
