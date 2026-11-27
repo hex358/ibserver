@@ -483,6 +483,23 @@ def solve_spin(Wf, Wc, Sf, Sc, bands=None, n_rot=1500, kap=1.0, log=print):
         xd2, Ld2 = Wc.fit(Xd2, iters=40, lr=0.02, bands=bands)
         o2 = np.argsort(Ld2)[:12]; xw2, Lw3 = Wf.fit(xd2[o2], iters=60, lr=0.01, bands=bands)
         xe, Le = sorted([Wf.polish(xw2[k], bands=bands) for k in np.argsort(Lw3)[:3]] + [(xe, Le)], key=lambda q: q[1])[0]
+    # 4в. целочисленная неоднозначность (группы полос, разнесённые на Δt): поворот между группами одинаков при
+    #     ω + k·2π/Δt (ось та же; при переходе через ноль — обратная ось); выбор k — по повороту ВНУТРИ групп (вклад в
+    #     невязку); каждый вариант дожимается градиентом, выбирается лучший
+    grp = [g for g in Wf.groups(1.0) if any(b in bands for b in g)]
+    if len(grp) >= 2 and np.linalg.norm(xe[-3:]) > 1e-6:
+        tg = sorted(float(np.median([Wf.sc.t[b] for b in g if b in bands])) for g in grp)
+        dT = max(tg[i + 1] - tg[i] for i in range(len(tg) - 1)); step = 2 * math.pi / dT
+        w_ = xe[-3:]; r_ = float(np.linalg.norm(w_)); n_ = w_ / r_; wmax = math.radians(200.0); al = []
+        for k in range(-6, 7):
+            rk = r_ + k * step
+            if k == 0 or abs(rk) < math.radians(0.5) or abs(rk) > wmax:
+                continue
+            al.append(np.r_[xe[:-3], n_ * rk])
+        if al:
+            xa, La = Wf.fit(np.array(al), iters=60, lr=0.01, bands=bands)
+            best = [Wf.polish(xa[k], bands=bands) for k in np.argsort(La)[:3]]
+            xe, Le = sorted(best + [(xe, Le)], key=lambda q: q[1])[0]
     xm, Lm = sorted([Wf.polish(t, bands=bands) for t in Wf.mirror_twins(xe)], key=lambda q: q[1])[0]
     if Lm < Le:
         (xe, Le), (xm, Lm) = (xm, Lm), (xe, Le)
