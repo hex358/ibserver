@@ -4,7 +4,8 @@
 Несоответствие модели снимку (спектр, ядро, опоры полос) «вращение» может изображать: каждая полоса снята в свой
 момент, и поворот подстраивается под особенности полосы. Поэтому вращение признаётся, только если:
   1) выигрыш над лучшей статической позой больше порога (BIC: κ·3·ln N);
-  2) вращение, найденное НЕЗАВИСИМО по полосам 10 м и по полосам 20 м, одно и то же (скорость ±25 %, ось ±30°).
+  2) вращение, найденное НЕЗАВИСИМО по двум непересекающимся наборам полос (чередуя по времени), одно и то же
+     (скорость ±25 %, ось ±30° с учётом зеркального двойника); наборов нет — «не проверено».
 Пишет results/spin_real/<имя>.json.
 """
 import argparse, json, math, pickle, sys, time
@@ -66,27 +67,29 @@ thr = kap * 3 * math.log(Wf.npix); dL = r["L_static"] - r["L"]
 print(f"   все полосы: {rate:.1f} °/с, ось {np.round(ax, 2).tolist()}; выигрыш над статикой {dL:.0f} (порог {thr:.0f}); "
       f"зеркальный двойник хуже на {r['mirror_dL']:.0f}", flush=True)
 out["all"] = dict(rate=rate, axis=ax.tolist(), dL=dL, thr=thr, mirror_dL=r["mirror_dL"], p_direction=r["p_direction"])
-sub = {"10 м": [b for b in Wf.sc.bands if Wf.sc.B[b].res <= 10], "20 м": [b for b in Wf.sc.bands if Wf.sc.B[b].res > 10]}
+# два НЕЗАВИСИМЫХ (непересекающихся) набора полос, чередуя полосы по времени съёмки: каждый покрывает почти всю
+# базу времени и сам по себе измеряет ω; сравниваются наборы между собой (часть с целым — не проверка)
+bt_ = sorted(Wf.sc.bands, key=lambda b: Wf.sc.t[b])
+sub = {"набор A": bt_[0::2], "набор B": bt_[1::2]} if len(bt_) >= 4 else {}
 res_sub = {}
 for k, bs in sub.items():
-    if len(bs) >= 2 and np.ptp([Wf.sc.t[b] for b in bs]) >= 0.3:
+    if len(bs) >= 2 and np.ptp([Wf.sc.t[b] for b in bs]) >= 0.3:     # набор сам должен покрывать базу времени
         rs = solve_spin(Wf, Wc, Sf, Sc, bands=bs, n_rot=a.n_rot, kap=kap); rk, axk = summ(rs)
         res_sub[k] = (rk, axk, rs["L_static"] - rs["L"])
         print(f"   полосы {k} {bs}: {rk:.1f} °/с, ось {np.round(axk, 2).tolist()}, выигрыш {rs['L_static'] - rs['L']:.0f}", flush=True)
         out[k] = dict(bands=bs, rate=rk, axis=axk.tolist(), dL=rs["L_static"] - rs["L"])
-# согласованность: каждая независимая оценка (10 м, 20 м) против оценки по всем полосам; ось — с точностью до
-# зеркального двойника нет: направление сравнивается как есть (скорость ±25 %, ось ±30°)
-cons, checks = None, []
-l_ = Wf.sc.C.numpy().T @ Wf.sc.los_t.numpy(); l_ /= np.linalg.norm(l_); ax_m = -(ax - 2 * (ax @ l_) * l_)   # зеркальная ось
-for k, (rk, axk, _) in res_sub.items():
-    ang = min(math.degrees(math.acos(float(np.clip(axk @ ax, -1, 1)))), math.degrees(math.acos(float(np.clip(axk @ ax_m, -1, 1)))))
-    rel = abs(rk - rate) / max(rk, rate, 1e-9)
-    ok = bool(ang <= 30.0 and rel <= 0.25); checks.append(ok)
-    print(f"   согласованность {k} с общей: {rk:.1f} / {rate:.1f} °/с (разница {rel * 100:.0f}%), оси расходятся на {ang:.0f}° → "
-          f"{'согласована' if ok else 'НЕ согласована'}", flush=True)
-    out.setdefault("consistency", {})[k] = dict(axis_angle_deg=ang, rate_rel=rel, consistent=ok)
-if checks:
-    cons = all(checks)
+# согласованность независимых наборов A и B между собой: скорость ±25 %, ось ±30° (с учётом зеркального двойника —
+# по силуэту он неотличим)
+cons = None
+l_ = Wf.sc.C.numpy().T @ Wf.sc.los_t.numpy(); l_ /= np.linalg.norm(l_)
+if len(res_sub) == 2:
+    (r1, a1, _), (r2, a2, _) = res_sub.values()
+    a2m = -(a2 - 2 * (a2 @ l_) * l_)
+    ang = min(math.degrees(math.acos(float(np.clip(a1 @ a2, -1, 1)))), math.degrees(math.acos(float(np.clip(a1 @ a2m, -1, 1)))))
+    rel = abs(r1 - r2) / max(r1, r2, 1e-9); cons = bool(ang <= 30.0 and rel <= 0.25)
+    print(f"   согласованность независимых наборов A / B: {r1:.1f} / {r2:.1f} °/с (разница {rel * 100:.0f}%), оси расходятся на {ang:.0f}° → "
+          f"{'СОГЛАСОВАНЫ' if cons else 'НЕ согласованы'}", flush=True)
+    out["consistency"] = dict(axis_angle_deg=ang, rate_rel=rel, consistent=cons)
 if dL <= thr:
     spinning, verdict = False, "НЕ вращается (вращение не улучшает снимок)"
 elif cons is None:
