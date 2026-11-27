@@ -1,2 +1,2 @@
 name,sentinel_orbit,sig_along_m,sig_cross_m,sig_radial_m,GP_before_age_d,GP_before_along_km,GP_before_cross_km,GP_after_age_d,GP_after_along_km,GP_after_cross_km,SupGP_before_age_d,SupGP_before_along_km,SupGP_before_cross_km,SupGP_after_age_d,SupGP_after_along_km,SupGP_after_cross_km
-ATLAS_20261124T004801,GPS+3D,20,23,214,0.201,-0.402,0.24,2.973,0.024,0.27,,,,,,
+CZ-6A_20261125T012657,GPS+3D,13,16,505,1.645,0.557,-0.387,2.003,0.657,-0.411,,,,,,
