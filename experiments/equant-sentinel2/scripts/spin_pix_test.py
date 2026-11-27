@@ -102,8 +102,14 @@ for rate in [float(v) for v in a.rates.split(",")]:
             R0 = AP.rotvec(-np.asarray(w) * dtc) @ Rb_ if shift else Rb_
             Xw.append(np.r_[Ro.from_matrix(R0).as_rotvec(), rest, w])
     Xw = np.array(Xw); Lw = np.concatenate([Wc.L(Xw[i:i + 256]) for i in range(0, len(Xw), 256)])
-    ow = np.argsort(Lw)[:12]
-    xw, Lw2 = Wf.fit(Xw[ow], iters=60, lr=0.01)
+    # профиль по направлению оси: для каждого направления — лучшая точка сетки (по позам и величинам), затем градиент
+    # по всем параметрам при этом направлении (грубая модель) → лучшие 12 → точная модель
+    nb_, nm_ = len(bases), len(np.arange(0.80, 1.26, 0.03)); Lr = Lw.reshape(nb_, len(dirs), nm_)
+    per_dir = [np.unravel_index(np.argmin(Lr[:, d_, :]), (nb_, nm_)) for d_ in range(len(dirs))]
+    Xd = np.array([Xw[(bi * len(dirs) + d_) * nm_ + mi] for d_, (bi, mi) in enumerate(per_dir)])
+    xd, Ld = Wc.fit(Xd, iters=40, lr=0.02)
+    ow = np.argsort(Ld)[:12]
+    xw, Lw2 = Wf.fit(xd[ow], iters=60, lr=0.01)
     res2 = sorted([Wf.polish(xw[k]) for k in np.argsort(Lw2)[:3]] + [(xe, Le)], key=lambda q: q[1])
     xe, Le = res2[0]
     # 5. зеркальный двойник (направление): дожать все три варианта отражения, сравнить с лучшим
