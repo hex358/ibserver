@@ -469,6 +469,20 @@ def solve_spin(Wf, Wc, Sf, Sc, bands=None, n_rot=1500, kap=1.0, log=print):
     xd, Ld = Wc.fit(Xd, iters=40, lr=0.02, bands=bands)
     ow = np.argsort(Ld)[:12]; xw, Lw2 = Wf.fit(xd[ow], iters=60, lr=0.01, bands=bands)
     xe, Le = sorted([Wf.polish(xw[k], bands=bands) for k in np.argsort(Lw2)[:3]] + [(xe, Le)], key=lambda q: q[1])[0]
+    # 4б. полный перебор при найденной скорости: поза в t₀ по всей SO(3) (сетка 600) × ось по сфере (120 направлений);
+    #     скорость определяется дальней базой надёжно, а поза и ось — нет (истина бывала повёрнута на ~180° вокруг
+    #     произвольной оси относительно найденного); затем градиент для лучших направлений
+    spd = float(np.linalg.norm(xe[-3:]))
+    if spd > math.radians(1.0):
+        R0g = so3_grid(600); kq = np.arange(120) + 0.5; zq = 1 - 2 * kq / 120; pq = math.pi * (1 + 5 ** 0.5) * kq
+        dirs2 = np.c_[np.sqrt(1 - zq ** 2) * np.cos(pq), np.sqrt(1 - zq ** 2) * np.sin(pq), zq]
+        rest2 = xe[3:-3]
+        Xg = np.array([np.r_[rv, rest2, d_ * spd] for d_ in dirs2 for rv in R0g])
+        Lg = np.concatenate([Wc.L(Xg[i:i + 256], bands) for i in range(0, len(Xg), 256)]).reshape(len(dirs2), len(R0g))
+        Xd2 = np.array([Xg[d_ * len(R0g) + int(np.argmin(Lg[d_]))] for d_ in range(len(dirs2))])
+        xd2, Ld2 = Wc.fit(Xd2, iters=40, lr=0.02, bands=bands)
+        o2 = np.argsort(Ld2)[:12]; xw2, Lw3 = Wf.fit(xd2[o2], iters=60, lr=0.01, bands=bands)
+        xe, Le = sorted([Wf.polish(xw2[k], bands=bands) for k in np.argsort(Lw3)[:3]] + [(xe, Le)], key=lambda q: q[1])[0]
     xm, Lm = sorted([Wf.polish(t, bands=bands) for t in Wf.mirror_twins(xe)], key=lambda q: q[1])[0]
     if Lm < Le:
         (xe, Le), (xm, Lm) = (xm, Lm), (xe, Le)
