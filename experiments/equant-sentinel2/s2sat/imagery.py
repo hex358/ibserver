@@ -142,15 +142,19 @@ def read_window(href: str, epsg: int, bounds, res=20.0, resampling="average"):
     raise last
 
 
-def prune_cache(max_gb=40.0, target_gb=30.0):
-    """Ограничить кэш: при превышении max_gb удалить самые старые файлы до target_gb — сначала окна снимков
-    (их можно перечитать), обработанные ячейки — в последнюю очередь (их пересчёт дорог)."""
+def prune_cache(max_gb=15.0, target_gb=10.0, min_free_gb=8.0):
+    """Ограничить кэш: при превышении max_gb ИЛИ если на диске свободно меньше min_free_gb (место на машине
+    ограничено, а массовый прогон пишет постоянно) — удалить самые старые файлы до target_gb (и до освобождения
+    min_free_gb) — сначала окна снимков (их можно перечитать), обработанные ячейки — в последнюю очередь."""
+    import shutil
     win = sorted(CACHE.glob("win_*.npy"), key=lambda p: p.stat().st_mtime)
     til = sorted(CACHE.glob("tiles/*/*.pkl"), key=lambda p: p.stat().st_mtime)
     files = win + til
     total = sum(p.stat().st_size for p in files)
-    if total <= max_gb * 1e9:
+    free = shutil.disk_usage(CACHE).free
+    if total <= max_gb * 1e9 and free >= min_free_gb * 1e9:
         return 0
+    target_gb = min(target_gb, max(0.0, (total - (min_free_gb * 1e9 - free)) / 1e9)) if free < min_free_gb * 1e9 else target_gb
     removed = 0
     for p in files:
         if total <= target_gb * 1e9:
