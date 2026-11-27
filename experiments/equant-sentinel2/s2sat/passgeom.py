@@ -213,10 +213,22 @@ def pick_orbit(orbs: Orbits, e):
 
 def gauss_newton_theta(P, target, theta0, iters=4):
     """θ (км), при котором положения полос ближе всего к target: Гаусс–Ньютон с численным якобианом."""
-    th = np.array(theta0, float); P0 = J = None
+    th = np.array(theta0, float); P0 = J = None; keep = None
     for _ in range(iters):
         P0, J = P.jacobian(th)
-        bs = [b for b in target if b in P0 and b in J]
+        bs = [b for b in target if b in P0 and b in J and (keep is None or b in keep)]
+        if keep is None and len(bs) >= 3:
+            # полосы с неверным корнем (положение далеко от общего сдвига остальных) — не ошибка орбиты, а выброс:
+            # ошибка орбиты сдвигает все полосы почти одинаково (до сотен м), неверный корень — на км (ATLAS 24.11:
+            # nir08 в 39 км от остальных, Гаусс–Ньютон уходил). Отбор один раз, по сдвигу при начальном θ
+            rvb = {b: np.array(target[b]) - np.array(P0[b][:2]) for b in bs}; med = np.median(np.array(list(rvb.values())), 0)
+            dev = {b: float(np.linalg.norm(v - med)) for b, v in rvb.items()}; mad = float(np.median(list(dev.values())))
+            keep = {b for b in bs if dev[b] <= max(300.0, 4.0 * mad)}
+            if len(keep) < len(bs):
+                print(f"   выбросы положений полос (неверный корень): {', '.join(f'{b} {dev[b]:.0f} м' for b in bs if b not in keep)}", flush=True)
+            bs = [b for b in bs if b in keep]
+        if not bs:
+            break
         A = np.concatenate([J[b] for b in bs]); rv = np.concatenate([np.array(target[b]) - np.array(P0[b][:2]) for b in bs])
         # априорное распределение ошибки орбиты (THEORY §17) как псевдонаблюдения: поперёк 1.1 км, радиус 1.9 км;
         # погрешность положения в полосе ~30 м. Без него радиус (почти вырожден на снимке) уходит на сотни км.
@@ -228,7 +240,7 @@ def gauss_newton_theta(P, target, theta0, iters=4):
         if np.abs(dth).max() < 1e-3:
             break
     P0, J = P.jacobian(th)
-    bs = [b for b in target if b in P0]
+    bs = [b for b in target if b in P0 and (keep is None or b in keep)]
     rms = float(np.sqrt(np.mean([(P0[b][0] - target[b][0]) ** 2 + (P0[b][1] - target[b][1]) ** 2 for b in bs]) / 2))
     return th, P0, J, rms
 
