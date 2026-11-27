@@ -23,6 +23,9 @@ from s2sat.diffpose import DiffPose, DiffSpinPose, DiffSpinCoM, solve_spin, cv_d
 ap = argparse.ArgumentParser(); ap.add_argument("name"); ap.add_argument("--nongrey", action="store_true"); ap.add_argument("--shade", action="store_true")
 ap.add_argument("--n-rot", type=int, default=1500); ap.add_argument("--threads", type=int, default=2)
 ap.add_argument("--inject", type=float, default=None, help="проверка правила: подставить вращение (°/с) с известной осью")
+ap.add_argument("--truth", choices=["auto", "flat", "shade", "mismatch"], default="auto",
+                help="чем рисовать подстановку: flat — без освещения, shade — моделью освещения решателя, mismatch — другой моделью "
+                     "отражения; auto — как решатель (shade при --shade, mismatch при --mismatch)")
 ap.add_argument("--mismatch", action="store_true", help="подстановка рисуется ДРУГОЙ моделью отражения (не Ламберт cos^0.7, "
                 "разброс отражения по граням ±30 %%, блик шире), решатель — своей (проверка устойчивости направления)")
 a = ap.parse_args(); torch.set_num_threads(a.threads); n = a.name; t0_ = time.time()
@@ -46,16 +49,19 @@ if a.inject is not None:      # подстановка: объект в позе
     if Wf.grey:
         Wf.synth(xt, rho, math.sqrt(kap), rng)
     else:                     # яркости по полосам: для каждой полосы свои (НК по настоящему снимку в той же позе)
-        colf = Wf.columns
-        if a.mismatch:
-            assert a.shade, "--mismatch — только с --shade (сравнение моделей освещения)"
+        tr = a.truth if a.truth != "auto" else ("mismatch" if a.mismatch else "shade" if a.shade else "flat")
+        Wt = Wf if (tr == "flat") == (not a.shade) and tr != "mismatch" else DiffSpinPose(rc, spec, C, shade=(tr != "flat"))
+        if Wt is not Wf:
+            Wt.grey = Wf.grey; Wt.t0 = Wf.t0
+        colf = Wt.columns
+        if tr == "mismatch":
             from s2sat.diffmodel import rotvec_to_mat
-            tex = torch.tensor(np.random.default_rng(5).uniform(0.7, 1.3, len(Wf.sc.grp)), dtype=torch.float32)
+            tex = torch.tensor(np.random.default_rng(5).uniform(0.7, 1.3, len(Wt.sc.grp)), dtype=torch.float32)
 
             def colf(x, b):
                 with torch.no_grad():
                     xt_ = torch.tensor(np.atleast_2d(x), dtype=torch.float32); xs_, w_ = xt_[:, :-3], xt_[:, -3:]
-                    Rt = rotvec_to_mat(w_ * (Wf.sc.t[b] - Wf.t0)); cw, Sw = Wf.spots(xs_, Rt); dp = Wf.dpos(xs_); sc = Wf.sc; bd = sc.B[b]
+                    Rt = rotvec_to_mat(w_ * (Wt.sc.t[b] - Wt.t0)); cw, Sw = Wt.spots(xs_, Rt); dp = Wt.dpos(xs_); sc = Wt.sc; bd = sc.B[b]
                     P = bd.bt + torch.einsum("ij,bmj->bmi", bd.Mt, cw + dp[:, None, :])
                     A = torch.abs(torch.einsum("bmj,j->bm", Sw, bd.qt)); occ = bd.occupancy(P, A, sc.grp)
                     n_ = Sw / torch.linalg.norm(Sw, dim=-1, keepdim=True).clamp_min(1e-9)
@@ -64,11 +70,14 @@ if a.inject is not None:      # подстановка: объект в позе
                     sp = torch.relu((nv * sc.half_t).sum(-1)) ** 15
                     lit = bd.occupancy(P, A * ci, sc.grp); spo = bd.occupancy(P, A * sp * (sc.grp == 0), sc.grp).sum(1, keepdim=True)
                     return occ[0].numpy(), torch.cat([lit, spo], 1)[0].numpy()
-        for b in Wf.sc.bands:
-            bd = Wf.sc.B[b]; occ, cols = colf(xt, b); A_ = cols.T * bd.gm / bd.s; y_ = (bd.r.numpy() + bd.g.numpy() * occ.sum(0)) / bd.s
+        for b in Wt.sc.bands:
+            bd = Wt.sc.B[b]; occ, cols = colf(xt, b); A_ = cols.T * bd.gm / bd.s; y_ = (bd.r.numpy() + bd.g.numpy() * occ.sum(0)) / bd.s
             from scipy.optimize import nnls
             rb = nnls(A_, y_)[0]; m_ = cols.T @ rb * bd.gm - bd.g.numpy() * occ.sum(0)
             bd.r = torch.tensor(m_ + math.sqrt(kap) * bd.s * rng.standard_normal(len(m_)), dtype=torch.float32)
+        if Wt is not Wf:
+            transfer_r(Wt.sc, Wf.sc)
+        print(f"   подстановка нарисована: {dict(flat='без освещения', shade='моделью освещения', mismatch='другой моделью отражения')[tr]}", flush=True)
     for D in (Sf, Sc, Wc):
         transfer_r(Wf.sc, D.sc)
     truth = (a.inject, ax_t)
@@ -93,6 +102,18 @@ print(f"   направление: {'определено' if dir_ok else 'НЕ 
       + ("" if dir_ok else f" или {np.round(ax_mir, 2).tolist()}"), flush=True)
 out["all"] = dict(rate=rate, axis=ax.tolist(), axis_mirror=ax_mir.tolist(), direction_resolved=bool(dir_ok), dL=dL, thr=thr,
                   mirror_dL=r["mirror_dL"], p_direction=r["p_direction"])
+if not a.shade and dL > thr:
+    # направление ПО СВЕТУ: найденное движение и его зеркальные двойники дожимаются моделью с освещением Солнцем (без
+    # освещения снимок двойников не различает); скорость/ось/вердикт — от решателя без освещения (его проверка
+    # отложенными моментами надёжнее), знак — отсюда
+    Wl = DiffSpinPose(rc, spec, C, shade=True); Wl.grey = Wf.grey; Wl.t0 = Wf.t0; transfer_r(Wf.sc, Wl.sc)
+    cand = [np.asarray(r["x"], float)] + Wf.mirror_twins(r["x"])
+    pl = [Wl.polish(c, iters=100) for c in cand]; L0l = pl[0][1]; it = 1 + int(np.argmin([q[1] for q in pl[1:]])); Ltw = pl[it][1]
+    xl = pl[0][0] if L0l <= Ltw else pl[it][0]; axl = xl[-3:] / max(np.linalg.norm(xl[-3:]), 1e-12)
+    dl_ok = abs(Ltw - L0l) > 2 * kap * 3
+    print(f"   направление по свету: {'найденное' if L0l <= Ltw else 'двойник'} лучше на {abs(Ltw - L0l):.0f} (порог {2 * kap * 3:.0f}) → "
+          f"{'определено' if dl_ok else 'не различимо'}; ось {np.round(axl, 2).tolist()}", flush=True)
+    out["light"] = dict(axis=axl.tolist(), dL=float(Ltw - L0l), resolved=bool(dl_ok))
 # проверка предсказанием отложенного МОМЕНТА съёмки: по очереди откладывается целая подгруппа полос (снятых в пределах
 # 0,2 с — у них одна поза), и вращение ищется ЗАНОВО по остальным подгруппам (тот же решатель, без единого параметра,
 # подогнанного по отложенной); статика — так же. Обе модели предсказывают отложенную подгруппу (яркости — по ней самой,
@@ -141,6 +162,10 @@ if truth:
     print(f"   сравнение с подстановкой: скорость {rate:.1f} / {truth[0]:.0f} °/с, ось (со знаком) {ang_t:.0f}°, "
           f"с учётом зеркального двойника {min(ang_t, ang_tm):.0f}°", flush=True)
     out["inject"] = dict(rate=truth[0], axis=truth[1].tolist(), axis_err_deg=ang_t, axis_err_mod_mirror_deg=min(ang_t, ang_tm))
+    if "light" in out and truth[0] > 0:
+        al = math.degrees(math.acos(float(np.clip(np.asarray(out["light"]["axis"]) @ truth[1], -1, 1))))
+        out["inject"]["axis_err_light_deg"] = al
+        print(f"   ось, выбранная светом (со знаком): {al:.0f}° от истины", flush=True)
 out.update(name=n, spinning=spinning, verdict=verdict, identifiable=identifiable, seconds=time.time() - t0_)
 (ROOT / "results/spin_real").mkdir(exist_ok=True)
-(ROOT / "results/spin_real" / f"{n}{'_inj%d' % a.inject if a.inject is not None else ''}{'_nongrey' if a.nongrey else ''}{'_shade' if a.shade else ''}{'_mm' if a.mismatch else ''}{os.environ.get('SPIN_TAG', '')}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
+(ROOT / "results/spin_real" / f"{n}{'_inj%d' % a.inject if a.inject is not None else ''}{'_nongrey' if a.nongrey else ''}{'_shade' if a.shade else ''}{'_mm' if a.mismatch else ''}{'_t' + a.truth if a.truth != 'auto' else ''}{os.environ.get('SPIN_TAG', '')}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
