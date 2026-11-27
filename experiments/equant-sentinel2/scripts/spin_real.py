@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
 import model_recon as MR
 from s2sat import modelcat as MC, scenegeom as SG
-from s2sat.diffpose import DiffPose, DiffSpinPose, solve_spin
+from s2sat.diffpose import DiffPose, DiffSpinPose, DiffSpinCoM, solve_spin
 
 ap = argparse.ArgumentParser(); ap.add_argument("name"); ap.add_argument("--nongrey", action="store_true"); ap.add_argument("--shade", action="store_true")
 ap.add_argument("--n-rot", type=int, default=1500); ap.add_argument("--threads", type=int, default=2)
@@ -33,6 +33,7 @@ for D in (Sf, Sc, Wf, Wc):
 G = Wf.groups(); gt = [float(np.median([Wf.sc.t[b] for b in g])) for g in G]; Wf.t0 = Wc.t0 = gt[int(np.argmax([len(g) for g in G]))]
 pp = json.loads((ROOT / "results/pose_pix_off" / f"{n}.json").read_text()); kap = float(pp["kappa"])
 truth = None
+from s2sat.diffmodel import transfer_r
 if a.inject is not None:      # подстановка: объект в позе по пикселям, вращение a.inject °/с, яркости по снимку, шум ×√κ
     from s2sat.diffmodel import transfer_r
     Do = DiffPose(rc, spec, C, band_off=25.0); Do.grey = not a.nongrey
@@ -105,6 +106,13 @@ elif cons:
 else:
     spinning, verdict = False, "НЕ вращается: «вращение» подстраивается под полосы и не предсказывает отложенные моменты"
 print(f"   ИТОГ: {verdict}" + (f": {rate:.1f} °/с, ось {np.round(ax, 2).tolist()}" if spinning else ""), flush=True)
+if spinning:   # центр масс по вращению: прямая в теле (ось вращения через центр масс); вдоль оси не измеряется
+    Wm = DiffSpinCoM(rc, spec, C, shade=a.shade); Wm.grey = not a.nongrey; Wm.t0 = Wf.t0; transfer_r(Wf.sc, Wm.sc)
+    xc, Lc, L0c, sig, E, _ = Wm.fit_com(r["x"], kap=kap); nm = Wm.axis_model(xc); c = xc[-6:-3]; cp = c - (c @ nm) * nm
+    print(f"   центр масс: на оси вращения {np.round(nm, 2).tolist()} (оси модели) через точку {np.round(cp, 2).tolist()} м, "
+          f"σ поперёк оси {np.round(sig, 2).tolist()} м; выигрыш {L0c - Lc:.0f}", flush=True)
+    out["com"] = dict(axis_model=nm.tolist(), point_perp_m=cp.tolist(), sigma_perp_m=sig.tolist(), dL=L0c - Lc,
+                      note="центр масс лежит на оси вращения через эту точку; положение вдоль оси по вращению не измеряется")
 if truth:
     xtp, Ltp = Wf.polish(xt)
     print(f"   невязка: найдено {r['L']:.0f}, истина (дожатая) {Ltp:.0f} → {'поиск не нашёл истину' if Ltp < r['L'] - 1 else 'снимок предпочитает найденное'}", flush=True)

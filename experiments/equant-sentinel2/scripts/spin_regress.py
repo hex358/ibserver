@@ -17,23 +17,27 @@ ROOT = Path(__file__).resolve().parents[1]
 D = ROOT / "results/spin_real"
 
 
+SFX = "_nongrey" + ("_shade" if "--shade" in sys.argv else "")
+
+
 def current():
     out = {}
-    for f in D.glob("*_inj60_nongrey.json"):
-        n = f.name.replace("_inj60_nongrey.json", "")
+    for f in D.glob(f"*_inj60{SFX}.json"):
+        n = f.name.replace(f"_inj60{SFX}.json", "")
         r60 = json.loads(f.read_text())
-        f0, fr = D / f"{n}_inj0_nongrey.json", D / f"{n}_nongrey.json"
+        f0, fr = D / f"{n}_inj0{SFX}.json", D / f"{n}{SFX}.json"
         r0 = json.loads(f0.read_text()) if f0.exists() else None
         rr = json.loads(fr.read_text()) if fr.exists() else None
         inj = r60.get("inject", {})
         out[n] = dict(rate_err_pct=abs(r60["all"]["rate"] - 60.0) / 60.0 * 100, measured=bool(r60.get("spinning")),
                       axis_err_deg=inj.get("axis_err_mod_mirror_deg", inj.get("axis_err_deg")),
+                      axis_err_signed_deg=inj.get("axis_err_deg"),
                       false_pos=None if r0 is None else bool(r0.get("spinning")),
                       real_spin=None if rr is None else bool(rr.get("spinning")))
     return out
 
 
-cur = current(); bf = D / "baseline.json"
+cur = current(); bf = D / ("baseline_shade.json" if "--shade" in sys.argv else "baseline.json")
 base = json.loads(bf.read_text()) if bf.exists() else {}
 worse = []
 print(f"{'объект':32s} | {'60 °/с: ошибка скорости':24s} | {'ошибка оси':14s} | {'ложн. на 0':10s} | {'настоящий':10s} | сравнение с эталоном")
