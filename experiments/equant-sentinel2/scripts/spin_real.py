@@ -72,26 +72,38 @@ print(f"   направление: {'определено' if dir_ok else 'НЕ 
       + ("" if dir_ok else f" или {np.round(ax_mir, 2).tolist()}"), flush=True)
 out["all"] = dict(rate=rate, axis=ax.tolist(), axis_mirror=ax_mir.tolist(), direction_resolved=bool(dir_ok), dL=dL, thr=thr,
                   mirror_dL=r["mirror_dL"], p_direction=r["p_direction"])
-# проверка предсказанием отложенной полосы: по очереди каждая полоса откладывается, вращение и статика дожимаются
-# (от найденных решений) по остальным, и обе модели предсказывают отложенную полосу (яркости — по ней самой, свобода
-# одинаковая). Настоящее вращение предсказывает форму отложенной полосы лучше статики; «вращение», подогнанное под
-# особенности полос, — нет (её оно не видело)
-cv = []
-for b in sorted(Wf.sc.bands, key=lambda q: Wf.sc.t[q]):
-    tr = [c for c in Wf.sc.bands if c != b]
-    xs_tr, _ = Sf.polish(r["x_static"], iters=60, bands=tr); xw_tr, _ = Wf.polish(r["x"], iters=60, bands=tr)
-    d_ = float(Sf.L(xs_tr, bands=[b], prior=False)[0]) - float(Wf.L(xw_tr, bands=[b], prior=False)[0])
-    cv.append((b, d_)); print(f"   отложена {b:9s}: предсказание вращением лучше статики на {d_:+.0f}", flush=True)
-dcv = sum(d for _, d in cv); nb = sum(d > 0 for _, d in cv); thr_cv = 2 * kap * len(cv)
-cons = bool(dcv > thr_cv and nb >= math.ceil(2 * len(cv) / 3))
-print(f"   отложенные полосы: в сумме {dcv:+.0f} (порог {thr_cv:.0f}), лучше в {nb} из {len(cv)} → {'вращение ПОДТВЕРЖДЕНО' if cons else 'вращение НЕ подтверждено'}", flush=True)
-out["cv"] = dict(per_band={b: d for b, d in cv}, total=dcv, threshold=thr_cv, n_better=nb, confirmed=cons)
-if dL <= thr:
+# проверка предсказанием отложенного МОМЕНТА съёмки: по очереди откладывается целая подгруппа полос (снятых в пределах
+# 0,2 с — у них одна поза), и вращение ищется ЗАНОВО по остальным подгруппам (тот же решатель, без единого параметра,
+# подогнанного по отложенной); статика — так же. Обе модели предсказывают отложенную подгруппу (яркости — по ней самой,
+# свобода одинаковая). Настоящее вращение предсказывает позу в неувиденный момент; «вращение», подогнанное под
+# особенности полос, — нет. Дожим от решения по всем полосам здесь недопустим: быстрая «скорость» держит позу каждой
+# полосы в своей яме, и отложенная полоса продолжает «помнить» себя (так 33558 и 33700 получали ложное «вращается»).
+# Вращение добавляет 3 параметра — ровно одну лишнюю позу; при < 3 моментах съёмки его не отличить от несовпадения
+# полос, и проверка невозможна → вращение по этому пролёту не определяется.
+CL = Wf.clusters(0.2); ct = [float(np.median([Wf.sc.t[b] for b in c])) for c in CL]
+cv, cache = [], {}
+identifiable = len(CL) >= 3
+if dL > thr and identifiable:
+    for c in CL:
+        tr = [b for b in Wf.sc.bands if b not in c]
+        rr = solve_spin(Wf, Wc, Sf, Sc, bands=tr, n_rot=a.n_rot, kap=kap, cache=cache, log=lambda s: None)
+        d_ = float(Sf.L(rr["x_static"], bands=c, prior=False)[0]) - float(Wf.L(rr["x"], bands=c, prior=False)[0])
+        cv.append(("+".join(c), d_, math.degrees(np.linalg.norm(rr["x"][-3:]))))
+        print(f"   отложено {'+'.join(c):24s}: вращение по остальным {cv[-1][2]:6.1f} °/с, предсказание лучше статики на {d_:+.0f}", flush=True)
+dcv = sum(d for _, d, _ in cv); nb = sum(d > 0 for _, d, _ in cv); thr_cv = 2 * kap * max(1, len(cv))
+cons = bool(cv) and bool(dcv > thr_cv and nb >= math.ceil(2 * len(cv) / 3))
+if cv:
+    print(f"   отложенные моменты: в сумме {dcv:+.0f} (порог {thr_cv:.0f}), лучше в {nb} из {len(cv)} → {'вращение ПОДТВЕРЖДЕНО' if cons else 'вращение НЕ подтверждено'}", flush=True)
+out["cv"] = dict(per_cluster={k: d for k, d, _ in cv}, rate_per_fold={k: r_ for k, _, r_ in cv}, total=dcv, threshold=thr_cv,
+                 n_better=nb, confirmed=cons, n_clusters=len(CL))
+if not identifiable:
+    spinning, verdict = False, f"вращение по пролёту не определяется: {len(CL)} момент(а) съёмки (нужно ≥ 3)"
+elif dL <= thr:
     spinning, verdict = False, "НЕ вращается (вращение не улучшает снимок)"
 elif cons:
-    spinning, verdict = True, "ВРАЩАЕТСЯ (вращение предсказывает отложенные полосы)"
+    spinning, verdict = True, "ВРАЩАЕТСЯ (вращение предсказывает отложенные моменты съёмки)"
 else:
-    spinning, verdict = False, "НЕ вращается: «вращение» подстраивается под полосы и не предсказывает отложенные"
+    spinning, verdict = False, "НЕ вращается: «вращение» подстраивается под полосы и не предсказывает отложенные моменты"
 print(f"   ИТОГ: {verdict}" + (f": {rate:.1f} °/с, ось {np.round(ax, 2).tolist()}" if spinning else ""), flush=True)
 if truth:
     xtp, Ltp = Wf.polish(xt)
@@ -101,6 +113,6 @@ if truth:
     print(f"   сравнение с подстановкой: скорость {rate:.1f} / {truth[0]:.0f} °/с, ось (со знаком) {ang_t:.0f}°, "
           f"с учётом зеркального двойника {min(ang_t, ang_tm):.0f}°", flush=True)
     out["inject"] = dict(rate=truth[0], axis=truth[1].tolist(), axis_err_deg=ang_t, axis_err_mod_mirror_deg=min(ang_t, ang_tm))
-out.update(name=n, spinning=spinning, verdict=verdict, seconds=time.time() - t0_)
+out.update(name=n, spinning=spinning, verdict=verdict, identifiable=identifiable, seconds=time.time() - t0_)
 (ROOT / "results/spin_real").mkdir(exist_ok=True)
 (ROOT / "results/spin_real" / f"{n}{'_inj%d' % a.inject if a.inject is not None else ''}{'_nongrey' if a.nongrey else ''}{'_shade' if a.shade else ''}{os.environ.get('SPIN_TAG', '')}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))

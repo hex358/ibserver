@@ -426,6 +426,109 @@ class DiffSpinPose(DiffPose):
         return np.r_[xs, 0.0, 0.0, 0.0]
 
 
+class DiffSpinCoM(DiffSpinPose):
+    """Вращение + ЦЕНТР МАСС по фото. Тело без внешних моментов вращается вокруг центра масс, а орбита ведёт именно
+    его; поэтому точка тела, которая при вращении стоит на орбите, — центр масс, измеренный по пикселям (без модели
+    масс и плотностей; у сломанного объекта — так же). x = [поза…, сдвиг 2, c 3 (м, оси модели), ω 3]:
+        p(t) = C·(Rt·R·(q − c) + R·c) = C·Rt·R·q − C·(Rt − I)·R·c,
+    при t = t₀ поправка нулевая (не путается со сдвигом) — c видно только по повороту между полосами. Априори c — в
+    пределах размера объекта (σ = половина размаха модели)."""
+
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        self.P += 3
+        self.scale = torch.cat([self.scale[:-3], torch.tensor([2.0, 2.0, 2.0]), self.scale[-3:]])
+        V = np.asarray(self.spec["V"], float); self.sig_com = 0.5 * float(np.ptp(V, 0).max())
+
+    def _split(self, x):
+        return x[:, :-6], x[:, -6:-3], x[:, -3:]
+
+    def body_R(self, xs):
+        return rotvec_to_mat(xs[:, 0:3]) @ self.Rbase @ self.M2B
+
+    def com_shift(self, xs, c, Rt):
+        I3 = torch.eye(3, dtype=xs.dtype)[None]
+        return -torch.einsum("ij,bjk,bk->bi", self.sc.C, (Rt - I3) @ self.body_R(xs), c)
+
+    def loss(self, x, bands=None, prior=True, shade=None):
+        shade = self.shade if shade is None else shade
+        xs, c, w = self._split(x); dp = self.dpos(x)
+
+        def occ(b, sh):
+            Rt = rotvec_to_mat(w * (self.sc.t[b] - self.t0))
+            cw, Sw = self.spots(xs, Rt); cw = cw + self.com_shift(xs, c, Rt)[:, None, :]
+            return self.sc.band_occ_cs(b, cw, Sw, dp, sh)
+        L = self.sc.loss(None, dp, self.kappa, grey=self.grey, bands=bands, shade=shade, occfun=occ)
+        if prior:
+            L = L + (xs[:, -2] ** 2 + xs[:, -1] ** 2) / AP.SIG_POS ** 2 + (c ** 2).sum(1) / self.sig_com ** 2
+        return L
+
+    def dpos(self, x):
+        xs = x[:, :-6] if x.shape[1] == self.P else x
+        return torch.cat([xs[:, -2:], torch.zeros(x.shape[0], 1, dtype=x.dtype)], 1)
+
+    def columns(self, x, b, shade=None):
+        shade = self.shade if shade is None else shade
+        with torch.no_grad():
+            xt = torch.tensor(np.atleast_2d(x), dtype=torch.float32); xs, c, w = self._split(xt)
+            Rt = rotvec_to_mat(w * (self.sc.t[b] - self.t0)); cw, Sw = self.spots(xs, Rt)
+            res = self.sc.band_occ_cs(b, cw + self.com_shift(xs, c, Rt)[:, None, :], Sw, self.dpos(xt), shade)
+        if shade:
+            occ, lit, sp = res; cols = torch.cat([lit, sp], 1)
+        else:
+            occ = res; cols = occ
+        return occ[0].numpy(), cols[0].numpy()
+
+    def from_spin(self, xw, c=(0.0, 0.0, 0.0)):
+        return np.r_[np.asarray(xw[:-3], float), np.asarray(c, float), np.asarray(xw[-3:], float)]
+
+    def fit_com(self, xw, bands=None, kap=1.0):
+        """Центр масс от найденного вращения xw (вокруг начала модели): дожим всех параметров из 7 стартов c = 0 и
+        ±σ/3 по осям модели (один старт может остановиться в начале — градиент мал), до сходимости; лучший по невязке.
+        → (x, L, L при c = 0, σ(c), ковариация)."""
+        x0 = self.from_spin(xw); L0 = float(self.L(x0, bands)[0]); d = self.sig_com / 3.0
+        starts = [np.zeros(3)] + [s_ * d * np.eye(3)[k] for k in range(3) for s_ in (1, -1)]
+        best = None
+        for c0 in starts:
+            x, L = self.polish(self.from_spin(xw, c0), iters=150, bands=bands)
+            for _ in range(3):
+                x2, L2 = self.polish(x, iters=150, bands=bands)
+                if L2 >= L - 0.5:
+                    break
+                x, L = x2, L2
+            if best is None or L < best[1]:
+                best = (x, L)
+        sig, E, cov = self.com_sigma(best[0], bands, kap=kap)
+        return best[0], best[1], L0, sig, E, cov
+
+    def axis_model(self, x):
+        """Ось вращения в осях модели (единичная)."""
+        w = np.asarray(x[-3:], float); R = AP.rotvec(np.asarray(x[:3], float)) @ self.Rbase.numpy() @ self.M2B.numpy()
+        return R.T @ (w / max(float(np.linalg.norm(w)), 1e-12))
+
+    def com_sigma(self, x, bands=None, h=2.0, kap=1.0):
+        """σ центра масс ПОПЕРЁК оси вращения (м). Вдоль оси центр масс по вращению не измеряется в принципе: точки
+        оси неподвижны — снимок даёт ось вращения как прямую в теле, проходящую через центр масс. Гессиан невязки по
+        двум составляющим c ⊥ оси — центральными разностями (шаг h м; меньший шаг тонет в шуме float32), остальные
+        параметры — в найденной точке. → (σ по двум направлениям ⊥ оси, базис 3×2, ковариация 2×2)."""
+        x = np.asarray(x, float); k0 = len(x) - 6; nm = self.axis_model(x)
+        e1 = np.cross(nm, [1.0, 0, 0] if abs(nm[0]) < 0.9 else [0, 1.0, 0]); e1 /= np.linalg.norm(e1); E = np.c_[e1, np.cross(nm, e1)]
+        pts = [x]
+        for i in range(2):
+            for j in range(i, 2):
+                for si, sj in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+                    u = x.copy(); u[k0:k0 + 3] += si * h * E[:, i] + sj * h * E[:, j]; pts.append(u)
+        Lp = self.L(np.array(pts), bands).astype(float); H = np.zeros((2, 2)); q = 1
+        for i in range(2):
+            for j in range(i, 2):
+                a, b_, c_, d_ = Lp[q:q + 4]; q += 4
+                H[i, j] = H[j, i] = (a - b_ - c_ + d_) / (4 * h * h)
+        H = 0.5 * H                                   # невязка = −2 ln L → информация = H/2
+        if np.linalg.eigvalsh(H).min() <= 0:
+            return np.full(2, np.inf), E, None
+        cov = kap * np.linalg.inv(H); return np.sqrt(np.diag(cov)), E, cov
+
+
 def anchor_to_geometry(rc, orbit_json):
     """Опоры полос — геометрические положения по точной орбите Sentinel (scripts/orbit_check.py: gps3d / gps) вместо
     ярких пиков в каждой полосе. → описание (или None, если орбиты нет)."""
@@ -446,7 +549,7 @@ def anchor_to_geometry(rc, orbit_json):
         ", ".join(f"{b} {v:.0f} м" for b, v in sh.items())
 
 
-def solve_spin(Wf, Wc, Sf, Sc, bands=None, n_rot=1500, kap=1.0, log=print):
+def solve_spin(Wf, Wc, Sf, Sc, bands=None, n_rot=1500, kap=1.0, log=print, cache=None):
     """Вращение по пикселям на наборе полос bands (все — по умолчанию); то же, что проверено подстановками
     (scripts/spin_pix_test.py): 1) позы подгрупп ≤ 0,2 с; 2) кандидаты ω из пар минимумов (+2πk) и «не вращается»;
     3) градиент по всем параметрам; 4) профиль по оси (вся сфера) × величине × позам (найденная, её двойники тела,
@@ -458,10 +561,15 @@ def solve_spin(Wf, Wc, Sf, Sc, bands=None, n_rot=1500, kap=1.0, log=print):
     for b in bs[1:]:
         (CL[-1].append(b) if Wf.sc.t[b] - Wf.sc.t[CL[-1][0]] <= 0.2 else CL.append([b]))
     ct = [float(np.median([Wf.sc.t[b] for b in c])) for c in CL]
-    gm = []
-    for c in CL:
-        md, _ = Sc.search(bands=c, n_rot=n_rot, top=128, fine=Sf, n_polish=8, log=lambda s: None)
-        gm.append([m["x"] for m in md])
+    cache = {} if cache is None else cache          # статические позы набора полос не зависят от других полос
+
+    def srch(bb, npol):
+        k_ = (tuple(sorted(bb)), npol)
+        if k_ not in cache:
+            md, _ = Sc.search(bands=list(bb), n_rot=n_rot, top=128, fine=Sf, n_polish=npol, log=lambda s: None)
+            cache[k_] = [m["x"] for m in md]
+        return cache[k_]
+    gm = [srch(c, 8) for c in CL]
     ib = int(np.argmin([abs(t - Wf.t0) for t in ct]))
     cand = Wf.candidates(gm, ct, k_modes=3) + [Wf.static_x(m) for m in gm[ib][:4]]
     # группы полос (разрыв > 1 с): поза группы надёжнее позы мелкой подгруппы; поворот между позами групп и все целые
@@ -470,10 +578,7 @@ def solve_spin(Wf, Wc, Sf, Sc, bands=None, n_rot=1500, kap=1.0, log=print):
     for b in bs:
         (G1[-1].append(b) if G1 and Wf.sc.t[b] - Wf.sc.t[G1[-1][-1]] <= 1.0 else G1.append([b]))
     if len(G1) >= 2:
-        gt1 = [float(np.median([Wf.sc.t[b] for b in g])) for g in G1]; gm1 = []
-        for g in G1:
-            md, _ = Sc.search(bands=g, n_rot=n_rot, top=128, fine=Sf, n_polish=10, log=lambda s: None)
-            gm1.append([m["x"] for m in md])
+        gt1 = [float(np.median([Wf.sc.t[b] for b in g])) for g in G1]; gm1 = [srch(g, 10) for g in G1]
         cand += Wf.candidates(gm1, gt1, k_modes=5)
         # опора на САМУЮ ИНФОРМАТИВНУЮ группу (наибольший выигрыш над «объекта нет»): её позы + полный перебор ω —
         # ось (120 направлений) × скорость 1…200 °/с шагом 2 °/с (на базе Δt шаг поворота 2°/с·Δt ≲ 10°); поза в t₀ —
