@@ -23,6 +23,8 @@ from s2sat.diffpose import DiffPose, DiffSpinPose, DiffSpinCoM, solve_spin
 ap = argparse.ArgumentParser(); ap.add_argument("name"); ap.add_argument("--nongrey", action="store_true"); ap.add_argument("--shade", action="store_true")
 ap.add_argument("--n-rot", type=int, default=1500); ap.add_argument("--threads", type=int, default=2)
 ap.add_argument("--inject", type=float, default=None, help="проверка правила: подставить вращение (°/с) с известной осью")
+ap.add_argument("--mismatch", action="store_true", help="подстановка рисуется ДРУГОЙ моделью отражения (не Ламберт cos^0.7, "
+                "разброс отражения по граням ±30 %%, блик шире), решатель — своей (проверка устойчивости направления)")
 a = ap.parse_args(); torch.set_num_threads(a.threads); n = a.name; t0_ = time.time()
 rc = pickle.loads((ROOT / "results/shape" / f"{n}.pkl").read_bytes()); MR.prepare(rc)
 spec = MC.spec_for(int(rc["cat"]), n); C = SG.lvlh_to_fit(n, rc)
@@ -44,8 +46,26 @@ if a.inject is not None:      # подстановка: объект в позе
     if Wf.grey:
         Wf.synth(xt, rho, math.sqrt(kap), rng)
     else:                     # яркости по полосам: для каждой полосы свои (НК по настоящему снимку в той же позе)
+        colf = Wf.columns
+        if a.mismatch:
+            assert a.shade, "--mismatch — только с --shade (сравнение моделей освещения)"
+            from s2sat.diffmodel import rotvec_to_mat
+            tex = torch.tensor(np.random.default_rng(5).uniform(0.7, 1.3, len(Wf.sc.grp)), dtype=torch.float32)
+
+            def colf(x, b):
+                with torch.no_grad():
+                    xt_ = torch.tensor(np.atleast_2d(x), dtype=torch.float32); xs_, w_ = xt_[:, :-3], xt_[:, -3:]
+                    Rt = rotvec_to_mat(w_ * (Wf.sc.t[b] - Wf.t0)); cw, Sw = Wf.spots(xs_, Rt); dp = Wf.dpos(xs_); sc = Wf.sc; bd = sc.B[b]
+                    P = bd.bt + torch.einsum("ij,bmj->bmi", bd.Mt, cw + dp[:, None, :])
+                    A = torch.abs(torch.einsum("bmj,j->bm", Sw, bd.qt)); occ = bd.occupancy(P, A, sc.grp)
+                    n_ = Sw / torch.linalg.norm(Sw, dim=-1, keepdim=True).clamp_min(1e-9)
+                    nv = n_ * torch.sign((n_ * sc.los_t).sum(-1))[..., None]
+                    ci = torch.relu((nv * sc.sun_t).sum(-1)) ** 0.7 * tex[None]
+                    sp = torch.relu((nv * sc.half_t).sum(-1)) ** 15
+                    lit = bd.occupancy(P, A * ci, sc.grp); spo = bd.occupancy(P, A * sp * (sc.grp == 0), sc.grp).sum(1, keepdim=True)
+                    return occ[0].numpy(), torch.cat([lit, spo], 1)[0].numpy()
         for b in Wf.sc.bands:
-            bd = Wf.sc.B[b]; occ, cols = Wf.columns(xt, b); A_ = cols.T * bd.gm / bd.s; y_ = (bd.r.numpy() + bd.g.numpy() * occ.sum(0)) / bd.s
+            bd = Wf.sc.B[b]; occ, cols = colf(xt, b); A_ = cols.T * bd.gm / bd.s; y_ = (bd.r.numpy() + bd.g.numpy() * occ.sum(0)) / bd.s
             from scipy.optimize import nnls
             rb = nnls(A_, y_)[0]; m_ = cols.T @ rb * bd.gm - bd.g.numpy() * occ.sum(0)
             bd.r = torch.tensor(m_ + math.sqrt(kap) * bd.s * rng.standard_normal(len(m_)), dtype=torch.float32)
@@ -123,4 +143,4 @@ if truth:
     out["inject"] = dict(rate=truth[0], axis=truth[1].tolist(), axis_err_deg=ang_t, axis_err_mod_mirror_deg=min(ang_t, ang_tm))
 out.update(name=n, spinning=spinning, verdict=verdict, identifiable=identifiable, seconds=time.time() - t0_)
 (ROOT / "results/spin_real").mkdir(exist_ok=True)
-(ROOT / "results/spin_real" / f"{n}{'_inj%d' % a.inject if a.inject is not None else ''}{'_nongrey' if a.nongrey else ''}{'_shade' if a.shade else ''}{os.environ.get('SPIN_TAG', '')}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
+(ROOT / "results/spin_real" / f"{n}{'_inj%d' % a.inject if a.inject is not None else ''}{'_nongrey' if a.nongrey else ''}{'_shade' if a.shade else ''}{'_mm' if a.mismatch else ''}{os.environ.get('SPIN_TAG', '')}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
