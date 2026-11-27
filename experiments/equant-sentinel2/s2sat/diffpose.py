@@ -155,7 +155,7 @@ class DiffPose:
         R = so3_grid(n_rot)
         return np.c_[np.repeat(R, len(Dd), 0), np.tile(Dd, (len(R), 1)), np.zeros((len(R) * len(Dd), self.P - 3 - self.nd))]
 
-    def search(self, bands=None, n_rot=3000, step_deg=60.0, top=256, iters=150, n_polish=16, log=print, fine=None):
+    def search(self, bands=None, n_rot=3000, step_deg=60.0, top=256, iters=150, n_polish=16, log=print, fine=None, twins=False):
         """Глобально: вся SO(3) × приводы → градиент по всем параметрам → различные минимумы. Сетка и спуск — на этой
         (грубой) модели, дожим — на fine (мелкие пятна), если задана."""
         X = self.grid(n_rot, step_deg); Ls = []
@@ -168,6 +168,8 @@ class DiffPose:
         o2 = np.argsort(Lf)[:n_polish]; F = fine or self; res = [F.polish(xs[k], bands=bands) for k in o2]
         res.sort(key=lambda q: q[1])
         md = F.modes(res)
+        if not twins:
+            return md, Ls
         tw = [F.polish(t, bands=bands) for m in md[:4] for t in F.necker_twins(m["x"])]   # двойники Неккера
         return F.modes(sorted(res + tw, key=lambda q: q[1])), Ls
 

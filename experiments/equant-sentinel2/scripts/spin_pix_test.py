@@ -53,9 +53,9 @@ for rate in [float(v) for v in a.rates.split(",")]:
         md, _ = Sc.search(bands=c, n_rot=a.n_rot, top=128, fine=Sf, n_polish=8, log=lambda s: None)
         gm.append([m["x"] for m in md])
     ib = int(np.argmin([abs(t - Wf.t0) for t in ct]))
-    for c_, t_, ms in zip(CL, ct, gm):
-        Rtc = AP.rotvec(w * (t_ - Wf.t0)) @ Wf.R_of(xt)
-        log(f"   подгруппа {'+'.join(c_)} (t {t_ - Wf.t0:+.2f} с): минимумов {len(ms)}, ближайший к истинной позе {min(rot_angle(Wf.R_of(m), Rtc) for m in ms):.0f}°"
+    for c_, tc_, ms in zip(CL, ct, gm):
+        Rtc = AP.rotvec(w * (tc_ - Wf.t0)) @ Wf.R_of(xt)
+        log(f"   подгруппа {'+'.join(c_)} (t {tc_ - Wf.t0:+.2f} с): минимумов {len(ms)}, ближайший к истинной позе {min(rot_angle(Wf.R_of(m), Rtc) for m in ms):.0f}°"
             f" (лучший по невязке {rot_angle(Wf.R_of(ms[0]), Rtc):.0f}°)")
     cand = Wf.candidates(gm, ct, k_modes=3) + [Wf.static_x(m) for m in gm[ib][:4]]   # 2. кандидаты ω (+ «не вращается»)
     C_ = np.array(cand); dw = np.degrees(np.linalg.norm(C_[:, -3:] - w, axis=1))

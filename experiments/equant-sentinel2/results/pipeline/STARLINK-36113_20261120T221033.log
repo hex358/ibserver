@@ -1,0 +1,42 @@
+STARLINK-36113_20261120T221033: орбита Sentinel GPS+3D, полос 8, σ вдоль 63 м, поперёк 51 м, радиус 548 м; вклад TLE Sentinel [64.8, -86.0, -1249.5] м
+   CelesTrak − снимок: GP до снимка (0.49 сут): вдоль +3.46 поперёк -0.00 км; GP после снимка (0.49 сут): вдоль -2.03 поперёк +0.02 км; SupGP до снимка (0.03 сут): вдоль +0.33 поперёк -0.04 км; SupGP после снимка (1.01 сут): вдоль +13.80 поперёк +0.71 км
+
+Медиана |CelesTrak − снимок| (км), ближайшая эпоха каждого вида:
+  GP_before     n= 1: вдоль 3.46 (макс 3.46), поперёк 0.00 (макс 0.00)
+  GP_after      n= 1: вдоль 2.03 (макс 2.03), поперёк 0.02 (макс 0.02)
+  SupGP_before  n= 1: вдоль 0.33 (макс 0.33), поперёк 0.04 (макс 0.04)
+  SupGP_after   n= 1: вдоль 13.80 (макс 13.80), поперёк 0.71 (макс 0.71)
+  точность снимка (медиана σ): вдоль 63 м, поперёк 51 м
+STARLINK-36113_20261120T221033: опоры полос — геометрия по орбите Sentinel (GPS + 3D-углы); прежние опоры смещены на green 11 м, red 28 м, rededge1 5 м, rededge2 19 м, rededge3 35 м, nir 8 м, nir08 328 м, swir16 14 м, swir22 104 м
+   дифф. модель: 14580 пятен (≤ 0.71 м), 9 полос
+/usr/local/lib/python3.13/site-packages/numpy/lib/_nanfunctions_impl.py:1213: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+Traceback (most recent call last):
+  File "/home/user/ibserver/experiments/equant-sentinel2/scripts/pose_pix.py", line 57, in <module>
+    Df = DiffPose(rc, spec, C, shade=a.shade, band_off=a.band_off or None); Dc = DiffPose(rc, spec, C, coarse=True, shade=a.shade, band_off=a.band_off or None)
+                                                                                 ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/ibserver/experiments/equant-sentinel2/s2sat/diffpose.py", line 65, in __init__
+    self.sc = sc = Scene(rc, spec, C, parts=part, lmax=3.0 if coarse else lmax, ng=1 if coarse else None, coarse=coarse)
+                   ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/ibserver/experiments/equant-sentinel2/s2sat/diffmodel.py", line 150, in __init__
+    self.B = {b: Band(rc["bands"][b], self.ng, crop=crop, hfac=1.0 if coarse else 1.6) for b in self.bands}
+                 ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/ibserver/experiments/equant-sentinel2/s2sat/diffmodel.py", line 96, in __init__
+    self.x0 = d["X"].min() - self.res - margin; self.y1 = d["Y"].max() + self.res + margin
+              ~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/site-packages/numpy/_core/_methods.py", line 45, in _amin
+    return umr_minimum(a, axis, None, out, keepdims, initial, where)
+ValueError: zero-size array to reduction operation minimum which has no identity
+/home/user/ibserver/experiments/equant-sentinel2/results/sheets/STARLINK-36113_20261120T221033.png
+/usr/local/lib/python3.13/site-packages/skyfield_data/expirations.py:49: RuntimeWarning: The file finals2000A.all has expired. Please upgrade your version of `skyfield-data` or expect computation errors
+  warnings.warn(message, RuntimeWarning)
+STARLINK-36113_20261120T221033: дальность 312 км, λ/R≈2.59 (σ [2.6   2.572]), видимая скорость на земле 16.41 км/с, поза автоматически: на Землю, рысканье 90°, углы панелей по снимку; модель: STARLINK-V2-MINI (53744 тр.); якорь − орбита = [1344.  403.] м
+  red: заменено 0 пкс пятна объекта
+  green: заменено 281 пкс пятна объекта
+  EDSR ×4: (331, 541) → (1324, 2164), 146 с
+  свет Земли: полоса (800, 800) по 500 м, покрыто снимком 62%, 22 гранул, 637 с
+  wide: 2.5 м/пкс на земле = 97 см на объекте, ground, выдержка 1/4000 с (смаз 4.1 м), 4 с → STARLINK-36113_20261120T221033_wide.png
+  mid: 1.0 м/пкс на земле = 39 см на объекте, track, выдержка 1/4000 с (смаз 4.1 м), 3 с → STARLINK-36113_20261120T221033_mid.png
+  tele: 0.094 м/пкс на земле = 4 см на объекте, track, выдержка 1/1000 с (смаз 16.4 м), 5 с → STARLINK-36113_20261120T221033_tele.png
+готово за 820 с
+/home/user/ibserver/experiments/equant-sentinel2/results/sheets/STARLINK-36113_20261120T221033.png

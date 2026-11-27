@@ -1,0 +1,36 @@
+STARLINK-33753_20261121T004137: орбита Sentinel GPS+3D, полос 6, σ вдоль 8 м, поперёк 9 м, радиус 173 м; вклад TLE Sentinel [-718.9, -25.8, 852.7] м
+   CelesTrak − снимок: GP до снимка (0.62 сут): вдоль +6.47 поперёк -0.04 км; GP после снимка (0.42 сут): вдоль -1.90 поперёк -0.18 км; SupGP до снимка (0.10 сут): вдоль +0.04 поперёк -0.22 км; SupGP после снимка (0.94 сут): вдоль +29.29 поперёк +1.36 км
+
+Медиана |CelesTrak − снимок| (км), ближайшая эпоха каждого вида:
+  GP_before     n= 1: вдоль 6.47 (макс 6.47), поперёк 0.04 (макс 0.04)
+  GP_after      n= 1: вдоль 1.90 (макс 1.90), поперёк 0.18 (макс 0.18)
+  SupGP_before  n= 1: вдоль 0.04 (макс 0.04), поперёк 0.22 (макс 0.22)
+  SupGP_after   n= 1: вдоль 29.29 (макс 29.29), поперёк 1.36 (макс 1.36)
+  точность снимка (медиана σ): вдоль 8 м, поперёк 9 м
+STARLINK-33753_20261121T004137: опоры полос — геометрия по орбите Sentinel (GPS + 3D-углы); прежние опоры смещены на blue 19 м, green 21 м, rededge3 36 м, nir 10 м, nir08 7 м, swir22 102578 м
+   дифф. модель: 18612 пятен (≤ 0.60 м), 6 полос
+/usr/local/lib/python3.13/site-packages/numpy/lib/_nanfunctions_impl.py:1213: RuntimeWarning: Mean of empty slice
+  return np.nanmean(a, axis, out=out, keepdims=keepdims)
+Traceback (most recent call last):
+  File "/home/user/ibserver/experiments/equant-sentinel2/scripts/pose_pix.py", line 57, in <module>
+    Df = DiffPose(rc, spec, C, shade=a.shade, band_off=a.band_off or None); Dc = DiffPose(rc, spec, C, coarse=True, shade=a.shade, band_off=a.band_off or None)
+                                                                                 ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/ibserver/experiments/equant-sentinel2/s2sat/diffpose.py", line 65, in __init__
+    self.sc = sc = Scene(rc, spec, C, parts=part, lmax=3.0 if coarse else lmax, ng=1 if coarse else None, coarse=coarse)
+                   ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/ibserver/experiments/equant-sentinel2/s2sat/diffmodel.py", line 150, in __init__
+    self.B = {b: Band(rc["bands"][b], self.ng, crop=crop, hfac=1.0 if coarse else 1.6) for b in self.bands}
+                 ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/ibserver/experiments/equant-sentinel2/s2sat/diffmodel.py", line 96, in __init__
+    self.x0 = d["X"].min() - self.res - margin; self.y1 = d["Y"].max() + self.res + margin
+              ~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/site-packages/numpy/_core/_methods.py", line 45, in _amin
+    return umr_minimum(a, axis, None, out, keepdims, initial, where)
+ValueError: zero-size array to reduction operation minimum which has no identity
+/home/user/ibserver/experiments/equant-sentinel2/results/sheets/STARLINK-33753_20261121T004137.png
+/usr/local/lib/python3.13/site-packages/skyfield_data/expirations.py:49: RuntimeWarning: The file finals2000A.all has expired. Please upgrade your version of `skyfield-data` or expect computation errors
+  warnings.warn(message, RuntimeWarning)
+STARLINK-33753_20261121T004137: дальность 330 км, λ/R≈2.43 (σ [2.439 2.427]), видимая скорость на земле 13.40 км/с, поза автоматически: на Землю, рысканье 270°, панели следят за Солнцем; модель: STARLINK-V2-MINI (53744 тр.); якорь − орбита = [ 978. 2261.] м
+  green: заменено 109 пкс пятна объекта
+  blue: заменено 0 пкс пятна объекта
+  EDSR ×4: (331, 541) → (1324, 2164), 172 с
