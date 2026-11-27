@@ -35,7 +35,7 @@ Sf, Sc = DiffPose(rc, spec, C, shade=a.shade), DiffPose(rc, spec, C, shade=a.sha
 Wf, Wc = DiffSpinPose(rc, spec, C, shade=a.shade), DiffSpinPose(rc, spec, C, shade=a.shade, coarse=True)
 G = Wf.groups(); gt = [float(np.median([Wf.sc.t[b] for b in g])) for g in G]
 big = int(np.argmax([len(g) for g in G])); Wf.t0 = Wc.t0 = gt[big]
-log(f"   группы полос: " + "; ".join(f"{'+'.join(g)} (t {t:+.2f} с, разброс {np.ptp([Wf.sc.t[b] for b in g]):.2f} с)" for g, t in zip(G, gt)))
+log(f"   подгруппы ≤ 0,2 с: {[c for c in Wf.clusters(0.2)]}"); log(f"   группы полос: " + "; ".join(f"{'+'.join(g)} (t {t:+.2f} с, разброс {np.ptp([Wf.sc.t[b] for b in g]):.2f} с)" for g, t in zip(G, gt)))
 pp = json.loads((ROOT / "results/pose_pix" / f"{n}.json").read_text())
 xs0 = np.asarray(pp["x"], float); kap = float(pp["kappa"])
 _, rho = Sf.predict(xs0, Sf.sc.bands, Sf.sc.bands[:1])
@@ -47,17 +47,54 @@ for rate in [float(v) for v in a.rates.split(",")]:
     orig = Wf.synth(xt, rho, math.sqrt(kap), rng)
     for D in (Sf, Sc, Wc):
         transfer_r(Wf.sc, D.sc)
+    CL = Wf.clusters(0.2); ct = [float(np.median([Wf.sc.t[b] for b in c])) for c in CL]
     gm = []
-    for g in G:                                                     # 1. поза каждой группы
-        md, _ = Sc.search(bands=g, n_rot=a.n_rot, top=64, fine=Sf, n_polish=6, log=lambda s: None)
+    for c in CL:                                                    # 1. поза каждой подгруппы (≤ 0,2 с)
+        md, _ = Sc.search(bands=c, n_rot=a.n_rot, top=128, fine=Sf, n_polish=8, log=lambda s: None)
         gm.append([m["x"] for m in md])
-    cand = Wf.candidates(gm, gt) + [Wf.static_x(m) for m in gm[big][:4]]     # 2. кандидаты ω (+ «не вращается»)
+    ib = int(np.argmin([abs(t - Wf.t0) for t in ct]))
+    for c_, t_, ms in zip(CL, ct, gm):
+        Rtc = AP.rotvec(w * (t_ - Wf.t0)) @ Wf.R_of(xt)
+        log(f"   подгруппа {'+'.join(c_)} (t {t_ - Wf.t0:+.2f} с): минимумов {len(ms)}, ближайший к истинной позе {min(rot_angle(Wf.R_of(m), Rtc) for m in ms):.0f}°"
+            f" (лучший по невязке {rot_angle(Wf.R_of(ms[0]), Rtc):.0f}°)")
+    cand = Wf.candidates(gm, ct, k_modes=3) + [Wf.static_x(m) for m in gm[ib][:4]]   # 2. кандидаты ω (+ «не вращается»)
+    C_ = np.array(cand); dw = np.degrees(np.linalg.norm(C_[:, -3:] - w, axis=1))
+    dr = np.array([rot_angle(Wf.R_of(c), Wf.R_of(xt)) for c in C_]); kk = int(np.argmin(dw + dr / 3))
+    log(f"   диагностика: ближайший к истине кандидат — ω ошибка {dw[kk]:.1f} °/с, поза в t₀ {dr[kk]:.0f}°; "
+        f"по ω лучший {dw.min():.1f} °/с, по позе лучший {dr.min():.0f}°")
     xc, Lc = Wc.fit(np.array(cand), iters=120)                     # 3. градиент по всем параметрам, все полосы
+    dwf = np.degrees(np.linalg.norm(xc[:, -3:] - w, axis=1)); kf = int(np.argmin(dwf)); log(f"   после спуска: ближайший по ω {dwf[kf]:.1f} °/с, его невязка {Lc[kf]:.0f}, лучшая {Lc.min():.0f}")
     o = np.argsort(Lc)[:12]
     xf, Lf = Wf.fit(xc[o], iters=60, lr=0.01)                       # дожим на точной модели (Adam), затем L-BFGS
     res = sorted([Wf.polish(xf[k]) for k in np.argsort(Lf)[:4]], key=lambda q: q[1])
-    xe, Le = res[0]; xt_p, Lt_p = Wf.polish(xt)
-    re = math.degrees(np.linalg.norm(xe[-3:])); fam = [round(math.degrees(np.linalg.norm(x[-3:])), 1) for x, L in res if L - Le < 2 * kap * 3]
+    xe, Le = res[0]
+    # 4. профиль правдоподобия по ω: поза в t₀, крылья, сдвиг — из лучшего; ω — сетка по величине (×0,5…1,6) и оси
+    #    (конус до 20°); невязка пакетом → лучшие точки → градиент. Дальняя база (≈2 с) даёт узкие ямы по ω (~5 °/с),
+    #    ближняя — широкое априорное окно; сетка закрывает его целиком.
+    w0 = xe[-3:]; r0 = float(np.linalg.norm(w0)); n0 = w0 / max(r0, 1e-9)
+    e1 = np.cross(n0, [0.0, 0, 1]); e1 = e1 / (np.linalg.norm(e1) + 1e-12) if np.linalg.norm(e1) > 1e-6 else np.array([1.0, 0, 0])
+    e2 = np.cross(n0, e1); W = []
+    for cone in (0.0, 7.0, 14.0, 20.0):
+        for ph in (np.arange(0, 360, 45) if cone else [0.0]):
+            c, s_ = math.cos(math.radians(cone)), math.sin(math.radians(cone))
+            nn = c * n0 + s_ * (math.cos(math.radians(ph)) * e1 + math.sin(math.radians(ph)) * e2)
+            for m in np.arange(0.5, 1.61, 0.02):
+                W.append(nn * r0 * m)
+    # позы в t₀: найденная и все статические минимумы ближайшей к t₀ подгруппы (их снимок допускает), сдвинутые на t₀
+    from scipy.spatial.transform import Rotation as Ro
+    bases = [(Wf.R_of(xe), xe[3:-3])] + [(Wf.R_of(m), m[3:]) for m in gm[ib][:4]]
+    dtc = ct[ib] - Wf.t0; Xw = []
+    for Rb_, rest in bases:
+        for w in W:
+            R0 = AP.rotvec(-np.asarray(w) * dtc) @ Rb_ if Rb_ is not bases[0][0] else Rb_
+            Xw.append(np.r_[Ro.from_matrix(R0).as_rotvec(), rest, w])
+    Xw = np.array(Xw); Lw = np.concatenate([Wc.L(Xw[i:i + 256]) for i in range(0, len(Xw), 256)])
+    ow = np.argsort(Lw)[:8]
+    xw, Lw2 = Wf.fit(Xw[ow], iters=60, lr=0.01)
+    res2 = sorted([Wf.polish(xw[k]) for k in np.argsort(Lw2)[:3]] + [(xe, Le)], key=lambda q: q[1])
+    xe, Le = res2[0]
+    xt_p, Lt_p = Wf.polish(xt)
+    re = math.degrees(np.linalg.norm(xe[-3:])); fam = [round(math.degrees(np.linalg.norm(x[-3:])), 1) for x, L in res2 if L - Le < 2 * kap * 3]
     axe = math.degrees(math.acos(min(1.0, abs(float(xe[-3:] @ w) / (np.linalg.norm(xe[-3:]) * np.linalg.norm(w) + 1e-12))))) if rate > 0 else float("nan")
     r_ = dict(rate_true=rate, rate_found=re, axis_err_deg=axe, family=fam, L_found=Le, L_truth=Lt_p, n_cand=len(cand),
               pose_err_deg=rot_angle(Wf.R_of(xe), Wf.R_of(xt)), seconds=time.time() - t_)

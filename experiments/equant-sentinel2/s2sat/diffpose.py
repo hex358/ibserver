@@ -167,7 +167,22 @@ class DiffPose:
         xs, Lf = self.fit(X[o], iters=iters, bands=bands)
         o2 = np.argsort(Lf)[:n_polish]; F = fine or self; res = [F.polish(xs[k], bands=bands) for k in o2]
         res.sort(key=lambda q: q[1])
-        return F.modes(res), Ls
+        md = F.modes(res)
+        tw = [F.polish(t, bands=bands) for m in md[:4] for t in F.necker_twins(m["x"])]   # двойники Неккера
+        return F.modes(sorted(res + tw, key=lambda q: q[1])), Ls
+
+    def necker_twins(self, x):
+        """Двойники глубины ортографической проекции: тело, отражённое относительно плоскости ⊥ визиру (M = I − 2llᵀ),
+        с отражением одной из осей тела D_k (чтобы поворот остался собственным): R' = M R D_k — силуэт тот же (точно для
+        плоских частей, ⊥ оси k), глубина обратная. Углы приводов при отражении меняют знак."""
+        from scipy.spatial.transform import Rotation as Ro
+        l = self.sc.C.numpy().T @ (self.sc.los_t.numpy()); l = l / np.linalg.norm(l); M = np.eye(3) - 2 * np.outer(l, l)
+        R = self.R_of(x); out = []
+        for k in range(3):
+            D = np.eye(3); D[k, k] = -1.0
+            Rt = M @ R @ D
+            out.append(np.r_[Ro.from_matrix(Rt).as_rotvec(), -np.asarray(x[3:3 + self.nd]), np.asarray(x[3 + self.nd:])])
+        return out
 
     def R_of(self, x):
         return AP.rotvec(np.asarray(x[:3], float)) @ self.Rbase.numpy()
@@ -336,6 +351,15 @@ class DiffSpinPose(DiffPose):
         bs = sorted(self.sc.bands, key=lambda b: self.sc.t[b]); out = [[bs[0]]]
         for b in bs[1:]:
             (out[-1].append(b) if self.sc.t[b] - self.sc.t[out[-1][-1]] <= gap else out.append([b]))
+        return out
+
+    def clusters(self, span=0.2):
+        """Подгруппы полос с разбросом времён ≤ span: внутри поворот мал даже при быстром вращении (120 °/с × 0,2 с =
+        24°), поэтому статическая поза подгруппы верна. Близкие подгруппы (Δt ~0,1–0,4 с) дают ω без неоднозначности
+        2πk (поворот < 180° до ~500 °/с), далёкие (Δt ~2 с) — точность; неоднозначность далёких снимает близкая база."""
+        bs = sorted(self.sc.bands, key=lambda b: self.sc.t[b]); out = [[bs[0]]]
+        for b in bs[1:]:
+            (out[-1].append(b) if self.sc.t[b] - self.sc.t[out[-1][0]] <= span else out.append([b]))
         return out
 
     def candidates(self, gmodes, gt, w_max_deg=200.0, k_modes=4):
