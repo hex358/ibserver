@@ -469,37 +469,30 @@ def solve_spin(Wf, Wc, Sf, Sc, bands=None, n_rot=1500, kap=1.0, log=print):
     xd, Ld = Wc.fit(Xd, iters=40, lr=0.02, bands=bands)
     ow = np.argsort(Ld)[:12]; xw, Lw2 = Wf.fit(xd[ow], iters=60, lr=0.01, bands=bands)
     xe, Le = sorted([Wf.polish(xw[k], bands=bands) for k in np.argsort(Lw2)[:3]] + [(xe, Le)], key=lambda q: q[1])[0]
-    # 4б. полный перебор при найденной скорости: поза в t₀ по всей SO(3) (сетка 600) × ось по сфере (120 направлений);
-    #     скорость определяется дальней базой надёжно, а поза и ось — нет (истина бывала повёрнута на ~180° вокруг
-    #     произвольной оси относительно найденного); затем градиент для лучших направлений
+    # 4б. полный перебор поза × ось при каждой кандидатной скорости: найденной и её целочисленных соседях
+    #     |ω| + k·2π/Δt (k = −2…2; Δt — наибольший промежуток между группами полос): поворот между группами у них
+    #     одинаков, различает их только поворот внутри групп — и только при полной свободе позы и оси (с неверной
+    #     осью соседняя яма не достигается). Поза в t₀ — сетка 600 по SO(3), ось — 120 направлений по сфере; для
+    #     каждой скорости и направления лучшая поза → градиент → точная модель; итог — лучший по невязке
     spd = float(np.linalg.norm(xe[-3:]))
     if spd > math.radians(1.0):
+        speeds = [spd]
+        grp = [g for g in Wf.groups(1.0) if any(b in bands for b in g)]
+        if len(grp) >= 2:
+            tg = sorted(float(np.median([Wf.sc.t[b] for b in g if b in bands])) for g in grp)
+            stp = 2 * math.pi / max(tg[i_ + 1] - tg[i_] for i_ in range(len(tg) - 1))
+            speeds += [abs(spd + k * stp) for k in (-2, -1, 1, 2) if math.radians(1.0) < abs(spd + k * stp) <= math.radians(200.0)]
         R0g = so3_grid(600); kq = np.arange(120) + 0.5; zq = 1 - 2 * kq / 120; pq = math.pi * (1 + 5 ** 0.5) * kq
         dirs2 = np.c_[np.sqrt(1 - zq ** 2) * np.cos(pq), np.sqrt(1 - zq ** 2) * np.sin(pq), zq]
-        rest2 = xe[3:-3]
-        Xg = np.array([np.r_[rv, rest2, d_ * spd] for d_ in dirs2 for rv in R0g])
-        Lg = np.concatenate([Wc.L(Xg[i:i + 256], bands) for i in range(0, len(Xg), 256)]).reshape(len(dirs2), len(R0g))
-        Xd2 = np.array([Xg[d_ * len(R0g) + int(np.argmin(Lg[d_]))] for d_ in range(len(dirs2))])
-        xd2, Ld2 = Wc.fit(Xd2, iters=40, lr=0.02, bands=bands)
-        o2 = np.argsort(Ld2)[:12]; xw2, Lw3 = Wf.fit(xd2[o2], iters=60, lr=0.01, bands=bands)
-        xe, Le = sorted([Wf.polish(xw2[k], bands=bands) for k in np.argsort(Lw3)[:3]] + [(xe, Le)], key=lambda q: q[1])[0]
-    # 4в. целочисленная неоднозначность (группы полос, разнесённые на Δt): поворот между группами одинаков при
-    #     ω + k·2π/Δt (ось та же; при переходе через ноль — обратная ось); выбор k — по повороту ВНУТРИ групп (вклад в
-    #     невязку); каждый вариант дожимается градиентом, выбирается лучший
-    grp = [g for g in Wf.groups(1.0) if any(b in bands for b in g)]
-    if len(grp) >= 2 and np.linalg.norm(xe[-3:]) > 1e-6:
-        tg = sorted(float(np.median([Wf.sc.t[b] for b in g if b in bands])) for g in grp)
-        dT = max(tg[i + 1] - tg[i] for i in range(len(tg) - 1)); step = 2 * math.pi / dT
-        w_ = xe[-3:]; r_ = float(np.linalg.norm(w_)); n_ = w_ / r_; wmax = math.radians(200.0); al = []
-        for k in range(-6, 7):
-            rk = r_ + k * step
-            if k == 0 or abs(rk) < math.radians(0.5) or abs(rk) > wmax:
-                continue
-            al.append(np.r_[xe[:-3], n_ * rk])
-        if al:
-            xa, La = Wf.fit(np.array(al), iters=60, lr=0.01, bands=bands)
-            best = [Wf.polish(xa[k], bands=bands) for k in np.argsort(La)[:3]]
-            xe, Le = sorted(best + [(xe, Le)], key=lambda q: q[1])[0]
+        rest2 = xe[3:-3]; cands = []
+        for sp_ in speeds:
+            Xg = np.array([np.r_[rv, rest2, d_ * sp_] for d_ in dirs2 for rv in R0g])
+            Lg = np.concatenate([Wc.L(Xg[i_:i_ + 256], bands) for i_ in range(0, len(Xg), 256)]).reshape(len(dirs2), len(R0g))
+            Xd2 = np.array([Xg[d_ * len(R0g) + int(np.argmin(Lg[d_]))] for d_ in range(len(dirs2))])
+            xd2, Ld2 = Wc.fit(Xd2, iters=40, lr=0.02, bands=bands)
+            cands += [xd2[k] for k in np.argsort(Ld2)[:6]]
+        xw2, Lw3 = Wf.fit(np.array(cands), iters=60, lr=0.01, bands=bands)
+        xe, Le = sorted([Wf.polish(xw2[k], bands=bands) for k in np.argsort(Lw3)[:4]] + [(xe, Le)], key=lambda q: q[1])[0]
     xm, Lm = sorted([Wf.polish(t, bands=bands) for t in Wf.mirror_twins(xe)], key=lambda q: q[1])[0]
     if Lm < Le:
         (xe, Le), (xm, Lm) = (xm, Lm), (xe, Le)
