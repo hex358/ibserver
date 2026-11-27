@@ -1,0 +1,45 @@
+{
+ "all": {
+  "rate": 0.9491544632464716,
+  "axis": [
+   0.9248397946357727,
+   -0.3803311288356781,
+   0.004423670470714569
+  ],
+  "axis_mirror": [
+   -0.9234259128570557,
+   0.3824530839920044,
+   0.031846243888139725
+  ],
+  "direction_resolved": false,
+  "dL": 1.15625,
+  "thr": 49.771518626671174,
+  "mirror_dL": 0.35205078125,
+  "p_direction": 0.5218777232434701
+ },
+ "cv": {
+  "per_cluster": {},
+  "rate_per_fold": {},
+  "total": 0,
+  "threshold": 4.020368011482597,
+  "n_better": 0,
+  "n_informative": 0,
+  "confirmed": false,
+  "n_clusters": 5
+ },
+ "inject": {
+  "rate": 0.0,
+  "axis": [
+   0.003033931306655539,
+   0.736797110260639,
+   -0.676107102146101
+  ],
+  "axis_err_deg": NaN,
+  "axis_err_mod_mirror_deg": NaN
+ },
+ "name": "STARLINK-30580_20261120T111642",
+ "spinning": false,
+ "verdict": "НЕ вращается (вращение не улучшает снимок)",
+ "identifiable": true,
+ "seconds": 480.05416321754456
+}
