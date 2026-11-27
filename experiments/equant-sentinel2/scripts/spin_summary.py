@@ -18,12 +18,13 @@ def load(n, tag):
 
 
 names = sorted({Path(f).name.split("_inj")[0].replace("_nongrey.json", "") for f in glob.glob(str(D / "*_nongrey.json"))})
-print(f"{'объект':32s} | {'настоящий снимок':42s} | {'подст. 0 °/с':14s} | {'подст. 60 °/с: найдено, ось':28s} | итог")
+print(f"{'объект':32s} | {'настоящий снимок':42s} | {'подст. 0 °/с':14s} | {'подст. 60 °/с: найдено, ось (до двойника)':28s} | итог")
 for n in names:
     r, r0, r60 = load(n, ""), load(n, "_inj0"), load(n, "_inj60")
     v = (r or {}).get("verdict", "—")
     fa = None if r0 is None else bool(r0.get("spinning"))
-    s60 = None if r60 is None else (r60["all"]["rate"], r60.get("inject", {}).get("axis_err_deg"), bool(r60.get("spinning")))
+    s60 = None if r60 is None else (r60["all"]["rate"], r60.get("inject", {}).get("axis_err_mod_mirror_deg", r60.get("inject", {}).get("axis_err_deg")),
+                                     bool(r60.get("spinning")))
     ok_geo = (fa is False) and s60 is not None and abs(s60[0] - 60) / 60 <= 0.15 and s60[2]
     if r is None:
         final = "—"

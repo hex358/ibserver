@@ -66,7 +66,12 @@ r = solve_spin(Wf, Wc, Sf, Sc, n_rot=a.n_rot, kap=kap); rate, ax = summ(r)
 thr = kap * 3 * math.log(Wf.npix); dL = r["L_static"] - r["L"]
 print(f"   все полосы: {rate:.1f} °/с, ось {np.round(ax, 2).tolist()}; выигрыш над статикой {dL:.0f} (порог {thr:.0f}); "
       f"зеркальный двойник хуже на {r['mirror_dL']:.0f}", flush=True)
-out["all"] = dict(rate=rate, axis=ax.tolist(), dL=dL, thr=thr, mirror_dL=r["mirror_dL"], p_direction=r["p_direction"])
+l_ = Wf.sc.C.numpy().T @ Wf.sc.los_t.numpy(); l_ /= np.linalg.norm(l_); ax_mir = -(ax - 2 * (ax @ l_) * l_)   # ось зеркального двойника
+dir_ok = r["mirror_dL"] > 2 * kap * 3                       # направление различимо (двойник заметно хуже)
+print(f"   направление: {'определено' if dir_ok else 'НЕ различимо по снимку — две оси'}; ось {np.round(ax, 2).tolist()}"
+      + ("" if dir_ok else f" или {np.round(ax_mir, 2).tolist()}"), flush=True)
+out["all"] = dict(rate=rate, axis=ax.tolist(), axis_mirror=ax_mir.tolist(), direction_resolved=bool(dir_ok), dL=dL, thr=thr,
+                  mirror_dL=r["mirror_dL"], p_direction=r["p_direction"])
 # проверка предсказанием отложенной полосы: по очереди каждая полоса откладывается, вращение и статика дожимаются
 # (от найденных решений) по остальным, и обе модели предсказывают отложенную полосу (яркости — по ней самой, свобода
 # одинаковая). Настоящее вращение предсказывает форму отложенной полосы лучше статики; «вращение», подогнанное под
@@ -91,9 +96,11 @@ print(f"   ИТОГ: {verdict}" + (f": {rate:.1f} °/с, ось {np.round(ax, 2)
 if truth:
     xtp, Ltp = Wf.polish(xt)
     print(f"   невязка: найдено {r['L']:.0f}, истина (дожатая) {Ltp:.0f} → {'поиск не нашёл истину' if Ltp < r['L'] - 1 else 'снимок предпочитает найденное'}", flush=True)
-    ang_t = math.degrees(math.acos(float(np.clip(ax @ truth[1], -1, 1))))
-    print(f"   сравнение с подстановкой: скорость {rate:.1f} / {truth[0]:.0f} °/с, ось (со знаком) {ang_t:.0f}°", flush=True)
-    out["inject"] = dict(rate=truth[0], axis=truth[1].tolist(), axis_err_deg=ang_t)
+    ang_t = math.degrees(math.acos(float(np.clip(ax @ truth[1], -1, 1)))) if truth[0] > 0 else float("nan")
+    ang_tm = math.degrees(math.acos(float(np.clip(ax_mir @ truth[1], -1, 1)))) if truth[0] > 0 else float("nan")
+    print(f"   сравнение с подстановкой: скорость {rate:.1f} / {truth[0]:.0f} °/с, ось (со знаком) {ang_t:.0f}°, "
+          f"с учётом зеркального двойника {min(ang_t, ang_tm):.0f}°", flush=True)
+    out["inject"] = dict(rate=truth[0], axis=truth[1].tolist(), axis_err_deg=ang_t, axis_err_mod_mirror_deg=min(ang_t, ang_tm))
 out.update(name=n, spinning=spinning, verdict=verdict, seconds=time.time() - t0_)
 (ROOT / "results/spin_real").mkdir(exist_ok=True)
 (ROOT / "results/spin_real" / f"{n}{'_inj%d' % a.inject if a.inject is not None else ''}{'_nongrey' if a.nongrey else ''}{'_shade' if a.shade else ''}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
