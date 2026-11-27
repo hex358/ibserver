@@ -261,6 +261,29 @@ def footprints(t0, t1):
     if cache.exists():
         return json.loads(cache.read_text())
     out, t = [], t0
+    if (t1 - t0).total_seconds() > 2 * 86400 and day:
+        # длинное окно: не весь каталог (тысячи запросов), а только окрестность каждого пролёта (±10 мин, точка);
+        # ошибка каталога — пропуск этого пролёта (с повтором), а не падение всего поиска
+        import time as _tm
+        seen_ = set(); fails = 0
+        for e in day:
+            te = O.dt_from_jd(e["jd"])
+            for k_ in range(4):
+                try:
+                    s_ = I.client().search(collections=[I.COLL], intersects={"type": "Point", "coordinates": [e["lon"], e["lat"]]},
+                                           datetime=f"{te - dt.timedelta(minutes=10):%Y-%m-%dT%H:%M:%SZ}/{te + dt.timedelta(minutes=10):%Y-%m-%dT%H:%M:%SZ}",
+                                           limit=50, fields={"include": ["id", "geometry", "properties.datetime", "properties.eo:cloud_cover"], "exclude": ["assets", "links"]})
+                    for it in s_.items_as_dicts():
+                        if it["id"] not in seen_:
+                            seen_.add(it["id"]); out.append(dict(id=it["id"], geom=it["geometry"], t=it["properties"]["datetime"], cloud=it["properties"].get("eo:cloud_cover", 100)))
+                    break
+                except Exception:
+                    if k_ == 3:
+                        fails += 1
+                    _tm.sleep(3 * (k_ + 1))
+        print(f"prefilter: каталог по точкам пролётов — {len(day)} запросов, снимков {len(out)}, ошибок {fails}", flush=True)
+        cache.write_text(json.dumps(out))
+        return out
     while t < t1:
         t2 = min(t + dt.timedelta(hours=2), t1)
         s_ = I.client().search(collections=[I.COLL], datetime=f"{t:%Y-%m-%dT%H:%M:%SZ}/{t2:%Y-%m-%dT%H:%M:%SZ}", limit=500,
