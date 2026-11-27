@@ -444,6 +444,17 @@ def solve_spin(Wf, Wc, Sf, Sc, bands=None, n_rot=1500, kap=1.0, log=print):
         gm.append([m["x"] for m in md])
     ib = int(np.argmin([abs(t - Wf.t0) for t in ct]))
     cand = Wf.candidates(gm, ct, k_modes=3) + [Wf.static_x(m) for m in gm[ib][:4]]
+    # группы полос (разрыв > 1 с): поза группы надёжнее позы мелкой подгруппы; поворот между позами групп и все целые
+    # k дают точный набор кандидатных ω (разрешение целочисленной неоднозначности — дальше, по невязке)
+    G1 = []
+    for b in bs:
+        (G1[-1].append(b) if G1 and Wf.sc.t[b] - Wf.sc.t[G1[-1][-1]] <= 1.0 else G1.append([b]))
+    if len(G1) >= 2:
+        gt1 = [float(np.median([Wf.sc.t[b] for b in g])) for g in G1]; gm1 = []
+        for g in G1:
+            md, _ = Sc.search(bands=g, n_rot=n_rot, top=128, fine=Sf, n_polish=10, log=lambda s: None)
+            gm1.append([m["x"] for m in md])
+        cand += Wf.candidates(gm1, gt1, k_modes=5)
     xc, Lc = Wc.fit(np.array(cand), iters=120, bands=bands)
     o = np.argsort(Lc)[:12]; xf, Lf = Wf.fit(xc[o], iters=60, lr=0.01, bands=bands)
     xe, Le = sorted([Wf.polish(xf[k], bands=bands) for k in np.argsort(Lf)[:4]], key=lambda q: q[1])[0]

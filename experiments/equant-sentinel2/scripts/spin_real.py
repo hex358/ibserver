@@ -89,6 +89,8 @@ else:
     spinning, verdict = False, "НЕ вращается: «вращение» подстраивается под полосы и не предсказывает отложенные"
 print(f"   ИТОГ: {verdict}" + (f": {rate:.1f} °/с, ось {np.round(ax, 2).tolist()}" if spinning else ""), flush=True)
 if truth:
+    xtp, Ltp = Wf.polish(xt)
+    print(f"   невязка: найдено {r['L']:.0f}, истина (дожатая) {Ltp:.0f} → {'поиск не нашёл истину' if Ltp < r['L'] - 1 else 'снимок предпочитает найденное'}", flush=True)
     ang_t = math.degrees(math.acos(float(np.clip(ax @ truth[1], -1, 1))))
     print(f"   сравнение с подстановкой: скорость {rate:.1f} / {truth[0]:.0f} °/с, ось (со знаком) {ang_t:.0f}°", flush=True)
     out["inject"] = dict(rate=truth[0], axis=truth[1].tolist(), axis_err_deg=ang_t)
