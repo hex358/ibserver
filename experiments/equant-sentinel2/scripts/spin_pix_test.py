@@ -36,15 +36,19 @@ Wf, Wc = DiffSpinPose(rc, spec, C, shade=a.shade), DiffSpinPose(rc, spec, C, sha
 G = Wf.groups(); gt = [float(np.median([Wf.sc.t[b] for b in g])) for g in G]
 big = int(np.argmax([len(g) for g in G])); Wf.t0 = Wc.t0 = gt[big]
 log(f"   подгруппы ≤ 0,2 с: {[c for c in Wf.clusters(0.2)]}"); log(f"   группы полос: " + "; ".join(f"{'+'.join(g)} (t {t:+.2f} с, разброс {np.ptp([Wf.sc.t[b] for b in g]):.2f} с)" for g, t in zip(G, gt)))
-pp = json.loads((ROOT / "results/pose_pix" / f"{n}.json").read_text())
-xs0 = np.asarray(pp["x"], float); kap = float(pp["kappa"])
-_, rho = Sf.predict(xs0, Sf.sc.bands, Sf.sc.bands[:1])
+# яркость подставного объекта — как у НАСТОЯЩЕГО: из подгонки с подогнанными опорами полос (results/pose_pix_off);
+# без сдвигов опор модель почти не объясняет объект, и подставной выходил в ~20 раз слабее настоящего
+pp = json.loads((ROOT / "results/pose_pix_off" / f"{n}.json").read_text()); xo = np.asarray(pp["x"], float); kap = float(pp["kappa"])
+Do = DiffPose(rc, spec, C, band_off=25.0); _, rho = Do.predict(xo, Do.sc.bands, Do.sc.bands[:1])
+xs0 = xo[:Do.o0]
+print(f"   объект на снимке: невязка без объекта {pp['null']:.0f} → в позе {pp['L']:.0f} (сигнал {pp['null'] - pp['L']:.0f})", flush=True)
 rows = []
 for rate in [float(v) for v in a.rates.split(",")]:
     t_ = time.time()
     ax = rng.normal(size=3); ax /= np.linalg.norm(ax); w = ax * math.radians(rate)
     xt = np.r_[xs0, w]                                              # поза в t₀ — найденная по снимку
     orig = Wf.synth(xt, rho, math.sqrt(kap), rng)
+    log(f"   сигнал подставного: без объекта {Wf.null():.0f} → истина {float(Wf.L(xt)[0]):.0f} (разница {Wf.null() - float(Wf.L(xt)[0]):.0f})")
     for D in (Sf, Sc, Wc):
         transfer_r(Wf.sc, D.sc)
     CL = Wf.clusters(0.2); ct = [float(np.median([Wf.sc.t[b] for b in c])) for c in CL]

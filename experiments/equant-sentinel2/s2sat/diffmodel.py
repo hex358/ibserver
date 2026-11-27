@@ -82,7 +82,7 @@ class Band:
         if crop is not None:
             c0 = np.asarray(d["meas"][:2], float) if d.get("meas") else np.asarray(d["p0"], float)
             ok &= (np.abs(d["X"] - c0[0]) <= crop) & (np.abs(d["Y"] - c0[1]) <= crop)
-        self.idx = np.where(ok)[0]                                 # номера пикселей в исходном окне полосы
+        self.idx = np.flatnonzero(ok)                              # номера пикселей в исходном окне полосы (окно 2D — плоские номера)
         d = dict(d, X=d["X"][ok], Y=d["Y"][ok], r=d["r"][ok], g=d["g"][ok]); ok = np.ones(len(d["X"]), bool)
         self.X, self.Y = d["X"][ok], d["Y"][ok]
         self.r = torch.tensor(d["r"][ok], dtype=torch.float32); self.g = torch.tensor(d["g"][ok], dtype=torch.float32)
