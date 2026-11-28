@@ -310,7 +310,8 @@ def window_residuals(P, pos, half_m=600.0, mask_m=60.0, read_bands=None, mask_pt
         regs = [LG[c] for c in IM if c not in near]
         if len(regs) < 2:
             continue
-        blk = max(int(100 / res), 2); win = max(int(300 / res), 3 * blk)
+        # окно регрессии фона ≥ 9 пикселей по стороне: при 60 м прежнее 6×6 = 36 < min_n = 40 — фон полос 60 м не считался
+        blk = max(int(100 / res), 2); win = max(int(300 / res), 3 * blk, 9)
         Rl = bgsub.predict_band(LG[b], regs, fitmask, block=blk, win=win, out_mask=valid, min_n=40)
         pred = IM[b] * np.exp(-np.nan_to_num(Rl))
         R = IM[b] - pred
