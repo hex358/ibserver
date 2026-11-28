@@ -76,14 +76,14 @@ for path in a.paths:
     dev = {key_name(k, prim): math.hypot(meas[k][0] - S[k][0], meas[k][1] - S[k][1]) for k in meas if k in S}
     jd_mid = float(np.median([v[2] for v in S.values()]))
     Af, sun, los, rng = P.frame(jd_mid)
-    bands = {}
+    bands = {}; drop = {k: "нет окна (снимок не прочитан или фон не построен)" for k in S if k not in W}
     for k, d in W.items():
         if k not in S or k not in J:
-            continue
+            drop[k] = "нет якобиана"; continue
         p0 = np.array(S[k][:2])
         fit = np.hypot(d["X"] - p0[0], d["Y"] - p0[1]) <= 160.0
         if fit.sum() < 0.8 * math.pi * (160.0 / d["res"]) ** 2 or not np.isfinite(d["s"]) or np.isfinite(d["r"][fit]).mean() < 0.8:
-            continue
+            drop[k] = f"окно неполное (пикселей {int(fit.sum())}, конечных {np.isfinite(d['r'][fit]).mean():.0%})"; continue
         ii = np.where(fit.any(1))[0]; jj = np.where(fit.any(0))[0]
         sl = (slice(ii[0], ii[-1] + 1), slice(jj[0], jj[-1] + 1))
         bands[key_name(k, prim)] = dict(X=d["X"][sl], Y=d["Y"][sl], r=d["r"][sl], s=d["s"], g=d["g"][sl], res=d["res"], p0=p0,
@@ -98,4 +98,6 @@ for path in a.paths:
     print(f"{name}: θ {np.round(th, 3)} км; снимков {len(bands)} (было бы {len({k[0] for k in S})} полос), из них соседним "
           f"детектором {sum('#' in k for k in bands)}; разброс моментов {tj[-1]:.2f} с; пятно найдено в {len(meas)}; "
           f"медиана отклонения {rec['fit_rms']:.0f} м; {time.time() - t0:.0f} с", flush=True)
+    for k, why in sorted(drop.items()):
+        print(f"   выброшен снимок {k[0]}#{k[1]} (t = {(S[k][2] - min(v[2] for v in S.values())) * 86400:.2f} с): {why}", flush=True)
     print("   моменты, с:", ", ".join(f"{k} {(d['jd'] - min(dd['jd'] for dd in bands.values())) * 86400:.2f}" for k, d in sorted(bands.items(), key=lambda q: q[1]["jd"])), flush=True)
