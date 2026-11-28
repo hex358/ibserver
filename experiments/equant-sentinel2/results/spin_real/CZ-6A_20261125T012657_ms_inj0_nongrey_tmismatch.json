@@ -1,0 +1,45 @@
+{
+ "all": {
+  "rate": 155.41568165760089,
+  "axis": [
+   0.6926475167274475,
+   0.7079076170921326,
+   -0.13822484016418457
+  ],
+  "axis_mirror": [
+   -0.6778872013092041,
+   -0.7002397775650024,
+   -0.2239040732383728
+  ],
+  "direction_resolved": false,
+  "dL": -3.259765625,
+  "thr": 27.375654355678044,
+  "mirror_dL": 0.1044921875,
+  "p_direction": 0.5130585531279747
+ },
+ "cv": {
+  "per_cluster": {},
+  "rate_per_fold": {},
+  "total": 0,
+  "threshold": 2.0,
+  "n_better": 0,
+  "n_informative": 0,
+  "confirmed": false,
+  "n_clusters": 4
+ },
+ "inject": {
+  "rate": 0.0,
+  "axis": [
+   0.003033931306655539,
+   0.736797110260639,
+   -0.676107102146101
+  ],
+  "axis_err_deg": NaN,
+  "axis_err_mod_mirror_deg": NaN
+ },
+ "name": "CZ-6A_20261125T012657_ms",
+ "spinning": false,
+ "verdict": "НЕ вращается (вращение не улучшает снимок)",
+ "identifiable": true,
+ "seconds": 602.4936168193817
+}
