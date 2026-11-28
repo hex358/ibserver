@@ -26,7 +26,10 @@ def ground_utm(rS, p, epsg):
 
 def event_of(name):
     """Событие обнаружения (event, result) по имени реконструкции."""
-    f = sorted(glob.glob(str(ROOT / f"results/found*/{name}.json"))) + sorted(glob.glob(str(ROOT / f"results/events_*/{name}.json")))
+    base = name[:-3] if name.endswith("_ms") else name          # «_ms» — тот же пролёт, все снимки (prep_sightings.py)
+    f = sorted(glob.glob(str(ROOT / f"results/found*/{base}.json"))) + sorted(glob.glob(str(ROOT / f"results/events_*/{base}.json")))
+    if not f:
+        raise FileNotFoundError(f"нет события обнаружения для {name}")
     x = json.loads(Path(f[0]).read_text())
     return x["event"], x["result"]
 

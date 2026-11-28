@@ -91,7 +91,8 @@ for path in a.paths:
     if not bands:
         print(name, "нет окон", flush=True); continue
     rec = dict(name=name, obj=e["obj"], cat=e["cat"], theta=th.tolist(), fit_rms=float(np.median(list(dev.values()))) if dev else float("nan"),
-               dev=dev, sun=sun.tolist(), los=los.tolist(), rng=rng, score=r.get("score"), bands=bands, sightings=True)
+               dev=dev, sun=sun.tolist(), los=los.tolist(), rng=rng, score=r.get("score"), bands=bands, sightings=True,
+               row=[math.sin(math.radians(r["psi_deg"])), math.cos(math.radians(r["psi_deg"]))])
     (OUT / f"{name}.pkl").write_bytes(pickle.dumps(rec))
     tj = sorted((d["jd"] - min(dd["jd"] for dd in bands.values())) * 86400 for d in bands.values())
     print(f"{name}: θ {np.round(th, 3)} км; снимков {len(bands)} (было бы {len({k[0] for k in S})} полос), из них соседним "
