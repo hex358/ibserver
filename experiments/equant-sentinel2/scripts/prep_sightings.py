@@ -87,7 +87,7 @@ for path in a.paths:
         ii = np.where(fit.any(1))[0]; jj = np.where(fit.any(0))[0]
         sl = (slice(ii[0], ii[-1] + 1), slice(jj[0], jj[-1] + 1))
         bands[key_name(k, prim)] = dict(X=d["X"][sl], Y=d["Y"][sl], r=d["r"][sl], s=d["s"], g=d["g"][sl], res=d["res"], p0=p0,
-                                        J=J[k], jd=S[k][2], meas=meas.get(k), band=k[0], det=k[1])
+                                        J=J[k], jd=S[k][2], peak=meas.get(k), band=k[0], det=k[1])   # пик — справка, не опора: опора — геометрия
     if not bands:
         print(name, "нет окон", flush=True); continue
     rec = dict(name=name, obj=e["obj"], cat=e["cat"], theta=th.tolist(), fit_rms=float(np.median(list(dev.values()))) if dev else float("nan"),
