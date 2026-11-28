@@ -1,0 +1,66 @@
+{
+ "all": {
+  "rate": 235.56057496339693,
+  "axis": [
+   0.8306522369384766,
+   0.039667192846536636,
+   -0.5553768277168274
+  ],
+  "axis_mirror": [
+   -0.782650887966156,
+   -0.014731038361787796,
+   -0.6222864985466003
+  ],
+  "direction_resolved": false,
+  "dL": 29.3291015625,
+  "thr": 27.375654355678044,
+  "mirror_dL": 4.2060546875,
+  "p_direction": 0.8911970725686621
+ },
+ "light": {
+  "axis": [
+   -0.6830759644508362,
+   -0.2332494854927063,
+   -0.6920996904373169
+  ],
+  "rate": 252.6382062282065,
+  "dL": -1.29296875,
+  "resolved": false
+ },
+ "cv": {
+  "per_cluster": {
+   "swir22#6+nir08#6+rededge3#6+rededge2#6+swir16#6+rededge1#6+red#6": -9.840576171875,
+   "green#6": -0.2396240234375,
+   "blue+nir+green+red": -66.49365234375,
+   "rededge1+swir16+rededge2+rededge3+nir08+swir22": 0.81396484375
+  },
+  "rate_per_fold": {
+   "swir22#6+nir08#6+rededge3#6+rededge2#6+swir16#6+rededge1#6+red#6": 111.41703736410446,
+   "green#6": 67.8468303466754,
+   "blue+nir+green+red": 222.55564889688253,
+   "rededge1+swir16+rededge2+rededge3+nir08+swir22": 188.52391716859216
+  },
+  "total": -75.7598876953125,
+  "threshold": 8.0,
+  "n_better": 0,
+  "n_informative": 2,
+  "confirmed": false,
+  "n_clusters": 4
+ },
+ "inject": {
+  "rate": 60.0,
+  "axis": [
+   -0.8901472543320403,
+   0.15453191338049974,
+   0.4286697485851919
+  ],
+  "axis_err_deg": 166.25099707028545,
+  "axis_err_mod_mirror_deg": 64.68194559144574,
+  "axis_err_light_deg": 74.01942133811659
+ },
+ "name": "CZ-6A_20261125T012657_ms",
+ "spinning": false,
+ "verdict": "НЕ вращается: «вращение» подстраивается под полосы и не предсказывает отложенные моменты",
+ "identifiable": true,
+ "seconds": 2009.800965309143
+}
