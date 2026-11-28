@@ -78,11 +78,18 @@ if a.inject is not None:      # подстановка: объект в позе
                     sp = torch.relu((nv * sc.half_t).sum(-1)) ** 15
                     lit = bd.occupancy(P, A * ci, sc.grp); spo = bd.occupancy(P, A * sp * (sc.grp == 0), sc.grp).sum(1, keepdim=True)
                     return occ[0].numpy(), torch.cat([lit, spo], 1)[0].numpy()
+        from scipy.optimize import nnls
+        grp_ = {}
         for b in Wt.sc.bands:
-            bd = Wt.sc.B[b]; occ, cols = colf(xt, b); A_ = cols.T * bd.gm / bd.s; y_ = (bd.r.numpy() + bd.g.numpy() * occ.sum(0)) / bd.s
-            from scipy.optimize import nnls
-            rb = nnls(A_, y_)[0]; m_ = cols.T @ rb * bd.gm - bd.g.numpy() * occ.sum(0)
-            bd.r = torch.tensor(m_ + math.sqrt(kap) * bd.s * rng.standard_normal(len(m_)), dtype=torch.float32)
+            grp_.setdefault(b.split("#")[0], []).append(b)
+        for bb in grp_.values():           # яркости — общие для снимков одной полосы (как в модели), НК по настоящему снимку
+            OC = {b: colf(xt, b) for b in bb}
+            A_ = np.vstack([OC[b][1].T / Wt.sc.B[b].s for b in bb])
+            y_ = np.concatenate([(Wt.sc.B[b].r.numpy() + Wt.sc.B[b].g.numpy() * OC[b][0].sum(0)) / Wt.sc.B[b].s for b in bb])
+            rb = nnls(A_, y_)[0]
+            for b in bb:
+                bd = Wt.sc.B[b]; occ, cols = OC[b]; m_ = cols.T @ rb - bd.g.numpy() * occ.sum(0)
+                bd.r = torch.tensor(m_ + math.sqrt(kap) * bd.s * rng.standard_normal(len(m_)), dtype=torch.float32)
         if Wt is not Wf:
             transfer_r(Wt.sc, Wf.sc)
         print(f"   подстановка нарисована: {dict(flat='без освещения', shade='моделью освещения', mismatch='другой моделью отражения')[tr]}", flush=True)

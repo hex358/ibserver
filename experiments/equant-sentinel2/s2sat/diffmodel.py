@@ -218,6 +218,7 @@ class Scene:
         bands = bands or self.bands
         rows, ys = [], []
         L = 0.0
+        tied = {}                    # не серое: яркости материалов ОБЩИЕ для снимков одной полосы («green», «green#6»)
         for b in bands:
             bd = self.B[b]
             res = occfun(b, shade) if occfun is not None else self.band_occ(b, Rfun(b), dpos, shade=shade)
@@ -231,9 +232,15 @@ class Scene:
             if grey:
                 rows.append(A); ys.append(y)
             else:
-                L = L + self._robust(A, y)
+                tied.setdefault(b.split("#")[0], []).append((A, y))
         if grey:
             L = self._robust(torch.cat(rows, 1), torch.cat(ys, 1))
+        else:
+            # одна полоса, снятая в разные моменты (соседние детекторы): тот же объект, то же Солнце — яркость
+            # материала та же (в DN на единицу видимой площади), разница снимков — только поворот (кривая блеска).
+            # Свободные яркости на каждый снимок эту разницу съедали
+            for grp in tied.values():
+                L = L + self._robust(torch.cat([q[0] for q in grp], 1), torch.cat([q[1] for q in grp], 1))
         return L / kappa
 
     @staticmethod
