@@ -153,12 +153,22 @@ def fit_pose(rc, bands, init, los):
 def prepare(rc):
     from shape_fit import row_dir
     row = np.array(row_dir(rc))
-    P = np.array([d["p0"] for d in rc["bands"].values()]); T = np.array([d["jd"] for d in rc["bands"].values()]) * 86400
-    A = np.c_[T - T.mean(), np.ones_like(T)]
-    vapp = np.array([np.linalg.lstsq(A, P[:, 0], rcond=None)[0][0], np.linalg.lstsq(A, P[:, 1], rcond=None)[0][0]])
+    # кажущаяся скорость объекта на снимке — по снимкам ОДНОГО детектора (у соседнего детектора другой угол обзора,
+    # положение отличается параллаксом, а не движением); детектор с одним снимком — скорость самого большого
+    grp = {}
     for d in rc["bands"].values():
-        d["row"] = row; d["vapp"] = vapp; d["_k"] = kernel(d, d["res"])
-        d["s"] = float(d["s"])
+        grp.setdefault(d.get("det"), []).append(d)
+
+    def fit_v(ds):
+        P = np.array([d["p0"] for d in ds]); T = np.array([d["jd"] for d in ds]) * 86400
+        A = np.c_[T - T.mean(), np.ones_like(T)]
+        return np.array([np.linalg.lstsq(A, P[:, 0], rcond=None)[0][0], np.linalg.lstsq(A, P[:, 1], rcond=None)[0][0]])
+    vmain = fit_v(max(grp.values(), key=len))
+    for det, ds in grp.items():
+        vapp = fit_v(ds) if len(ds) >= 2 else vmain
+        for d in ds:
+            d["row"] = row; d["vapp"] = vapp; d["_k"] = kernel(d, d["res"])
+            d["s"] = float(d["s"])
 
 
 def init_from_log(name):

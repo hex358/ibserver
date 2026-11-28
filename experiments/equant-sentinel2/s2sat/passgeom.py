@@ -108,6 +108,29 @@ class Pass:
             out[b] = (lst[k][2], lst[k][3], jd[b][k])
         return out
 
+    def sightings(self, theta):
+        """ВСЕ снимки объекта в пролёте: {(полоса, детектор): (x, y, jd)}. Объект в зоне перекрытия соседних
+        детекторов (чётные и нечётные смотрят под разными углами вдоль трека) снят каждой полосой дважды, в разные
+        моменты — это лишние моменты съёмки (CZ-6A 25.11: 19 снимков за 1,06 с вместо 10 за 0,35 с)."""
+        R, jd = self.roots(theta); out = {}
+        for b, lst in R.items():
+            for q, tj in zip(lst, jd[b]):
+                k = (b, int(q[0]))
+                if k not in out:
+                    out[k] = (float(q[2]), float(q[3]), float(tj))
+        return out
+
+    def jacobian_sightings(self, theta, dlt=0.05):
+        """Якобиан положения каждого снимка по θ (км): {(полоса, детектор): 2×3}."""
+        S0 = self.sightings(theta); J = {}
+        for d in range(3):
+            th = np.array(theta, float); th[d] += dlt; S = self.sightings(th)
+            for k in S0:
+                if k in S:
+                    J.setdefault(k, {})[d] = (np.array(S[k][:2]) - np.array(S0[k][:2])) / dlt
+        J = {k: np.stack([v[d] for d in range(3)], 1) for k, v in J.items() if len(v) == 3}
+        return S0, J
+
     def fit_theta(self, target, x0=None):
         """θ, при котором положения полос ближе всего к target (м)."""
         from scipy.optimize import least_squares
@@ -245,7 +268,7 @@ def gauss_newton_theta(P, target, theta0, iters=4):
     return th, P0, J, rms
 
 
-def window_residuals(P, pos, half_m=600.0, mask_m=60.0):
+def window_residuals(P, pos, half_m=600.0, mask_m=60.0, read_bands=None, mask_pts=None):
     """Сырые остатки (не согласованный фильтр) в окне вокруг положения объекта в каждой полосе.
     Фон — loglocal (THEORY §13) по полосам, далёким по времени съёмки; пиксели вокруг положений объекта во ВСЕХ
     полосах исключены из подгонки фона, чтобы объект не «съедался» регрессией. Разрешение — родное у полосы."""
@@ -254,7 +277,11 @@ def window_residuals(P, pos, half_m=600.0, mask_m=60.0):
     its = I.items_around(e["lon"], e["lat"], dt_from_jd(e["jd"]), e["sent"][-1], d=1.0)
     main = [it for it in its if it.id == r.get("item")] or its
     out = {}
-    for b, (px, py) in pos.items():
+    bname = lambda k: k[0] if isinstance(k, tuple) else k
+    rb = list(dict.fromkeys(list(read_bands or []) + [bname(k) for k in pos]))        # полосы для чтения (фон)
+    mpts = list(mask_pts) if mask_pts is not None else [(bname(k), v[0], v[1]) for k, v in pos.items()]
+    for key, (px, py) in pos.items():
+        b = bname(key)
         res = float(M.BRES.get(b, 20))
         if res > 60:
             continue
@@ -263,22 +290,22 @@ def window_residuals(P, pos, half_m=600.0, mask_m=60.0):
         IM = None
         for it in main[:3]:
             try:
-                IM = {c: I.read_window(it.assets[c].href, P.epsg, bb, res=res) for c in pos}
+                IM = {c: I.read_window(it.assets[c].href, P.epsg, bb, res=res) for c in rb if c in it.assets}
             except Exception:
                 IM = None
                 continue
-            if (IM[b] > 0).mean() > 0.9:
+            if b in IM and (IM[b] > 0).mean() > 0.9:
                 break
-        if IM is None:
+        if IM is None or b not in IM:
             continue
         H_, W_ = IM[b].shape
         X = bb[0] + (np.arange(W_) + 0.5) * res; Y = bb[3] - (np.arange(H_) + 0.5) * res
         XX, YY = np.meshgrid(X, Y)
         valid = np.all(np.stack([IM[c] > 0 for c in IM]), 0)
         fitmask = valid.copy()
-        for c, (qx, qy) in pos.items():
+        for c, qx, qy in mpts:
             fitmask &= np.hypot(XX - qx, YY - qy) > mask_m
-        near = {c for c, (qx, qy) in pos.items() if math.hypot(qx - px, qy - py) < 300.0}
+        near = {c for c, qx, qy in mpts if math.hypot(qx - px, qy - py) < 300.0}
         LG = {c: np.log(np.maximum(IM[c], 1.0)).astype(np.float32) for c in IM}
         regs = [LG[c] for c in IM if c not in near]
         if len(regs) < 2:
@@ -290,5 +317,5 @@ def window_residuals(P, pos, half_m=600.0, mask_m=60.0):
         R[~valid | ~np.isfinite(Rl)] = np.nan
         far = np.isfinite(R) & (np.hypot(XX - px, YY - py) > 200.0)
         med = float(np.median(R[far])); sig = float(1.4826 * np.median(np.abs(R[far] - med)))
-        out[b] = dict(X=XX, Y=YY, r=R - med, s=sig, g=pred - 1000.0, res=res, jd=None)
+        out[key] = dict(X=XX, Y=YY, r=R - med, s=sig, g=pred - 1000.0, res=res, jd=None)
     return out
