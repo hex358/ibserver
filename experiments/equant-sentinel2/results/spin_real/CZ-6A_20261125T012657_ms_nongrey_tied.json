@@ -1,0 +1,55 @@
+{
+ "all": {
+  "rate": 168.59943573696458,
+  "axis": [
+   0.09390422701835632,
+   -0.9359375238418579,
+   0.33941566944122314
+  ],
+  "axis_mirror": [
+   -0.1228158101439476,
+   0.9209182858467102,
+   0.3698996901512146
+  ],
+  "direction_resolved": true,
+  "dL": 161.9892578125,
+  "thr": 28.42050989661053,
+  "mirror_dL": 18.0849609375,
+  "p_direction": 0.9998351057797361
+ },
+ "light": {
+  "axis": [
+   -0.43868565559387207,
+   0.8883458375930786,
+   0.13563412427902222
+  ],
+  "rate": 222.73393049459818,
+  "dL": -27.203125,
+  "resolved": true
+ },
+ "cv": {
+  "per_cluster": {
+   "swir22#6+nir08#6+rededge3#6+rededge2#6+swir16#6+rededge1#6+red#6": -89.18798828125,
+   "green#6": -0.0313720703125,
+   "blue+nir+green+red": 64.2958984375,
+   "rededge1+swir16+rededge2+rededge3+nir08+swir22": -50.965576171875
+  },
+  "rate_per_fold": {
+   "swir22#6+nir08#6+rededge3#6+rededge2#6+swir16#6+rededge1#6+red#6": 70.47089340314592,
+   "green#6": 50.45980175774799,
+   "blue+nir+green+red": 40.61039918211738,
+   "rededge1+swir16+rededge2+rededge3+nir08+swir22": 170.3881939786992
+  },
+  "total": -75.8890380859375,
+  "threshold": 8.305338612873236,
+  "n_better": 1,
+  "n_informative": 3,
+  "confirmed": false,
+  "n_clusters": 4
+ },
+ "name": "CZ-6A_20261125T012657_ms",
+ "spinning": false,
+ "verdict": "НЕ вращается: «вращение» подстраивается под полосы и не предсказывает отложенные моменты",
+ "identifiable": true,
+ "seconds": 1399.5501687526703
+}
