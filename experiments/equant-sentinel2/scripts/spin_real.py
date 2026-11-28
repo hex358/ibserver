@@ -26,6 +26,9 @@ ap.add_argument("--inject", type=float, default=None, help="проверка п�
 ap.add_argument("--truth", choices=["auto", "flat", "shade", "mismatch"], default="auto",
                 help="чем рисовать подстановку: flat — без освещения, shade — моделью освещения решателя, mismatch — другой моделью "
                      "отражения; auto — как решатель (shade при --shade, mismatch при --mismatch)")
+ap.add_argument("--inject-axis", choices=["random", "major"], default="random",
+                help="ось подстановки: random — случайная (сид 7); major — главная ось наибольшего момента инерции модели "
+                     "(плоское вращение «через голову» — состояние мусора после затухания)")
 ap.add_argument("--mismatch", action="store_true", help="подстановка рисуется ДРУГОЙ моделью отражения (не Ламберт cos^0.7, "
                 "разброс отражения по граням ±30 %%, блик шире), решатель — своей (проверка устойчивости направления)")
 a = ap.parse_args(); torch.set_num_threads(a.threads); n = a.name; t0_ = time.time()
@@ -45,6 +48,11 @@ if a.inject is not None:      # подстановка: объект в позе
     xo = np.asarray(pp["x"], float); xs0 = xo[:Do.o0]; xo_nb = np.r_[xs0, np.zeros(Do.P - Do.o0)]
     _, rho = Do.predict(xo_nb, Do.sc.bands, Do.sc.bands[:1]) if Do.grey else (None, None)
     rng = np.random.default_rng(7); ax_t = rng.normal(size=3); ax_t /= np.linalg.norm(ax_t)
+    if a.inject_axis == "major":
+        from s2sat import debris as DB, autopose as AP_
+        _, _, ev_, axm_ = DB.shell_mass_props(np.asarray(spec["V"], float), np.asarray(spec["F"]), 1.0)
+        Rb_ = AP_.rotvec(xs0[:3]) @ Do.Rbase.numpy() @ np.asarray(spec["M2B"], float)
+        ax_t = Rb_ @ axm_[:, int(np.argmax(ev_))]; ax_t /= np.linalg.norm(ax_t)
     xt = np.r_[xs0, ax_t * math.radians(a.inject)]
     if Wf.grey:
         Wf.synth(xt, rho, math.sqrt(kap), rng)
@@ -168,4 +176,4 @@ if truth:
         print(f"   ось, выбранная светом (со знаком): {al:.0f}° от истины", flush=True)
 out.update(name=n, spinning=spinning, verdict=verdict, identifiable=identifiable, seconds=time.time() - t0_)
 (ROOT / "results/spin_real").mkdir(exist_ok=True)
-(ROOT / "results/spin_real" / f"{n}{'_inj%d' % a.inject if a.inject is not None else ''}{'_nongrey' if a.nongrey else ''}{'_shade' if a.shade else ''}{'_mm' if a.mismatch else ''}{'_t' + a.truth if a.truth != 'auto' else ''}{os.environ.get('SPIN_TAG', '')}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
+(ROOT / "results/spin_real" / f"{n}{'_inj%d' % a.inject if a.inject is not None else ''}{'_nongrey' if a.nongrey else ''}{'_shade' if a.shade else ''}{'_mm' if a.mismatch else ''}{'_t' + a.truth if a.truth != 'auto' else ''}{'_major' if a.inject_axis == 'major' else ''}{os.environ.get('SPIN_TAG', '')}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
